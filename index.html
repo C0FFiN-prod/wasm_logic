@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Логический симулятор</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <header>
+        <h1>Логический симулятор</h1>
+        <div id="toolbar">
+            <button id="tool-move" class="tool-button active">Перемещение</button>
+            <button id="tool-connect" class="tool-button">Соединение</button>
+            <button id="add-and">AND</button>
+            <button id="add-or">OR</button>
+            <button id="add-xor">XOR</button>
+            <button id="add-nand">NAND</button>
+            <button id="add-nor">NOR</button>
+            <button id="add-xnor">XNOR</button>
+            <button id="add-t-flop">T-Flop</button>
+            <button id="add-timer">Timer</button>
+            <button id="add-button">Кнопка</button>
+            <button id="add-switch">Выключатель</button>
+            <button id="add-output">Выход</button>
+            <button id="start-sim">Старт</button>
+            <button id="step-sim">Шаг</button>
+            <button id="stop-sim">Стоп</button>
+            <button id="save-scheme">Сохранить</button>
+            <button id="load-scheme">Загрузить</button>
+            <button id="clear-canvas">Очистить</button>
+
+        </div>
+    </header>
+    <canvas id="circuit-canvas"></canvas>
+
+    <input type="file" id="file-input" style="display:none" />
+    <script src="icons.js"></script>
+    <script src="logic.js"></script>
+    <script src="drawing.js"></script>
+    <script src="main.js"></script>
+</body>
+
+</html>
