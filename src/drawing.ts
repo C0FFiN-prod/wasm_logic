@@ -1,3 +1,14 @@
+import { pathMap } from "./icons";
+import { LogicElement, isInputElement, isOutputElement } from "./logic";
+import {
+    camera, ctx, canvas, gridSize,
+    worldToTranslatedScreen, worldToScreen,
+    isSelecting, selectionEnd, selectionStart,
+    selectedElements, selectedSources, selectedTargets,
+    selectedTool, circuit,
+    Point
+} from "./main";
+
 function drawGrid() {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1 / camera.zoom;
@@ -25,7 +36,7 @@ function drawGrid() {
     }
 }
 
-function draw() {
+export function draw() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -106,7 +117,7 @@ function draw() {
 
 }
 
-function drawBorder(el, color) {
+function drawBorder(el: LogicElement, color: string | CanvasGradient | CanvasPattern) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.strokeRect(
@@ -119,7 +130,7 @@ function drawBorder(el, color) {
 
 
 
-function drawElement(el) {
+function drawElement(el: LogicElement) {
     // Округляем экранные координаты для четкой отрисовки 
     // if ((0 < start_x && start_x < canvas.width) ||
     //     (0 < end_x && end_x < canvas.width) ||
@@ -150,11 +161,12 @@ function drawElement(el) {
         ctx.fill();
         ctx.stroke();
     }
-
-    drawSvgSymbol(ctx, pathMap[el.type.toLowerCase()], 5, 5, 10 / 22, (el.value ? '#59f' : '#eee'), 1);
+    let path = pathMap.get(el.type.toLowerCase());
+    if (path)
+        drawSvgSymbol(path, 5, 5, 10 / 22, (el.value ? '#59f' : '#eee'), 1);
     if (selectedTool === 'connect') {
         // Вход
-        if (el.type !== 'BUTTON' && el.type !== 'SWITCH') {
+        if (!isInputElement(el)) {
             ctx.beginPath();
             ctx.arc(0, gridSize * .5, 2, 0, 2 * Math.PI);
             ctx.fillStyle = el.value ? '#0a0' : '#aaa';
@@ -163,7 +175,7 @@ function drawElement(el) {
         }
 
         // Выход
-        else if (el.type !== 'OUTPUT') {
+        else if (!isOutputElement(el)) {
             ctx.beginPath();
             ctx.arc(gridSize, gridSize * .5, 2, 0, 2 * Math.PI);
             ctx.fillStyle = el.value ? '#0a0' : '#aaa';
@@ -181,7 +193,7 @@ function drawElement(el) {
 
 }
 
-function drawSvgSymbol(ctx, path, centerX, centerY, size, strokeColor = 'black', strokeWidth = 1, fillColor = null) {
+function drawSvgSymbol(path: Path2D, centerX: number, centerY: number, size: number, strokeColor = 'black', strokeWidth = 1, fillColor = null) {
     ctx.save();
 
     ctx.translate(centerX, centerY);
@@ -200,7 +212,7 @@ function drawSvgSymbol(ctx, path, centerX, centerY, size, strokeColor = 'black',
 }
 
 
-function drawPoint(point, color) {
+function drawPoint(point: Point, color: string) {
     ctx.beginPath();
     ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
     ctx.fillStyle = color;
@@ -209,17 +221,16 @@ function drawPoint(point, color) {
     ctx.stroke();
 }
 
-function drawCell(point, color) {
-    const h = gridSize * origin.scale;
+function drawCell(point: Point, color: string) {
     ctx.beginPath();
-    ctx.rect(point.x, point.y, h, h);
+    ctx.rect(point.x, point.y, gridSize, gridSize);
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     ctx.fill();
     ctx.stroke();
 }
 
-function writeTextAt(x, y, fontSize, ...data) {
+function writeTextAt(x: number, y: number, fontSize: number, ...data: any[]) {
     ctx.save();
     ctx.fillStyle = "#fff";
     ctx.font = `${fontSize}px sans-serif`;

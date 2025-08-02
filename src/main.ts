@@ -1,35 +1,41 @@
 // main.js
-var LogicGate = window.LogicGates.LogicGate;
-var TFlop = window.LogicGates.TFlop;
-var Timer = window.LogicGates.Timer;
-var Button = window.LogicGates.Button;
-var Switch = window.LogicGates.Switch;
-var OutputElement = window.LogicGates.OutputElement;
-var Circuit = window.LogicGates.Circuit;
-const camera = { x: 0, y: 0, zoom: 1 };
-const canvas = document.getElementById('circuit-canvas');
-const ctx = canvas.getContext('2d');
-const circuit = new Circuit();
-const gridSize = 20;
-let selectedTool = 'move'; // 'move' или 'connect'
+import { draw } from './drawing';
+import * as LogicGates from './logic';
+export type Point = { x: number, y: number };
+
+export const gridSize = 20;
+export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
+export const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+export const camera = { x: 0, y: 0, zoom: 1 };
+export const circuit = new LogicGates.Circuit();
+export let selectedTool = 'move'; // 'move' или 'connect'
 let isSimulating = false;
-let simInterval = null;
-let prevMouseWorld = { x: 0, y: 0 };
-let prevMousePos = { x: 0, y: 0 };
-let selectedSources = [];
-let selectedTargets = [];
+let simInterval: NodeJS.Timeout;
+let prevMouseWorld: Point = { x: 0, y: 0 };
+let prevMousePos: Point = { x: 0, y: 0 };
+export let selectedSources = new Array<LogicGates.LogicElement>();
+export let selectedTargets = new Array<LogicGates.LogicElement>();
 let mouseX = 0;
 let mouseY = 0;
 let isHandMoving = false;
-let isSelecting = false;
+export let isSelecting = false;
 let isDragging = false;
-let selectionStart = { x: 0, y: 0 };
-let selectionEnd = { x: 0, y: 0 };
-let selectedElements = new Set();
+export let selectionStart: Point = { x: 0, y: 0 };
+export let selectionEnd: Point = { x: 0, y: 0 };
+export let selectedElements = new Set<LogicGates.LogicElement>();
 
 // === Вспомогательные ===
 
-function screenToWorld(sx, sy) {
+function setupEvent(id: string, event: string, handler: (e: Event) => void) {
+    const element = document.getElementById(id);
+    if (element) {
+        (element as any)[event] = handler;
+    } else {
+        console.warn(`Element with id "${id}" not found`);
+    }
+}
+
+function screenToWorld(sx: number, sy: number) {
     const h = camera.zoom * gridSize;
     return {
         x: (camera.x * camera.zoom + sx) / h,
@@ -37,29 +43,30 @@ function screenToWorld(sx, sy) {
     };
 }
 
-function worldToTranslatedScreen(wx, wy) {
+export function worldToTranslatedScreen(wx: number, wy: number): Point {
     return {
         x: wx * gridSize,
         y: wy * gridSize
     };
 }
 
-function worldToScreen(wx, wy) {
+export function worldToScreen(wx: number, wy: number): Point {
     const h = camera.zoom * gridSize;
     return {
         x: wx * h - camera.x * camera.zoom,
         y: wy * h - camera.y * camera.zoom
     };
 }
+
 window.onload = (() => {
     canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight - document.querySelector('header').offsetHeight;
+    canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
     draw();
 });
 
 window.addEventListener('resize', () => {
     canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight - document.querySelector('header').offsetHeight;
+    canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
     draw();
 });
 // Оптимизация симуляции
@@ -69,20 +76,13 @@ function optimizedStep() {
 }
 
 
-function addElement(type, x, y) {
+function addElement(type: string, x: number | null, y: number | null) {
     let el;
     // Переводим координаты центра экрана в мировые координаты через screenToWorld
     const center = screenToWorld(canvas.width / 2, canvas.height / 2);
     const worldX = x || Math.round(center.x + Math.random() * 10 - 5);
     const worldY = y || Math.round(center.y + Math.random() * 10 - 5);
-    const gateType = {
-        'AND': 0,
-        'OR': 1,
-        'XOR': 2,
-        'NAND': 3,
-        'NOR': 4,
-        'XNOR': 5,
-    };
+
     switch (type) {
         case 'AND':
         case 'OR':
@@ -90,23 +90,25 @@ function addElement(type, x, y) {
         case 'NAND':
         case 'NOR':
         case 'XNOR':
-            el = new LogicGate(gateType[type], worldX, worldY);
+            el = new LogicGates.LogicGate(type, worldX, worldY);
             break;
-        case 'T-FLOP':
-            el = new TFlop(worldX, worldY);
+        case 'T_FLOP':
+            el = new LogicGates.TFlop(worldX, worldY);
             break;
         case 'TIMER':
-            el = new Timer(worldX, worldY);
+            el = new LogicGates.Timer(worldX, worldY);
             break;
         case 'BUTTON':
-            el = new Button(worldX, worldY);
+            el = new LogicGates.Button(worldX, worldY);
             break;
         case 'SWITCH':
-            el = new Switch(worldX, worldY);
+            el = new LogicGates.Switch(worldX, worldY);
             break;
         case 'OUTPUT':
-            el = new OutputElement(worldX, worldY);
+            el = new LogicGates.OutputElement(worldX, worldY);
             break;
+        default:
+            return null;
     }
     return circuit.addElement(el);
 }
@@ -124,8 +126,8 @@ function getSelectionWorldRect() {
     };
 }
 
-function getElementsInRect(rect) {
-    const selected = new Set();
+function getElementsInRect(rect: { x: number; y: number; width: number; height: number; }) {
+    const selected = new Set<LogicGates.LogicElement>();
     for (const obj of circuit.elements) {
         const objX = obj.x;
         const objY = obj.y;
@@ -141,7 +143,7 @@ function getElementsInRect(rect) {
     return selected;
 }
 
-function getElementAt(screenX, screenY) {
+function getElementAt(screenX: number, screenY: number) {
     const { x: wx, y: wy } = screenToWorld(screenX, screenY);
     for (const obj of circuit.elements) {
         const ox = obj.x;
@@ -157,13 +159,7 @@ function getElementAt(screenX, screenY) {
 }
 
 
-function isOutputElement(el) {
-    return el && el.type !== 'OUTPUT';
-}
 
-function isInputElement(el) {
-    return el && el.type !== 'INPUT';
-}
 
 function clearCanvas() {
     if (confirm('Вы уверены, что хотите очистить холст?')) {
@@ -178,7 +174,6 @@ function clearSelection() {
     selectedSources = [];
     selectedTargets = [];
     selectedElements.clear();
-    dragElements = [];
 }
 
 function connectSelected() {
@@ -187,7 +182,7 @@ function connectSelected() {
     // Создаем новые связи
     for (const source of selectedSources) {
         for (const target of selectedTargets) {
-            if (source !== target && isOutputElement(source) && isInputElement(target)) {
+            if (source !== target && LogicGates.isOutputElement(source) && LogicGates.isInputElement(target)) {
                 circuit.addWire(source, target);
             }
         }
@@ -224,7 +219,7 @@ canvas.addEventListener('mousedown', e => {
             if (selectedTool === 'connect') {
                 if (e.button === 0) {
                     const index = selectedSources.indexOf(el);
-                    if (index === -1 && isOutputElement(el)) {
+                    if (index === -1 && LogicGates.isOutputElement(el)) {
                         selectedSources.push(el);
                     } else {
                         selectedSources.splice(index, 1);
@@ -232,7 +227,7 @@ canvas.addEventListener('mousedown', e => {
                 }
                 else if (e.button === 2) {
                     const index = selectedTargets.indexOf(el);
-                    if (index === -1 && isInputElement(el)) {
+                    if (index === -1 && LogicGates.isInputElement(el)) {
                         selectedTargets.push(el);
                     } else {
                         selectedTargets.splice(index, 1);
@@ -255,11 +250,11 @@ canvas.addEventListener('mousedown', e => {
                     isDragging = true;
                 }
                 else if (e.button === 2) {
-                    if (el.type == 'SWITCH') {
+                    if (el instanceof LogicGates.Switch) {
                         el.setValue(!el.value);
-                    } else if (el.type == 'BUTTON') {
+                    } else if (el instanceof LogicGates.Button) {
                         el.setValue(true);
-                    } else if (el.type === 'TIMER') {
+                    } else if (el instanceof LogicGates.Timer) {
                         let delay = prompt(`Set delay (now ${el.delay} ticks):`);
                         if (delay !== '')
                             el.setDelay(Number(delay));
@@ -392,14 +387,8 @@ document.addEventListener('keydown', e => {
             }
         }
 
-    
 
-});
 
-document.addEventListener('keyup', e => {
-    if (e.key === 'Shift') {
-        multipleSelectionMode = false;
-    }
 });
 
 // Обновление кнопок инструментов
@@ -407,55 +396,58 @@ function updateToolButtons() {
     document.querySelectorAll('#toolbar .tool-button').forEach(btn => {
         btn.classList.remove('active');
     });
-    document.getElementById(`tool-${selectedTool}`).classList.add('active');
+    document.getElementById(`tool-${selectedTool}`)?.classList.add('active');
 }
 
 // Toolbar buttons
-['add-and', 'add-or', 'add-xor', 'add-nand', 'add-nor', 'add-xnor', 'add-t-flop', 'add-timer', 'add-button', 'add-switch', 'add-output'].forEach(id => {
+['add-and', 'add-or', 'add-xor', 'add-nand', 'add-nor', 'add-xnor', 'add-t_flop', 'add-timer', 'add-button', 'add-switch', 'add-output'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.onclick = () => {
+            const type = id.replace('add-', '').toUpperCase();
+            addElement(type, null, null);
+            draw();
+        };
+    }
 
-    document.getElementById(id).onclick = () => {
-        const type = id.replace('add-', '').toUpperCase();
-        addElement(type);
-        draw();
-    };
 
 });
 
-document.getElementById('tool-move').onclick = () => {
+setupEvent('tool-move', 'onclick', (_) => {
     selectedTool = 'move';
     clearSelection();
     updateToolButtons();
     draw();
-};
+});
 
-document.getElementById('tool-connect').onclick = () => {
+setupEvent('tool-connect', 'onclick', (_) => {
     selectedTool = 'connect';
     clearSelection();
     updateToolButtons();
     draw();
-};
+});
 
-document.getElementById('clear-canvas').onclick = clearCanvas;
+setupEvent('clear-canvas', 'onclick', clearCanvas);
 
-document.getElementById('start-sim').onclick = () => {
+setupEvent('start-sim', 'onclick', (_) => {
     if (!isSimulating) {
         isSimulating = true;
         simInterval = setInterval(optimizedStep, 25);
     }
-};
+});
 
-document.getElementById('step-sim').onclick = () => {
+setupEvent('step-sim', 'onclick', (_) => {
     isSimulating = false;
     clearInterval(simInterval);
     optimizedStep();
-};
+});
 
-document.getElementById('stop-sim').onclick = () => {
+setupEvent('stop-sim', 'onclick', (_) => {
     isSimulating = false;
     clearInterval(simInterval);
-};
+});
 
-document.getElementById('save-scheme').onclick = () => {
+setupEvent('save-scheme', 'onclick', (_) => {
     const data = JSON.stringify(serializeCircuit());
     const blob = new Blob([data], {
         type: 'application/json'
@@ -466,24 +458,33 @@ document.getElementById('save-scheme').onclick = () => {
     a.download = 'circuit.json';
     a.click();
     URL.revokeObjectURL(url);
-};
+});
 
-document.getElementById('load-scheme').onclick = () => {
-    document.getElementById('file-input').click();
-};
+setupEvent('load-scheme', 'onclick', (_) => {
+    document.getElementById('file-input')?.click();
+});
 
-document.getElementById('file-input').onchange = e => {
-    const file = e.target.files[0];
-    if (!file)
-        return;
+setupEvent('file-input', 'onchange', (e: Event) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = evt => {
-        const data = JSON.parse(evt.target.result);
-        deserializeCircuit(data);
-        draw();
+    reader.onload = (evt) => {
+        const result = evt.target?.result;
+        if (typeof result !== 'string') {
+            console.error('Expected string result from FileReader');
+            return;
+        }
+
+        try {
+            const data = JSON.parse(result);
+            deserializeCircuit(data);
+            draw();
+        } catch (error) {
+            console.error('Error parsing JSON:', error);
+        }
     };
     reader.readAsText(file);
-};
+});
 
 canvas.addEventListener('contextmenu', e => {
     e.preventDefault();
@@ -497,28 +498,28 @@ function serializeCircuit() {
             type: el.type,
             x: el.x,
             y: el.y,
-            value: el.value,
-            state: el.state || false
         })),
-        wires: Array.from(circuit.wires.values().map(w => ({
+        wires: Array.from(circuit.wires.values()).map(w => ({
             from: w.from.id,
             to: w.to.id
-        })))
+        }))
     };
 }
 
-function deserializeCircuit(data) {
+function deserializeCircuit(data: { elements: any; wires: any; }) {
     circuit.elements = [];
     circuit.wires.clear();
-    const idMap = {};
+    const idMap = new Map<number, LogicGates.LogicElement>;
     for (const el of data.elements) {
         let obj = addElement(el.type, el.x, el.y);
-        obj.id = el.id;
-        idMap[el.id] = obj;
+        if (obj) {
+            obj.id = el.id;
+            idMap.set(el.id, obj);
+        }
     }
     for (const w of data.wires) {
-        const from = idMap[w.from];
-        const to = idMap[w.to];
+        const from = idMap.get(w.from);
+        const to = idMap.get(w.to);
         if (from && to) {
             circuit.addWire(from, to);
         }
