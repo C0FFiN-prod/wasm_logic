@@ -1,11 +1,10 @@
 // main.js
-import { draw } from './drawing';
+import { draw, initContext } from './drawingWGL';
 import * as LogicGates from './logic';
 export type Point = { x: number, y: number };
 
 export const gridSize = 20;
 export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
-export const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 export const camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
 export let selectedTool = 'move'; // 'move' или 'connect'
@@ -59,6 +58,7 @@ export function worldToScreen(wx: number, wy: number): Point {
 }
 
 window.onload = (() => {
+    initContext();
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
     draw();

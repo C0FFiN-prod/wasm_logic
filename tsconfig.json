@@ -10,9 +10,11 @@
         ]
     },
     "include": [
-        "*.ts"
-, "src/drawing.ts", "src/drawingWGL.ts", "src/icons.ts", "src/logic.ts", "src/main.ts"    ],
-    "exclude": [
-        "src/drawingWGL.ts"
-    ]
+        "*.ts",
+        "src/drawing.ts",
+        "src/drawingWGL.ts",
+        "src/icons.ts",
+        "src/logic.ts",
+        "src/main.ts"
+    ],
 }

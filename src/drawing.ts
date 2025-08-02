@@ -1,13 +1,19 @@
 import { pathMap } from "./icons";
 import { LogicElement, isInputElement, isOutputElement } from "./logic";
 import {
-    camera, ctx, canvas, gridSize,
+    camera, canvas, gridSize,
     worldToTranslatedScreen, worldToScreen,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
     selectedTool, circuit,
     Point
 } from "./main";
+
+let ctx: CanvasRenderingContext2D;
+
+export function initContext() {
+    ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
+}
 
 function drawGrid() {
     ctx.strokeStyle = '#000';
