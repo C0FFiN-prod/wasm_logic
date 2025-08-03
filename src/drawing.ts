@@ -6,7 +6,7 @@ import {
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
     selectedTool, circuit,
-    Point
+    type Point
 } from "./main";
 
 let ctx: CanvasRenderingContext2D;
