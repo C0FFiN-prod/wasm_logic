@@ -1,5 +1,5 @@
 // main.js
-import { draw, initContext } from './drawingWGL';
+import { draw, initContext } from './drawing';
 import * as LogicGates from './logic';
 export type Point = { x: number, y: number };
 
@@ -8,6 +8,7 @@ export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasEle
 export const camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
 export let selectedTool = 'move'; // 'move' или 'connect'
+export let elementUnderCursor: LogicGates.LogicElement;
 let isSimulating = false;
 let simInterval: NodeJS.Timeout;
 let prevMouseWorld: Point = { x: 0, y: 0 };
@@ -184,7 +185,7 @@ function connectSelected() {
   // Создаем новые связи
   for (const source of selectedSources) {
     for (const target of selectedTargets) {
-      if (source !== target && LogicGates.isOutputElement(source) && LogicGates.isInputElement(target)) {
+      if (source !== target && (!LogicGates.isOutputElement(source)) && (!LogicGates.isInputElement(target))) {
         circuit.addWire(source, target);
       }
     }
@@ -211,70 +212,82 @@ function disconnectSelected() {
 canvas.addEventListener('mousedown', e => {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
-  if (e.button === 1) {
-    prevMousePos.x = mouseX;
-    prevMousePos.y = mouseY;
-    isHandMoving = true;
-  } else {
-    const el = getElementAt(mouseX, mouseY);
-    if (el) {
-      if (selectedTool === 'connect') {
-        if (e.button === 0) {
+
+  const el = getElementAt(mouseX, mouseY);
+  if (el) {
+    if (selectedTool === 'connect') {
+      if (e.button === 0) {
+        if (!LogicGates.isOutputElement(el)) {
           const index = selectedSources.indexOf(el);
-          if (index === -1 && LogicGates.isOutputElement(el)) {
+          if (index === -1) {
             selectedSources.push(el);
           } else {
             selectedSources.splice(index, 1);
           }
         }
-        else if (e.button === 2) {
+      } else if (e.button === 1) {
+        elementUnderCursor = el;
+      }
+      else if (e.button === 2) {
+        if (!LogicGates.isInputElement(el)) {
           const index = selectedTargets.indexOf(el);
-          if (index === -1 && LogicGates.isInputElement(el)) {
+          if (index === -1) {
             selectedTargets.push(el);
           } else {
             selectedTargets.splice(index, 1);
           }
         }
       }
-      else {
-        if (e.button === 0) {
-          if (!selectedElements.has(el)) {
-            if (!e.shiftKey) {
-              clearSelection();
-            }
-            selectedElements.add(el);
-          } else if (e.shiftKey) {
-            selectedElements.delete(el);
+    }
+    else {
+      if (e.button === 0) {
+        if (!selectedElements.has(el)) {
+          if (!e.shiftKey) {
+            clearSelection();
           }
-          prevMousePos.x = mouseX;
-          prevMousePos.y = mouseY;
-          prevMouseWorld = screenToWorld(mouseX, mouseY);
-          isDragging = true;
+          selectedElements.add(el);
+        } else if (e.shiftKey) {
+          selectedElements.delete(el);
         }
-        else if (e.button === 2) {
-          if (el instanceof LogicGates.Switch) {
-            el.setValue(!el.value);
-          } else if (el instanceof LogicGates.Button) {
-            el.setValue(true);
-          } else if (el instanceof LogicGates.Timer) {
-            let delay = prompt(`Set delay (now ${el.delay} ticks):`);
-            if (delay !== '')
-              el.setDelay(Number(delay));
-          }
-        }
+        prevMousePos.x = mouseX;
+        prevMousePos.y = mouseY;
+        prevMouseWorld = screenToWorld(mouseX, mouseY);
+        isDragging = true;
       }
-    } else {
-      if (selectedTool === 'move' && e.button === 0) {
-        isSelecting = true;
-        selectionStart = { x: e.offsetX, y: e.offsetY };
-        selectionEnd = { x: e.offsetX, y: e.offsetY };
-        console.log(e.clientY - canvas.getBoundingClientRect().top, e.offsetY)
-        if (!e.shiftKey) {
-          clearSelection();
+      else if (e.button === 2) {
+        if (el instanceof LogicGates.Switch) {
+          el.setValue(!el.value);
+        } else if (el instanceof LogicGates.Button) {
+          el.setValue(true);
+        } else if (el instanceof LogicGates.Timer) {
+          let delay = prompt(`Set delay (now ${el.delay} ticks):`);
+          if (delay !== '')
+            el.setDelay(Number(delay));
         }
       }
     }
+  } else {
+    if (selectedTool === 'move' && e.button === 0) {
+      isSelecting = true;
+      selectionStart = { x: e.offsetX, y: e.offsetY };
+      selectionEnd = { x: e.offsetX, y: e.offsetY };
+      console.log(e.clientY - canvas.getBoundingClientRect().top, e.offsetY)
+      if (!e.shiftKey) {
+        clearSelection();
+      }
+    }
   }
+  if (e.button === 1) {
+    if (selectedTool === 'connect' && el) {
+      elementUnderCursor = el;
+    } else {
+      prevMousePos.x = mouseX;
+      prevMousePos.y = mouseY;
+      isHandMoving = true;
+    }
+  }
+
+
   draw();
 });
 
@@ -315,6 +328,7 @@ canvas.addEventListener('mousemove', e => {
       selectedElements = getElementsInRect(rect);
     draw();
   }
+
 
 });
 window.addEventListener('mouseup', _ => {
@@ -511,11 +525,10 @@ function serializeCircuit() {
 function deserializeCircuit(data: { elements: any; wires: any; }) {
   circuit.elements = [];
   circuit.wires.clear();
-  const idMap = new Map<number, LogicGates.LogicElement>;
+  const idMap = new Map<number, LogicGates.LogicElement>();
   for (const el of data.elements) {
     let obj = addElement(el.type, el.x, el.y);
     if (obj) {
-      obj.id = el.id;
       idMap.set(el.id, obj);
     }
   }

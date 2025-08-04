@@ -30,10 +30,15 @@ export function someInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T
 }
 
 export class Pair<T1, T2> {
+    first: T1;
+    second: T2;
     constructor(
-        public first: T1,
-        public second: T2
-    ) { }
+        first: T1,
+        second: T2
+    ) {
+        this.first = first;
+        this.second = second;
+    }
 }
 export class BitArray {
     length: number;
@@ -113,7 +118,8 @@ export class LogicElement {
     type: string;
     x: number;
     y: number;
-    inputs!: Set<LogicElement>;
+    inputs: Set<LogicElement>;
+    outputs: Set<LogicElement>;
     value: boolean;
     nextValue: boolean;
     constructor(type: string, x: number, y: number) {
@@ -123,15 +129,18 @@ export class LogicElement {
         this.y = y;
         this.value = false;
         this.nextValue = false;
-
+        this.inputs = new Set();
+        this.outputs = new Set();
     }
 
     addInput(element: LogicElement) {
         this.inputs.add(element);
+        element.outputs.add(this);
     }
 
     removeInput(element: LogicElement) {
         this.inputs.delete(element);
+        element.outputs.delete(this);
     }
 
     computeNextValue() {

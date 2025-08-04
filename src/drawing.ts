@@ -5,7 +5,7 @@ import {
     worldToTranslatedScreen, worldToScreen,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
-    selectedTool, circuit,
+    selectedTool, circuit, elementUnderCursor,
     type Point
 } from "./main";
 
@@ -54,7 +54,7 @@ export function draw() {
     if (selectedTool === 'connect') {
         // Draw wires
         ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1;
         ctx.beginPath();
 
         for (const wire of circuit.wires.values()) {
@@ -69,7 +69,7 @@ export function draw() {
         // Draw temporary connections between selected sources and targets
         if (selectedSources.length > 0 && selectedTargets.length > 0) {
             ctx.strokeStyle = '#fa0';
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 1;
             ctx.beginPath();
             for (const source of selectedSources) {
                 for (const target of selectedTargets) {
@@ -104,6 +104,17 @@ export function draw() {
         drawBorder(el, '#19f');
     }
 
+    if (elementUnderCursor) {
+        for (const el of elementUnderCursor.inputs) {
+            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            writeTextAt(x + gridSize * 0.15, y + gridSize * 0.75, gridSize * 0.7, "#0f0", "IN");
+        }
+        for (const el of elementUnderCursor.outputs) {
+            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            writeTextAt(x - gridSize * 0.2, y + gridSize * 0.75, gridSize * 0.7, "#f00", "OUT");
+        }
+    }
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
     if (isSelecting) {
@@ -118,8 +129,6 @@ export function draw() {
         ctx.setLineDash([]);
     }
 
-    drawPoint(worldToScreen(0, 0), "#f00");
-    drawPoint({ x: canvas.width / 2, y: canvas.height / 2 }, "#0f0");
 
 }
 
@@ -181,7 +190,7 @@ function drawElement(el: LogicElement) {
         }
 
         // Выход
-        else if (!isOutputElement(el)) {
+        if (!isOutputElement(el)) {
             ctx.beginPath();
             ctx.arc(gridSize, gridSize * .5, 2, 0, 2 * Math.PI);
             ctx.fillStyle = el.value ? '#0a0' : '#aaa';
@@ -236,9 +245,9 @@ function drawCell(point: Point, color: string) {
     ctx.stroke();
 }
 
-function writeTextAt(x: number, y: number, fontSize: number, ...data: any[]) {
+function writeTextAt(x: number, y: number, fontSize: number, color: string, ...data: any[]) {
     ctx.save();
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = color;
     ctx.font = `${fontSize}px sans-serif`;
     let str = "";
     for (const d of data) {
