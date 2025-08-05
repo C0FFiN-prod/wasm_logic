@@ -1,5 +1,5 @@
 // main.js
-import { draw, initContext } from './drawing';
+import { draw, initContext } from './drawingWGL';
 import * as LogicGates from './logic';
 export type Point = { x: number, y: number };
 
@@ -271,7 +271,6 @@ canvas.addEventListener('mousedown', e => {
       isSelecting = true;
       selectionStart = { x: e.offsetX, y: e.offsetY };
       selectionEnd = { x: e.offsetX, y: e.offsetY };
-      console.log(e.clientY - canvas.getBoundingClientRect().top, e.offsetY)
       if (!e.shiftKey) {
         clearSelection();
       }
