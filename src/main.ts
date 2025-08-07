@@ -13,8 +13,8 @@ let isSimulating = false;
 let simInterval: NodeJS.Timeout;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
-export let selectedSources = new Array<LogicGates.LogicElement>();
-export let selectedTargets = new Array<LogicGates.LogicElement>();
+export let selectedSources = new Set<LogicGates.LogicElement>();
+export let selectedTargets = new Set<LogicGates.LogicElement>();
 let mouseX = 0;
 let mouseY = 0;
 let isHandMoving = false;
@@ -35,7 +35,7 @@ function setupEvent(id: string, event: string, handler: (e: Event) => void) {
   }
 }
 
-function screenToWorld(sx: number, sy: number) {
+export function screenToWorld(sx: number, sy: number) {
   const h = camera.zoom * gridSize;
   return {
     x: (camera.x * camera.zoom + sx) / h,
@@ -174,13 +174,13 @@ function clearCanvas() {
 }
 
 function clearSelection() {
-  selectedSources = [];
-  selectedTargets = [];
+  selectedSources.clear();
+  selectedTargets.clear();
   selectedElements.clear();
 }
 
 function connectSelected() {
-  if (selectedSources.length === 0 || selectedTargets.length === 0) return;
+  if (selectedSources.size === 0 || selectedTargets.size === 0) return;
 
   // Создаем новые связи
   for (const source of selectedSources) {
@@ -196,7 +196,7 @@ function connectSelected() {
 }
 
 function disconnectSelected() {
-  if (selectedSources.length === 0 || selectedTargets.length === 0) return;
+  if (selectedSources.size === 0 || selectedTargets.size === 0) return;
 
   for (const source of selectedSources) {
     for (const target of selectedTargets) {
@@ -218,11 +218,10 @@ canvas.addEventListener('mousedown', e => {
     if (selectedTool === 'connect') {
       if (e.button === 0) {
         if (!LogicGates.isOutputElement(el)) {
-          const index = selectedSources.indexOf(el);
-          if (index === -1) {
-            selectedSources.push(el);
+          if (!selectedSources.has(el)) {
+            selectedSources.add(el);
           } else {
-            selectedSources.splice(index, 1);
+            selectedSources.delete(el);
           }
         }
       } else if (e.button === 1) {
@@ -230,11 +229,10 @@ canvas.addEventListener('mousedown', e => {
       }
       else if (e.button === 2) {
         if (!LogicGates.isInputElement(el)) {
-          const index = selectedTargets.indexOf(el);
-          if (index === -1) {
-            selectedTargets.push(el);
+          if (!selectedTargets.has(el)) {
+            selectedTargets.add(el);
           } else {
-            selectedTargets.splice(index, 1);
+            selectedTargets.delete(el);
           }
         }
       }
@@ -390,7 +388,7 @@ document.addEventListener('keydown', e => {
     draw();
   } else
     if (selectedTool === 'connect') {
-      if (e.key === 'Enter' && (selectedSources.length > 0 && selectedTargets.length > 0)) {
+      if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
         connectSelected();
       }
       else if (e.key === 'Backspace') {

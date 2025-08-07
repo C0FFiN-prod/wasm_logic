@@ -67,7 +67,7 @@ export function draw() {
         ctx.stroke();
 
         // Draw temporary connections between selected sources and targets
-        if (selectedSources.length > 0 && selectedTargets.length > 0) {
+        if (selectedSources.size > 0 && selectedTargets.size > 0) {
             ctx.strokeStyle = '#fa0';
             ctx.lineWidth = 1;
             ctx.beginPath();
