@@ -8,7 +8,7 @@ export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasEle
 export const camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
 export let selectedTool = 'move'; // 'move' или 'connect'
-export let elementUnderCursor: LogicGates.LogicElement;
+export let elementUnderCursor: LogicGates.LogicElement | null;
 let isSimulating = false;
 let simInterval: NodeJS.Timeout;
 let prevMouseWorld: Point = { x: 0, y: 0 };
@@ -23,6 +23,21 @@ let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
 export let selectionEnd: Point = { x: 0, y: 0 };
 export let selectedElements = new Set<LogicGates.LogicElement>();
+const CopyWiresMode = {
+  None: 0,
+  Inner: 1,
+  All: 2
+} as const;
+type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];
+let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
+export const ShowWiresMode = {
+  None: 0,
+  Connect: 1,
+  Temporary: 2,
+  Always: 3
+} as const;
+export type ShowWiresMode = typeof ShowWiresMode[keyof typeof ShowWiresMode];
+export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
 // === Вспомогательные ===
 
@@ -60,17 +75,18 @@ export function worldToScreen(wx: number, wy: number): Point {
 
 window.onload = (() => {
   // Инициализация
+  
   updateToolButtons();
   initContext();
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
-  draw();
+  requestAnimationFrame(draw);
 });
 
 window.addEventListener('resize', () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
-  draw();
+  requestAnimationFrame(draw);
 });
 // Оптимизация симуляции
 function optimizedStep() {
@@ -115,6 +131,67 @@ function addElement(type: string, x: number | null, y: number | null) {
   }
   return circuit.addElement(el);
 }
+
+function pasteSelectedElementsAtCursor(
+  selectedElements: Set<LogicGates.LogicElement>,
+  cursorScreenX: number,
+  cursorScreenY: number
+) {
+  if (selectedElements.size === 0) return;
+
+  // 1. Находим минимальные X и Y среди выбранных
+  let minX = Infinity;
+  let minY = Infinity;
+  for (const el of selectedElements) {
+    if (el.x < minX) minX = el.x;
+    if (el.y < minY) minY = el.y;
+  }
+
+  // 2. Получаем мировые координаты курсора и округляем вниз
+  let { x: baseWorldX, y: baseWorldY } = screenToWorld(cursorScreenX, cursorScreenY);
+  baseWorldX = Math.floor(baseWorldX);
+  baseWorldY = Math.floor(baseWorldY);
+
+  // 3. Копируем элементы с сохранением смещений
+  const oldToNewMap = new Map<number, LogicGates.LogicElement>();
+
+  for (const el of selectedElements) {
+    const offsetX = el.x - minX;
+    const offsetY = el.y - minY;
+
+    const newEl = addElement(el.type, baseWorldX + offsetX, baseWorldY + offsetY);
+    if (newEl)
+      oldToNewMap.set(el.id, newEl);
+  }
+
+  // 4. Восстанавливаем соединения в зависимости от режима
+  if (copyWiresMode !== CopyWiresMode.None) {
+    for (const oldEl of selectedElements) {
+      const newEl = oldToNewMap.get(oldEl.id)!;
+
+      for (const inputEl of oldEl.inputs) {
+        if (copyWiresMode === CopyWiresMode.Inner) {
+          // Только внутренние связи
+          if (selectedElements.has(inputEl)) {
+            const newInputEl = oldToNewMap.get(inputEl.id)!;
+            circuit.addWire(newInputEl, newEl);
+          }
+        } else if (copyWiresMode === CopyWiresMode.All) {
+          // Внутренние + внешние
+          if (selectedElements.has(inputEl)) {
+            const newInputEl = oldToNewMap.get(inputEl.id)!;
+            circuit.addWire(newInputEl, newEl);
+          } else {
+            circuit.addWire(inputEl, newEl);
+          }
+        }
+      }
+    }
+  }
+}
+
+
+
 
 // === Выбор ===
 
@@ -169,7 +246,7 @@ function clearCanvas() {
     circuit.elements = [];
     circuit.wires.clear();
     clearSelection();
-    draw();
+    requestAnimationFrame(draw);
   }
 }
 
@@ -192,7 +269,7 @@ function connectSelected() {
   }
 
   clearSelection();
-  draw();
+  requestAnimationFrame(draw);
 }
 
 function disconnectSelected() {
@@ -205,9 +282,56 @@ function disconnectSelected() {
   }
 
   clearSelection();
-  draw();
+  requestAnimationFrame(draw);
 }
 
+function updateCopyWiresButtonText() {
+  const btn = document.getElementById("copy-wires-mode-btn")!;
+  console.log(copyWiresMode);
+  switch (copyWiresMode) {
+    case CopyWiresMode.None:
+      btn.textContent = "Copy wires: None";
+      break;
+    case CopyWiresMode.Inner:
+      btn.textContent = "Copy wires: Inner";
+      break;
+    case CopyWiresMode.All:
+      btn.textContent = "Copy wires: All";
+      break;
+  }
+}
+function updateShowWiresButtonText() {
+  const btn = document.getElementById("show-wires-mode-btn")!;
+  console.log(showWiresMode);
+  switch (showWiresMode) {
+    case ShowWiresMode.None:
+      btn.textContent = "Show wires: None";
+      break;
+    case ShowWiresMode.Connect:
+      btn.textContent = "Show wires: Connect";
+      break;
+    case ShowWiresMode.Temporary:
+      btn.textContent = "Show wires: Temporary";
+      break;
+    case ShowWiresMode.Always:
+      btn.textContent = "Show wires: Always";
+      break;
+  }
+}
+
+function cycleCopyWiresMode() {
+  copyWiresMode = (copyWiresMode + 1) % 3;
+  updateCopyWiresButtonText();
+}
+
+function cycleShowWiresMode() {
+  showWiresMode = (showWiresMode + 1) % 4;
+  updateShowWiresButtonText();
+  requestAnimationFrame(draw);
+}
+
+setupEvent('copy-wires-mode-btn', 'onclick', cycleCopyWiresMode);
+setupEvent('show-wires-mode-btn', 'onclick', cycleShowWiresMode);
 
 canvas.addEventListener('mousedown', e => {
   mouseX = e.offsetX;
@@ -285,7 +409,7 @@ canvas.addEventListener('mousedown', e => {
   }
 
 
-  draw();
+  requestAnimationFrame(draw);
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -297,9 +421,8 @@ canvas.addEventListener('mousemove', e => {
   if (isHandMoving) {
     camera.x -= (e.offsetX - prevMousePos.x) / camera.zoom;
     camera.y -= (e.offsetY - prevMousePos.y) / camera.zoom;
-    prevMousePos.x = e.offsetX;
-    prevMousePos.y = e.offsetY;
-    draw();
+
+    requestAnimationFrame(draw);
   } else if (isDragging && selectedElements.size > 0) {
     const deltaWorld = {
       x: Math.round(mouseWorld.x) - Math.round(prevMouseWorld.x),
@@ -312,7 +435,7 @@ canvas.addEventListener('mousemove', e => {
 
     prevMouseWorld.x = mouseWorld.x;
     prevMouseWorld.y = mouseWorld.y;
-    draw();
+    requestAnimationFrame(draw);
   }
   else if (isSelecting) {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -323,16 +446,17 @@ canvas.addEventListener('mousemove', e => {
       getElementsInRect(rect).forEach(el => selectedElements.add(el));
     else
       selectedElements = getElementsInRect(rect);
-    draw();
+    requestAnimationFrame(draw);
   }
-
+  prevMousePos.x = e.offsetX;
+  prevMousePos.y = e.offsetY;
 
 });
 window.addEventListener('mouseup', _ => {
   if (isSelecting || isDragging) {
     isSelecting = false;
     isDragging = false;
-    draw();
+    requestAnimationFrame(draw);
   }
 })
 canvas.addEventListener('mouseout', _ => {
@@ -358,7 +482,7 @@ canvas.addEventListener('wheel', (e) => {
   camera.x = worldX - mouseX / camera.zoom;
   camera.y = worldY - mouseY / camera.zoom;
 
-  draw();
+  requestAnimationFrame(draw);
 }, { passive: false });
 
 canvas.addEventListener('mouseup', e => {
@@ -369,7 +493,7 @@ canvas.addEventListener('mouseup', e => {
     if (isSelecting || isDragging) {
       isSelecting = false;
       isDragging = false;
-      draw();
+      requestAnimationFrame(draw);
     }
     e.stopPropagation();
   }
@@ -383,22 +507,38 @@ document.addEventListener('keydown', e => {
     for (const element of selectedElements) {
       circuit.removeWiresForElement(element);
     }
+    if (elementUnderCursor && selectedElements.has(elementUnderCursor))
+      elementUnderCursor = null;
     circuit.elements = circuit.elements.filter(el => !selectedElements.has(el));
     clearSelection();
-    draw();
-  } else
-    if (selectedTool === 'connect') {
-      if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
-        connectSelected();
-      }
-      else if (e.key === 'Backspace') {
-        disconnectSelected();
-      }
-      else if (e.key === 'Escape') {
-        clearSelection();
-        draw();
-      }
+    requestAnimationFrame(draw);
+  } else if (selectedTool === 'connect') {
+    if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
+      connectSelected();
     }
+    else if (e.key === 'Backspace') {
+      disconnectSelected();
+    }
+    else if (e.key === 'Escape') {
+      clearSelection();
+      requestAnimationFrame(draw);
+    }
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+    // Игнорируем, если фокус на input/textarea
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      return;
+    }
+
+    e.preventDefault();
+
+    // Берём текущие координаты курсора
+    const cursorX = prevMousePos.x; // сюда подставь переменную с координатами экрана X
+    const cursorY = prevMousePos.y; // сюда подставь переменную с координатами экрана Y
+
+    pasteSelectedElementsAtCursor(selectedElements, cursorX, cursorY);
+    requestAnimationFrame(draw);
+  }
 
 
 
@@ -410,6 +550,7 @@ function updateToolButtons() {
     btn.classList.remove('active');
   });
   document.getElementById(`tool-${selectedTool}`)?.classList.add('active');
+  updateCopyWiresButtonText();
 }
 
 // Toolbar buttons
@@ -419,7 +560,7 @@ function updateToolButtons() {
     el.onclick = () => {
       const type = id.replace('add-', '').toUpperCase();
       addElement(type, null, null);
-      draw();
+      requestAnimationFrame(draw);
     };
   }
 
@@ -430,14 +571,14 @@ setupEvent('tool-move', 'onclick', (_) => {
   selectedTool = 'move';
   clearSelection();
   updateToolButtons();
-  draw();
+  requestAnimationFrame(draw);
 });
 
 setupEvent('tool-connect', 'onclick', (_) => {
   selectedTool = 'connect';
   clearSelection();
   updateToolButtons();
-  draw();
+  requestAnimationFrame(draw);
 });
 
 setupEvent('clear-canvas', 'onclick', clearCanvas);
@@ -491,7 +632,7 @@ setupEvent('file-input', 'onchange', (e: Event) => {
     try {
       const data = JSON.parse(result);
       deserializeCircuit(data);
-      draw();
+      requestAnimationFrame(draw);
     } catch (error) {
       console.error('Error parsing JSON:', error);
     }

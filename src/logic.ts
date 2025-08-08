@@ -112,7 +112,7 @@ export class BitArray {
 let nextId = 1;
 
 export class LogicElement {
-    setValue(val: boolean) { throw new Error("Method not implemented."); }
+    setValue(_: boolean) { throw new Error("Method not implemented."); }
     eval() { throw new Error("Method not implemented."); };
     id: number;
     type: string;

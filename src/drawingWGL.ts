@@ -3,7 +3,7 @@ import {
     worldToTranslatedScreen, screenToWorld, worldToScreen,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
-    selectedTool, circuit,
+    selectedTool, ShowWiresMode, showWiresMode, circuit,
     type Point,
     elementUnderCursor
 } from "./main";
@@ -47,7 +47,7 @@ const programs: {
     elements?: Program,
     translated?: Program,
     icons?: Program,
-    selectionRect?: Program,
+    plain?: Program,
 } = {};
 const buffers: {
     position?: WebGLBuffer;
@@ -134,6 +134,19 @@ export function initContext() {
             textureStep: gl.getUniformLocation(program, "u_textureStep"),
             matrix: gl.getUniformLocation(program, "u_matrix"),
             texture: gl.getUniformLocation(program, "u_texture"),
+        }
+    };
+    if (!(program = createProgram(gl, plainVertexShader, plainFragmentShader)))
+        throw "Plain program wasn't created";
+
+    programs.plain = {
+        program: program,
+        attributes: {
+            position: gl.getAttribLocation(program, "a_position"),
+        },
+        uniforms: {
+            color: gl.getUniformLocation(program, "u_color"),
+            matrix: gl.getUniformLocation(program, "u_matrix"),
 
         },
     };
@@ -178,6 +191,7 @@ function resize() {
 type vec3 = [number, number, number];
 export function draw() {
     let matrix = m3.projection(canvas.clientWidth, canvas.clientHeight);
+    const matrixProjection = matrix;
     matrix = m3.translate(matrix, -camera.x * camera.zoom, -camera.y * camera.zoom);
     matrix = m3.scale(matrix, camera.zoom, camera.zoom);
     const h = gridSize * camera.zoom;
@@ -208,7 +222,7 @@ export function draw() {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
     gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
     drawGrid();
-    if (selectedTool === 'connect')
+    if (showWiresMode !== ShowWiresMode.None)
         drawWires();
 
 
@@ -292,6 +306,26 @@ export function draw() {
     gl.uniform2f(program.uniforms.textureStep, h / iconCanvas.width, h / iconCanvas.height);
 
     drawIcons();
+    if (isSelecting) {
+        if (!programs.plain) return;
+        program = programs.plain;
+        gl.useProgram(program.program);
+
+        gl.uniform4f(program.uniforms.color, ...(colors.selection), 1);
+        gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
+
+        gl.enableVertexAttribArray(program.attributes.position);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+        gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+            selectionStart.x, selectionStart.y,
+            selectionStart.x, selectionEnd.y,
+            selectionEnd.x, selectionEnd.y,
+            selectionEnd.x, selectionStart.y,
+        ]), gl.STATIC_DRAW);
+
+        gl.drawArrays(gl.LINE_LOOP, 0, 4);
+    }
 
 
 }
@@ -424,24 +458,35 @@ function drawElements(iterable: Iterable<LogicElement>, count: number, color: ve
 function drawWires() {
     gl.uniform4f(program.uniforms.color, ...(colors.wires), 1);
     gl.lineWidth(1 / camera.zoom);
-    let lines = new Float32Array(circuit.wires.size * 4);
-    let i = 0;
-    for (const [_, wire] of circuit.wires) {
-        let start = worldToTranslatedScreen(wire.from.x, wire.from.y);
-        let end = worldToTranslatedScreen(wire.to.x, wire.to.y);
-        lines[i * 4 + 0] = start.x + gridSize;
-        lines[i * 4 + 1] = start.y + gridSize * .5;
-        lines[i * 4 + 2] = end.x;
-        lines[i * 4 + 3] = end.y + gridSize * .5;
-        ++i;
+    if (showWiresMode === ShowWiresMode.Always ||
+        showWiresMode === ShowWiresMode.Connect && selectedTool === 'connect') {
+        let lines = new Float32Array(circuit.wires.size * 4);
+        let i = 0;
+        for (const [_, wire] of circuit.wires) {
+            let start = worldToTranslatedScreen(wire.from.x, wire.from.y);
+            let end = worldToTranslatedScreen(wire.to.x, wire.to.y);
+            lines[i * 4 + 0] = start.x + gridSize;
+            lines[i * 4 + 1] = start.y + gridSize * .5;
+            lines[i * 4 + 2] = end.x;
+            lines[i * 4 + 3] = end.y + gridSize * .5;
+            ++i;
+        }
+        gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+        gl.drawArrays(gl.LINES, 0, lines.length / 2);
     }
-    gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
-    gl.drawArrays(gl.LINES, 0, lines.length / 2);
 
-    if (selectedSources.size > 0 && selectedTargets.size > 0) {
+
+    if (
+        (
+            showWiresMode === ShowWiresMode.Always ||
+            (showWiresMode === ShowWiresMode.Connect ||
+                showWiresMode === ShowWiresMode.Temporary) && selectedTool === 'connect'
+        ) &&
+        selectedSources.size > 0 && selectedTargets.size > 0
+    ) {
         gl.uniform4f(program.uniforms.color, ...(colors.tempWires), 1);
-        lines = new Float32Array(selectedSources.size * selectedTargets.size * 4);
-        i = 0;
+        let lines = new Float32Array(selectedSources.size * selectedTargets.size * 4);
+        let i = 0;
         for (const source of selectedSources) {
             for (const target of selectedTargets) {
                 let start = worldToTranslatedScreen(source.x, source.y);
@@ -508,9 +553,10 @@ const iconFragmentShaderSource = `
 
 const plainVertexShaderSource = `
     attribute vec2 a_position;
+     uniform mat3 u_matrix;
 
     void main() {
-        gl_Position = vec4(a_position, 0, 1);
+        gl_Position =  vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
     }
 `;
 const plainFragmentShaderSource = `
