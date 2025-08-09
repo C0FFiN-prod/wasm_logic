@@ -288,11 +288,11 @@ export class OutputElement extends LogicElement {
 }
 
 export class Wire {
-    from: LogicElement;
-    to: LogicElement;
-    constructor(from: LogicElement, to: LogicElement) {
-        this.from = from;
-        this.to = to;
+    src: LogicElement;
+    dst: LogicElement;
+    constructor(src: LogicElement, dst: LogicElement) {
+        this.src = src;
+        this.dst = dst;
     }
 }
 
@@ -311,27 +311,27 @@ export class Circuit {
         return el;
     }
 
-    addWire(from: LogicElement, to: LogicElement) {
+    addWire(src: LogicElement, dst: LogicElement) {
         // Проверяем, нет ли уже такого провода
-        const wireKey = `${from.id}-${to.id}`;
-        const reverseWireKey = `${to.id}-${from.id}`;
+        const wireKey = `${src.id}-${dst.id}`;
+        const reverseWireKey = `${dst.id}-${src.id}`;
 
 
         if (this.wires.has(wireKey) || this.wires.has(reverseWireKey))
             return false;
 
 
-        this.wires.set(wireKey, new Wire(from, to));
-        to.addInput(from);
+        this.wires.set(wireKey, new Wire(src, dst));
+        dst.addInput(src);
         return true;
     }
 
-    removeWire(from: { id: any; }, to: { id: any; removeInput: (arg0: any) => void; }) {
-        const wireKey = `${from.id}-${to.id}`;
+    removeWire(src: { id: any; }, dst: { id: any; removeInput: (arg0: any) => void; }) {
+        const wireKey = `${src.id}-${dst.id}`;
 
         if (this.wires.has(wireKey)) {
             this.wires.delete(wireKey);
-            to.removeInput(from);
+            dst.removeInput(src);
             return true;
         }
 
@@ -358,12 +358,14 @@ export class Circuit {
 
         // Затем удаляем их
         for (const wire of wiresToRemove) {
-            wire.first.to.removeInput(wire.first.from);
+            wire.first.dst.removeInput(wire.first.src);
             this.wires.delete(wire.second);
         }
     }
 
     step() {
+        if (this.tick === 10000)
+            this.tick %= 10000;
         this.tick++;
         // Фаза 1: вычисление новых состояний
         for (const el of this.elements) {
@@ -386,6 +388,12 @@ export class Circuit {
             }
         }
         this.tick = 0;
+    }
+    clear() {
+        this.elements = [];
+        this.wires.clear();
+        this.tick = 0;
+        nextId = 0;
     }
 }
 

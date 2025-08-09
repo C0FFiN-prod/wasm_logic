@@ -58,8 +58,8 @@ export function draw() {
         ctx.beginPath();
 
         for (const wire of circuit.wires.values()) {
-            let start = worldToTranslatedScreen(wire.from.x, wire.from.y);
-            let end = worldToTranslatedScreen(wire.to.x, wire.to.y);
+            let start = worldToTranslatedScreen(wire.src.x, wire.src.y);
+            let end = worldToTranslatedScreen(wire.dst.x, wire.dst.y);
             ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
             ctx.lineTo(end.x, end.y + gridSize * .5);
 

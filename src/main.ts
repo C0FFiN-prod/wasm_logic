@@ -75,7 +75,7 @@ export function worldToScreen(wx: number, wy: number): Point {
 
 window.onload = (() => {
   // Инициализация
-  
+
   updateToolButtons();
   initContext();
   canvas.width = window.innerWidth;
@@ -601,80 +601,201 @@ setupEvent('stop-sim', 'onclick', (_) => {
   clearInterval(simInterval);
 });
 
-setupEvent('save-scheme', 'onclick', (_) => {
-  const data = JSON.stringify(serializeCircuit());
-  const blob = new Blob([data], {
-    type: 'application/json'
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'circuit.json';
-  a.click();
-  URL.revokeObjectURL(url);
+// Привязка кнопок
+setupEvent('save-scheme', 'onclick', save);
+setupEvent('load-scheme', 'onclick', load);
+
+// Ctrl+S обработчик
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    save();
+  }
 });
-
-setupEvent('load-scheme', 'onclick', (_) => {
-  document.getElementById('file-input')?.click();
-});
-
-setupEvent('file-input', 'onchange', (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    const result = evt.target?.result;
-    if (typeof result !== 'string') {
-      console.error('Expected string result from FileReader');
-      return;
-    }
-
-    try {
-      const data = JSON.parse(result);
-      deserializeCircuit(data);
-      requestAnimationFrame(draw);
-    } catch (error) {
-      console.error('Error parsing JSON:', error);
-    }
-  };
-  reader.readAsText(file);
-});
-
 canvas.addEventListener('contextmenu', e => {
   e.preventDefault();
 });
 
-// Оптимизированная сериализация
-function serializeCircuit() {
-  return {
-    elements: circuit.elements.map(el => ({
+let currentFileHandle: FileSystemFileHandle | null = null;
+let currentFileName = "Без названия";
+// Проверка поддержки FSAPI
+const hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
+
+const filenameDisplay = document.getElementById("filename-display") as HTMLSpanElement;
+
+window.addEventListener("beforeunload", (e) => {
+  e.preventDefault();
+  e.returnValue = "";
+});
+
+function updateFilenameDisplay() {
+  filenameDisplay.textContent = currentFileName;
+}
+
+// Клик по имени — превращаем в input для редактирования
+filenameDisplay.addEventListener("click", () => {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.id = "filename-input";
+  input.value = currentFileName;;
+  input.style.width = Math.max(120, currentFileName.length * 8) + "px";
+
+  filenameDisplay.replaceWith(input);
+  input.focus();
+  input.select();
+  let finished = false;
+
+  const finishEdit = () => {
+    if (finished) return;
+    finished = true;
+    currentFileName = input.value.trim() || "Без названия";
+    input.replaceWith(filenameDisplay);
+    updateFilenameDisplay();
+  };
+
+  input.addEventListener("blur", finishEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      finishEdit();
+    } else if (e.key === "Escape") {
+      finished = true;
+      input.replaceWith(filenameDisplay);
+    }
+  });
+});
+
+// ======= Сохранение =======
+async function saveAs() {
+  if (hasFSAPI) {
+    // --- FSAPI способ ---
+    const options = {
+      suggestedName: currentFileName.endsWith(".json")
+        ? currentFileName
+        : currentFileName + ".json",
+      types: [
+        {
+          description: "Logic Simulator Scheme",
+          accept: { "application/json": [".json"] }
+        }
+      ]
+    };
+    currentFileHandle = await (window as any).showSaveFilePicker(options);
+    currentFileName = currentFileHandle?.name.replace(/\.json$/i, "") || currentFileName;
+    updateFilenameDisplay();
+    await save();
+  } else {
+    // --- Fallback через Blob ---
+    const dataStr = serializeCircuit();
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (currentFileName || "scheme") + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+}
+async function save() {
+  if (hasFSAPI) {
+    if (!currentFileHandle) {
+      await saveAs();
+      return;
+    }
+    const writable = await currentFileHandle.createWritable();
+    await writable.write(serializeCircuit());
+    await writable.close();
+    // if ('move' in currentFileHandle)
+    // await (currentFileHandle as any).move(currentFileName + '.json');
+  } else {
+    // В старых браузерах всегда будет Save As
+    await saveAs();
+  }
+}
+
+// ======= Загрузка =======
+async function load() {
+  if (hasFSAPI) {
+    const [fileHandle] = await (window as any).showOpenFilePicker({
+      types: [
+        {
+          description: "Logic Simulator Scheme",
+          accept: { "application/json": [".json"] }
+        }
+      ]
+    });
+    currentFileHandle = fileHandle;
+    currentFileName = fileHandle.name?.replace(/\.json$/i, "") || "Без названия";
+    updateFilenameDisplay();
+
+    const file = await fileHandle.getFile();
+    const contents = await file.text();
+    deserializeCircuit(contents);
+  } else {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.onchange = async () => {
+      const file = (input.files as FileList)[0];
+      if (!file) return;
+      currentFileName = file.name.replace(/\.json$/i, "");
+      updateFilenameDisplay();
+
+      const text = await file.text();
+      deserializeCircuit(text);
+    };
+    input.click();
+  }
+  requestAnimationFrame(draw);
+}
+
+// Сериализация схемы в JSON
+function serializeCircuit(): string {
+  const data = {
+    version: 1,
+    elements: Array.from(circuit.elements).map(el => ({
       id: el.id,
       type: el.type,
       x: el.x,
-      y: el.y,
+      y: el.y
     })),
-    wires: Array.from(circuit.wires.values()).map(w => ({
-      from: w.from.id,
-      to: w.to.id
+    wires: Array.from(circuit.wires).map(([_, w]) => ({
+      src: w.src.id,
+      dst: w.dst.id
     }))
   };
+  return JSON.stringify(data, null, 2);
 }
 
-function deserializeCircuit(data: { elements: any; wires: any; }) {
-  circuit.elements = [];
-  circuit.wires.clear();
+function deserializeCircuit(json: string) {
+  const data = JSON.parse(json);
+  circuit.clear();
   const idMap = new Map<number, LogicGates.LogicElement>();
+  console.log(data);
+  const version = data.version;
+
   for (const el of data.elements) {
-    let obj = addElement(el.type, el.x, el.y);
+    const obj = addElement(el.type, el.x, el.y);
     if (obj) {
       idMap.set(el.id, obj);
     }
   }
-  for (const w of data.wires) {
-    const from = idMap.get(w.from);
-    const to = idMap.get(w.to);
-    if (from && to) {
-      circuit.addWire(from, to);
+
+  if (!version) {
+    for (const w of data.wires) {
+      const src = idMap.get(w.from);
+      const dst = idMap.get(w.to);
+      if (src && dst) {
+        circuit.addWire(src, dst);
+      }
+    }
+  } else if (version === 1) {
+    for (const w of data.wires) {
+      const src = idMap.get(w.src);
+      const dst = idMap.get(w.dst);
+      if (src && dst) {
+        circuit.addWire(src, dst);
+      }
     }
   }
 }

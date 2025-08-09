@@ -463,8 +463,8 @@ function drawWires() {
         let lines = new Float32Array(circuit.wires.size * 4);
         let i = 0;
         for (const [_, wire] of circuit.wires) {
-            let start = worldToTranslatedScreen(wire.from.x, wire.from.y);
-            let end = worldToTranslatedScreen(wire.to.x, wire.to.y);
+            let start = worldToTranslatedScreen(wire.src.x, wire.src.y);
+            let end = worldToTranslatedScreen(wire.dst.x, wire.dst.y);
             lines[i * 4 + 0] = start.x + gridSize;
             lines[i * 4 + 1] = start.y + gridSize * .5;
             lines[i * 4 + 2] = end.x;

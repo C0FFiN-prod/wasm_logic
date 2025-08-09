@@ -51,4 +51,20 @@ header {
     border: 1px solid #333;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
+#filename-display {
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #e0e0e0;
+}
 
+#filename-input {
+    margin-left: 10px;
+    font-size: 16px;
+    background: transparent;
+    color: #e0e0e0;
+    border: none;
+    border-bottom: 1px dotted #aaa;
+    outline: none;
+    padding: 0;
+}
