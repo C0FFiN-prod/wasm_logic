@@ -682,7 +682,7 @@ async function saveAs() {
     currentFileHandle = await (window as any).showSaveFilePicker(options);
     currentFileName = currentFileHandle?.name.replace(/\.json$/i, "") || currentFileName;
     updateFilenameDisplay();
-    await save();
+    await writeToCurrentFile();
   } else {
     // --- Fallback через Blob ---
     const dataStr = serializeCircuit();
@@ -702,15 +702,29 @@ async function save() {
       await saveAs();
       return;
     }
-    const writable = await currentFileHandle.createWritable();
-    await writable.write(serializeCircuit());
-    await writable.close();
-    // if ('move' in currentFileHandle)
-    // await (currentFileHandle as any).move(currentFileName + '.json');
+    try {
+      await (currentFileHandle as any).move(currentFileName + '.json');
+      await writeToCurrentFile();
+    } catch (error) {
+      console.error("Error moving file:", error);
+      await saveAs();
+    }
+    return;
   } else {
     // В старых браузерах всегда будет Save As
     await saveAs();
   }
+}
+
+async function writeToCurrentFile() {
+  if (!currentFileHandle) 
+  {
+    await saveAs();
+    return;
+  }
+  const writable = await currentFileHandle.createWritable();
+  await writable.write(serializeCircuit());
+  await writable.close();
 }
 
 // ======= Загрузка =======
