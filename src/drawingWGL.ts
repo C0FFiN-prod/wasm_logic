@@ -503,9 +503,11 @@ function drawWires() {
     }
 }
 
-const elementVertexShaderSource = `
-    attribute vec2 a_position;
-    attribute vec2 a_instancePos;
+const elementVertexShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : vert
+    
+    in vec2 a_position;
+    in vec2 a_instancePos;
 
     uniform mat3 u_matrix;
 
@@ -513,8 +515,10 @@ const elementVertexShaderSource = `
         gl_Position = vec4((u_matrix * vec3(a_position + a_instancePos, 1)).xy, 0, 1);
     }
 `;
-const translatedVertexShaderSource = `
-    attribute vec2 a_position;
+const translatedVertexShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : vert
+
+    in vec2 a_position;
 
     uniform mat3 u_matrix;
 
@@ -522,13 +526,17 @@ const translatedVertexShaderSource = `
         gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
     }
 `;
-const iconVertexShaderSource = `
-    attribute vec2 a_position;
-    attribute vec4 a_instancePos;
+const iconVertexShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : vert
+
+    in vec2 a_position;
+    in vec4 a_instancePos;
+    in vec2 a_texcoord;
+
     uniform vec2 u_textureStep;
     uniform mat3 u_matrix;
-    varying vec2 v_texCoord;    
-    attribute vec2 a_texcoord;
+
+    out vec2 v_texCoord;    
     void main() {
         gl_Position = vec4((u_matrix * vec3(a_position + a_instancePos.xy, 1)).xy, 0, 1);
         // gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
@@ -541,30 +549,44 @@ const iconVertexShaderSource = `
     }
 `;
 
-const iconFragmentShaderSource = `
+const iconFragmentShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : frag
+
     precision mediump float;
-    varying vec2 v_texCoord;
+
+    in vec2 v_texCoord;
+
     uniform sampler2D u_texture;
+    
+    out vec4 fragColor;
 
     void main() {
-        gl_FragColor = texture2D(u_texture, v_texCoord);
+        fragColor = texture(u_texture, v_texCoord);
     }
 `;
 
-const plainVertexShaderSource = `
-    attribute vec2 a_position;
-     uniform mat3 u_matrix;
+const plainVertexShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : vert
+
+    in vec2 a_position;
+
+    uniform mat3 u_matrix;
 
     void main() {
         gl_Position =  vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
     }
 `;
-const plainFragmentShaderSource = `
+const plainFragmentShaderSource = `#version 300 es
+    #pragma vscode_glsllint_stage : frag
+
     precision mediump float;
+
     uniform vec4 u_color;
 
+    out vec4 fragColor;
+    
     void main() {
-        gl_FragColor = u_color;
+        fragColor = u_color;
     }
 `;
 
