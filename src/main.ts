@@ -624,8 +624,7 @@ const hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in windo
 const filenameDisplay = document.getElementById("filename-display") as HTMLSpanElement;
 
 window.addEventListener("beforeunload", (e) => {
-  e.preventDefault();
-  e.returnValue = "";
+  // e.preventDefault();
 });
 
 function updateFilenameDisplay() {

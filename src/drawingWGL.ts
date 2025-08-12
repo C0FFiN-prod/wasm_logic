@@ -12,26 +12,16 @@ import type { LogicElement } from "./logic";
 import { pathMap } from "./icons";
 
 
-const colors: {
-    grid: vec3,
-    on: vec3,
-    off: vec3,
-    wires: vec3,
-    tempWires: vec3,
-    border: vec3,
-    selection: vec3,
-    source: vec3,
-    target: vec3,
-} = {
-    grid: [0, 0, 0],
-    on: [0.066, 0.332, 0.797],
-    off: [0.2, 0.2, 0.2],
-    wires: [0.531, 0.531, 0.531],
-    tempWires: [1, 0.664, 0],
-    border: [0.332, 0.332, 0.332],
-    selection: [0.066, 0.598, 1],
-    source: [0, 1, 0],
-    target: [1, 0, 0],
+const colors: Record<string, vec4> = {
+    grid: [0, 0, 0, 1],
+    on: [0.066, 0.332, 0.797, 1],
+    off: [0.2, 0.2, 0.2, 1],
+    wires: [0.531, 0.531, 0.531, 1],
+    tempWires: [1, 0.664, 0, 1],
+    border: [0.332, 0.332, 0.332, 1],
+    selection: [0.066, 0.598, 1, 1],
+    source: [0, 1, 0, 1],
+    target: [1, 0, 0, 1],
 }
 
 type Program = {
@@ -55,7 +45,7 @@ const buffers: {
     instance?: WebGLBuffer;
     texcoord?: WebGLBuffer;
 } = {};
-
+const vaos: Record<string, WebGLVertexArrayObject> = {};
 function createProgram(gl: WebGLRenderingContext, vertexShader: WebGLShader, fragmentShader: WebGLShader) {
     var program = gl.createProgram();
     gl.attachShader(program, vertexShader);
@@ -156,6 +146,10 @@ export function initContext() {
     buffers.instance = gl.createBuffer();
     buffers.texcoord = gl.createBuffer();
 
+    vaos.elements = initElements();
+    vaos.icons = initIcons();
+    vaos.pos2only = initPos2Only();
+
     texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.enable(gl.BLEND);
@@ -169,7 +163,65 @@ export function initContext() {
     requestAnimationFrame(draw);
 }
 
+function initPos2Only() {
+    const vao = gl.createVertexArray();
+    const program = programs.elements;
+    if (!program) throw "Could not init pos2only VAO";
+    gl.bindVertexArray(vao);
 
+    // position
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.position);
+
+    gl.bindVertexArray(null);
+    return vao;
+}
+function initElements() {
+    const vao = gl.createVertexArray();
+    const program = programs.elements;
+    if (!program) throw "Could not init elements VAO";
+    gl.bindVertexArray(vao);
+
+    // position
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.position);
+
+    // instance data
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
+    gl.vertexAttribPointer(program.attributes.instancePos, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.instancePos);
+    gl.vertexAttribDivisor(program.attributes.instancePos, 1);
+
+    gl.bindVertexArray(null);
+    return vao;
+}
+
+function initIcons() {
+    const vao = gl.createVertexArray();
+    const program = programs.icons;
+    if (!program) throw "Could not init icons VAO";
+    gl.bindVertexArray(vao);
+    // texcoord
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord || null);
+    gl.vertexAttribPointer(program.attributes.texcoord, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.texcoord);
+
+    // position
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.position);
+
+    // instance data
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
+    gl.vertexAttribPointer(program.attributes.instancePos, 4, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(program.attributes.instancePos);
+    gl.vertexAttribDivisor(program.attributes.instancePos, 1);
+
+    gl.bindVertexArray(null);
+    return vao;
+}
 
 function resize() {
     var realToCSSPixels = window.devicePixelRatio;
@@ -189,6 +241,7 @@ function resize() {
     }
 }
 type vec3 = [number, number, number];
+type vec4 = [number, number, number, number];
 export function draw() {
     let matrix = m3.projection(canvas.clientWidth, canvas.clientHeight);
     const matrixProjection = matrix;
@@ -207,25 +260,15 @@ export function draw() {
     gl.clearColor(0.1, 0.1, 0.1, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-
     if (!programs.translated) return;
     program = programs.translated;
     gl.useProgram(program.program);
-    // // Compute the matrix
+    gl.bindVertexArray(vaos.pos2only);
 
     gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
-
-
-
-    // a_position
-    gl.enableVertexAttribArray(program.attributes.position);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
     drawGrid();
-    if (showWiresMode !== ShowWiresMode.None)
-        drawWires();
-
-
+    if (showWiresMode !== ShowWiresMode.None) drawWires();
 
     if (!programs.elements) return;
     program = programs.elements;
@@ -252,38 +295,24 @@ export function draw() {
         }
     });
 
-    gl.enableVertexAttribArray(program.attributes.position);
+    gl.bindVertexArray(vaos.elements);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
         0, 0,
         0, gridSize,
-        gridSize, 0,
         gridSize, gridSize,
+        gridSize, 0,
+        0, 0
     ]), gl.STATIC_DRAW);
 
-    gl.enableVertexAttribArray(program.attributes.instancePos);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
-    gl.vertexAttribPointer(program.attributes.instancePos, 2, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(program.attributes.instancePos, 1);
 
     if (elementsOn)
         drawElements(elementsOn, elementsOn.length, colors.on);
     if (elementsOff)
         drawElements(elementsOff, elementsOff.length, colors.off);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        0, 0,
-        0, gridSize,
-        gridSize, gridSize,
-        gridSize, 0,
-    ]), gl.STATIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
-    gl.vertexAttribPointer(program.attributes.instancePos, 2, gl.FLOAT, false, 0, 0);
-
 
     drawBorders(circuit.elements, circuit.elements.length, colors.border);
     if (selectedTool === 'connect') {
@@ -295,28 +324,29 @@ export function draw() {
         if (selectedElements)
             drawBorders(selectedElements, selectedElements.size, colors.selection);
     }
-    if (!programs.icons) return;
 
+    if (!programs.icons) return;
     program = programs.icons;
     gl.useProgram(program.program);
-    gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
+    gl.bindVertexArray(vaos.icons);
 
+    gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
     gl.uniform1f(program.uniforms.iconSize, h);
     gl.uniform2f(program.uniforms.textureSize, iconCanvas.width, iconCanvas.height);
     gl.uniform2f(program.uniforms.textureStep, h / iconCanvas.width, h / iconCanvas.height);
 
     drawIcons();
+
     if (isSelecting) {
         if (!programs.plain) return;
         program = programs.plain;
         gl.useProgram(program.program);
+        gl.bindVertexArray(vaos.pos2only);
 
-        gl.uniform4f(program.uniforms.color, ...(colors.selection), 1);
+        gl.uniform4fv(program.uniforms.color, colors.selection);
         gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
 
-        gl.enableVertexAttribArray(program.attributes.position);
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-        gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
             selectionStart.x, selectionStart.y,
             selectionStart.x, selectionEnd.y,
@@ -326,39 +356,12 @@ export function draw() {
 
         gl.drawArrays(gl.LINE_LOOP, 0, 4);
     }
-
+    gl.bindVertexArray(null);
 
 }
 
 function drawIcons() {
     if (!programs.icons) return;
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord || null);
-    gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(
-            [
-                0, 0,
-                0, 1,
-                1, 0,
-                1, 1,
-            ]),
-        gl.STATIC_DRAW);
-    gl.vertexAttribPointer(program.attributes.texcoord, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.texcoord);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([
-            0, 0,
-            0, gridSize,
-            gridSize, 0,
-            gridSize, gridSize,
-        ]),
-        gl.STATIC_DRAW);
-    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.position);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
     const count = circuit.elements.length +
         (elementUnderCursor ? (elementUnderCursor.inputs.size + elementUnderCursor.outputs.size + 1) : 0);
     let data = new Float32Array(count * 4);
@@ -395,19 +398,42 @@ function drawIcons() {
         data[i * 4 + 3] = iconMap.get('gate') || 0;
     }
 
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    gl.vertexAttribPointer(program.attributes.instancePos, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.instancePos);
-    gl.vertexAttribDivisor(program.attributes.instancePos, 1);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord || null);
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array(
+            [
+                0, 0,
+                0, 1,
+                1, 0,
+                1, 1,
+            ]),
+        gl.STATIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([
+            0, 0,
+            0, gridSize,
+            gridSize, 0,
+            gridSize, gridSize,
+        ]),
+        gl.STATIC_DRAW);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, iconCanvas);
 
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+
+
 }
 
 function drawGrid() {
-    gl.uniform4f(program.uniforms.color, ...(colors.grid), 1);
+    gl.uniform4fv(program.uniforms.color, colors.grid);
     gl.lineWidth(1 / camera.zoom);
 
     const left = camera.x;
@@ -439,24 +465,24 @@ function drawGrid() {
 }
 
 
-function drawBorders(iterable: Iterable<LogicElement>, count: number, color: vec3) {
-    gl.uniform4f(program.uniforms.color, ...(color), 1);
+function drawBorders(iterable: Iterable<LogicElement>, count: number, color: vec4) {
+    gl.uniform4fv(program.uniforms.color, color);
     gl.lineWidth(2 / camera.zoom);
     let instancesPos = getPositionsArray(iterable, count);
-    gl.bufferData(gl.ARRAY_BUFFER, instancesPos, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, instancesPos, gl.DYNAMIC_DRAW);
     gl.drawArraysInstanced(gl.LINE_LOOP, 0, 4, count);
 
 }
 
-function drawElements(iterable: Iterable<LogicElement>, count: number, color: vec3) {
-    gl.uniform4f(program.uniforms.color, ...(color), 1);
+function drawElements(iterable: Iterable<LogicElement>, count: number, color: vec4) {
+    gl.uniform4fv(program.uniforms.color, color);
     let instancesPos = getPositionsArray(iterable, count);
-    gl.bufferData(gl.ARRAY_BUFFER, instancesPos, gl.STATIC_DRAW);
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+    gl.bufferData(gl.ARRAY_BUFFER, instancesPos, gl.DYNAMIC_DRAW);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 5, count);
 }
 
 function drawWires() {
-    gl.uniform4f(program.uniforms.color, ...(colors.wires), 1);
+    gl.uniform4fv(program.uniforms.color, colors.wires);
     gl.lineWidth(1 / camera.zoom);
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === 'connect') {
@@ -471,7 +497,7 @@ function drawWires() {
             lines[i * 4 + 3] = end.y + gridSize * .5;
             ++i;
         }
-        gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, lines, gl.DYNAMIC_DRAW);
         gl.drawArrays(gl.LINES, 0, lines.length / 2);
     }
 
@@ -484,7 +510,7 @@ function drawWires() {
         ) &&
         selectedSources.size > 0 && selectedTargets.size > 0
     ) {
-        gl.uniform4f(program.uniforms.color, ...(colors.tempWires), 1);
+        gl.uniform4fv(program.uniforms.color, colors.tempWires);
         let lines = new Float32Array(selectedSources.size * selectedTargets.size * 4);
         let i = 0;
         for (const source of selectedSources) {
