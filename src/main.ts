@@ -1,4 +1,5 @@
 // main.js
+import { gateTypeToMode, knownShapeIds, shapeIdToType, typeToshapeId } from './consts';
 import { draw, initContext } from './drawingWGL';
 import * as LogicGates from './logic';
 export type Point = { x: number, y: number };
@@ -95,41 +96,20 @@ function optimizedStep() {
 }
 
 
-function addElement(type: string, x: number | null, y: number | null) {
+function addElement(type: string, params: Record<string, any>) {
   let el;
   // Переводим координаты центра экрана в мировые координаты через screenToWorld
   const center = screenToWorld(canvas.width / 2, canvas.height / 2);
-  const worldX = x || Math.round(center.x + Math.random() * 10 - 5);
-  const worldY = y || Math.round(center.y + Math.random() * 10 - 5);
+  params.pos = params.pos || {};
+  params.pos.x = params.pos.x || Math.round(center.x + Math.random() * 10 - 5);
+  params.pos.y = params.pos.y || Math.round(center.y + Math.random() * 10 - 5);
+  params.pos.z = params.pos.z || 0;
+  params.xaxis = params.xaxis || -2;
+  params.zaxis = params.zaxis || -1;
+  params.color = params.color || "222222";
+  params.luminance = params.luminance || 50;
 
-  switch (type) {
-    case 'AND':
-    case 'OR':
-    case 'XOR':
-    case 'NAND':
-    case 'NOR':
-    case 'XNOR':
-      el = new LogicGates.LogicGate(type, worldX, worldY);
-      break;
-    case 'T_FLOP':
-      el = new LogicGates.TFlop(worldX, worldY);
-      break;
-    case 'TIMER':
-      el = new LogicGates.Timer(worldX, worldY);
-      break;
-    case 'BUTTON':
-      el = new LogicGates.Button(worldX, worldY);
-      break;
-    case 'SWITCH':
-      el = new LogicGates.Switch(worldX, worldY);
-      break;
-    case 'OUTPUT':
-      el = new LogicGates.OutputElement(worldX, worldY);
-      break;
-    default:
-      return null;
-  }
-  return circuit.addElement(el);
+  return circuit.addElement(type, params);
 }
 
 function pasteSelectedElementsAtCursor(
@@ -159,7 +139,7 @@ function pasteSelectedElementsAtCursor(
     const offsetX = el.x - minX;
     const offsetY = el.y - minY;
 
-    const newEl = addElement(el.type, baseWorldX + offsetX, baseWorldY + offsetY);
+    const newEl = addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY } });
     if (newEl)
       oldToNewMap.set(el.id, newEl);
   }
@@ -559,7 +539,7 @@ function updateToolButtons() {
   if (el) {
     el.onclick = () => {
       const type = id.replace('add-', '').toUpperCase();
-      addElement(type, null, null);
+      addElement(type, {});
       requestAnimationFrame(draw);
     };
   }
@@ -702,6 +682,7 @@ async function save() {
       return;
     }
     try {
+      if (currentFileName + '.json' !== currentFileHandle.name)
       await (currentFileHandle as any).move(currentFileName + '.json');
       await writeToCurrentFile();
     } catch (error) {
@@ -716,8 +697,7 @@ async function save() {
 }
 
 async function writeToCurrentFile() {
-  if (!currentFileHandle) 
-  {
+  if (!currentFileHandle) {
     await saveAs();
     return;
   }
@@ -765,51 +745,92 @@ async function load() {
 // Сериализация схемы в JSON
 function serializeCircuit(): string {
   const data = {
-    version: 1,
-    elements: Array.from(circuit.elements).map(el => ({
-      id: el.id,
-      type: el.type,
-      x: el.x,
-      y: el.y
-    })),
-    wires: Array.from(circuit.wires).map(([_, w]) => ({
-      src: w.src.id,
-      dst: w.dst.id
-    }))
+    bodies: [
+      {
+        childs: [...unuseBlueprintObjects, ...Array.from(circuit.elements).map(el => ({
+          color: el.color,
+          id: el.id,
+          controller: el.getController(),
+          pos: {
+            x: el.x,
+            y: el.y,
+            z: el.z
+          },
+          shapeId: typeToshapeId.get(el.type),
+          xaxis: el.xaxis,
+          zaxis: el.zaxis
+        }))],
+      }
+    ],
+    version: 4
   };
-  return JSON.stringify(data, null, 2);
+  return JSON.stringify(data, null);
 }
-
+let unuseBlueprintObjects: Array<Object> = [];
 function deserializeCircuit(json: string) {
   const data = JSON.parse(json);
   circuit.clear();
   const idMap = new Map<number, LogicGates.LogicElement>();
   console.log(data);
   const version = data.version;
+  if (version === 3 || version === 4) {
+    let type: string | undefined;
+    for (const body of data.bodies) {
+      for (const child of body.childs) {
+        if ((type = shapeIdToType.get(child.shapeId))) {
+          const obj = addElement(type, child);
+          if (obj) {
+            idMap.set(child.id, obj);
+          }
+        } else {
+          unuseBlueprintObjects.push(child);
+        }
+      }
+    }
+    for (const body of data.bodies) {
+      for (const child of body.childs) {
+        if ((type = shapeIdToType.get(child.shapeId))) {
+          const src = idMap.get(child.id);
+          for (const controlled of child.controller.controllers) {
+            const dst = idMap.get(controlled.id);
+            if (src && dst) {
+              circuit.addWire(src, dst);
+              if (src instanceof LogicGates.LogicGate && src.gateType == 2 && src == dst) {
+                src.gateType = 6;
+              }
+            }
+          }
+        }
+      }
+    }
 
-  for (const el of data.elements) {
-    const obj = addElement(el.type, el.x, el.y);
-    if (obj) {
-      idMap.set(el.id, obj);
+
+  } else {
+    for (const el of data.elements) {
+      let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
+      const obj = addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : {pos:{x:el.x,y:el.y}});
+      if (obj) {
+        idMap.set(el.id, obj);
+      }
+    }
+
+    if (!version) {
+      for (const w of data.wires) {
+        const src = idMap.get(w.from);
+        const dst = idMap.get(w.to);
+        if (src && dst) {
+          circuit.addWire(src, dst);
+        }
+      }
+    } else if (version === 1) {
+      for (const w of data.wires) {
+        const src = idMap.get(w.src);
+        const dst = idMap.get(w.dst);
+        if (src && dst) {
+          circuit.addWire(src, dst);
+        }
+      }
     }
   }
 
-  if (!version) {
-    for (const w of data.wires) {
-      const src = idMap.get(w.from);
-      const dst = idMap.get(w.to);
-      if (src && dst) {
-        circuit.addWire(src, dst);
-      }
-    }
-  } else if (version === 1) {
-    for (const w of data.wires) {
-      const src = idMap.get(w.src);
-      const dst = idMap.get(w.dst);
-      if (src && dst) {
-        circuit.addWire(src, dst);
-      }
-    }
-  }
 }
-

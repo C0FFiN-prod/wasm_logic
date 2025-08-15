@@ -114,19 +114,28 @@ let nextId = 1;
 export class LogicElement {
     setValue(_: boolean) { throw new Error("Method not implemented."); }
     eval() { throw new Error("Method not implemented."); };
+    getController(): Object | null { return null; };
     id: number;
     type: string;
     x: number;
     y: number;
+    z: number;
+    xaxis: number;
+    zaxis: number;
+    color: string;
     inputs: Set<LogicElement>;
     outputs: Set<LogicElement>;
     value: boolean;
     nextValue: boolean;
-    constructor(type: string, x: number, y: number) {
+    constructor(type: string, x: number, y: number, z = 0, xaxis = 1, zaxis = 1, color = "222222") {
         this.id = nextId++;
         this.type = type;
         this.x = x;
         this.y = y;
+        this.z = z;
+        this.xaxis = xaxis;
+        this.zaxis = zaxis;
+        this.color = color;
         this.value = false;
         this.nextValue = false;
         this.inputs = new Set();
@@ -154,20 +163,13 @@ export class LogicElement {
 
 
 }
-const gateType = new Map<string, number>(Object.entries({
-    'AND': 0,
-    'OR': 1,
-    'XOR': 2,
-    'NAND': 3,
-    'NOR': 4,
-    'XNOR': 5,
-}));
+
 export class LogicGate extends LogicElement {
     gateType: number;
 
-    constructor(type: string, x: number, y: number) {
-        super(type, x, y);
-        this.gateType = gateType.get(type) || 0;
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", mode = 0) {
+        super('GATE', x, y, z, xaxis, zaxis, color);
+        this.gateType = mode;
     }
 
     eval() {
@@ -178,6 +180,7 @@ export class LogicGate extends LogicElement {
             case 1: // OR
                 this.nextValue = someInIterable(this.inputs, (input => input.value));
                 break;
+            case 6:
             case 2: // XOR
                 if (this.inputs.size === 0) {
                     this.nextValue = false;
@@ -202,20 +205,20 @@ export class LogicGate extends LogicElement {
                 this.nextValue = false;
         }
     }
-}
-export class TFlop extends LogicElement {
-    gateType: number;
-    constructor(x: number, y: number) {
-        super('T_FLOP', x, y);
-        this.gateType = 2;
-    }
 
-    eval() {
-        // T-триггер: меняет состояние при true на входе
-        if (this.nextValue = countInIterable(this.inputs, (el => el.value === true)) % 2 === 1) {
-            this.nextValue = !this.value;
-        } else {
-            this.nextValue = this.value;
+    getController() {
+        return this.gateType === 6 ? {
+            active: false,
+            controllers: [...this.outputs, this].map(el => ({ id: el.id })),
+            id: this.id,
+            joints: null,
+            mode: 2
+        } : {
+            active: false,
+            controllers: Array.from(this.outputs).map(el => ({ id: el.id })),
+            id: this.id,
+            joints: null,
+            mode: this.gateType
         }
     }
 }
@@ -223,9 +226,9 @@ export class TFlop extends LogicElement {
 export class Timer extends LogicElement {
     delay: number;
     buffer: BitArray;
-    constructor(x: number, y: number) {
-        super('TIMER', x, y);
-        this.delay = 0;
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", seconds = 0, ticks = 0) {
+        super('TIMER', x, y, z, xaxis, zaxis, color);
+        this.delay = Math.max(seconds * 40 + ticks, 0);
         this.buffer = new BitArray(128);
 
     }
@@ -238,11 +241,22 @@ export class Timer extends LogicElement {
         this.nextValue = this.buffer.at(this.delay);
         this.buffer.unshift(someInIterable(this.inputs, (input => input.value)) || false);
     }
+
+    getController() {
+        return {
+            active: false,
+            controllers: Array.from(this.outputs).map(el => ({ id: el.id })),
+            id: this.id,
+            joints: null,
+            seconds: Math.floor(this.delay / 40),
+            ticks: this.delay % 40
+        }
+    }
 }
 
 export class Button extends LogicElement {
-    constructor(x: number, y: number) {
-        super('BUTTON', x, y);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222") {
+        super('BUTTON', x, y, z, xaxis, zaxis, color);
         this.value = false;
         this.nextValue = false;
     }
@@ -256,11 +270,20 @@ export class Button extends LogicElement {
         // Входные элементы не изменяют свое значение автоматически
         this.nextValue = false;
     }
+
+    getController() {
+        return {
+            active: false,
+            controllers: Array.from(this.outputs).map(el => ({ id: el.id })),
+            id: this.id,
+            joints: null
+        }
+    }
 }
 
 export class Switch extends LogicElement {
-    constructor(x: number, y: number) {
-        super('SWITCH', x, y);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222") {
+        super('SWITCH', x, y, z, xaxis, zaxis, color);
         this.value = false;
         this.nextValue = false;
     }
@@ -274,16 +297,38 @@ export class Switch extends LogicElement {
         // Входные элементы не изменяют свое значение автоматически
         this.nextValue = this.value;
     }
+    getController() {
+        return {
+            active: false,
+            controllers: Array.from(this.outputs).map(el => ({ id: el.id })),
+            id: this.id,
+            joints: null
+        }
+    }
 }
 
 export class OutputElement extends LogicElement {
-    constructor(x: number, y: number) {
-        super('OUTPUT', x, y);
+    luminance: number;
+
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", luminance = 50) {
+        super('OUTPUT', x, y, z, xaxis, zaxis, color);
+        this.luminance = luminance
     }
 
     eval() {
         // Выход просто отражает первый вход (если есть)
         this.nextValue = this.inputs.size > 0 ? someInIterable(this.inputs, (input => input.value)) : false;
+    }
+
+    getController() {
+        return {
+            controllers: null,
+            id: this.id,
+            joints: null,
+            coneAngle: 0,
+            color: this.color,
+            luminance: this.luminance
+        }
     }
 }
 
@@ -306,7 +351,31 @@ export class Circuit {
         this.tick = 0;
     }
 
-    addElement(el: LogicElement) {
+    addElement(type: string, params: Record<string, any>) {
+        let el: LogicElement;
+        switch (type) {
+            case 'GATE':
+                el = new LogicGate(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.mode);
+                if (params.controller.mode === 6) {
+                    this.addWire(el, el);
+                }
+                break;
+            case 'TIMER':
+                el = new Timer(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                break;
+            case 'BUTTON':
+                el = new Button(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                break;
+            case 'SWITCH':
+                el = new Switch(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                break;
+            case 'OUTPUT':
+                el = new OutputElement(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.luminance);
+                break;
+            default:
+                return null;
+        }
+
         this.elements.push(el);
         return el;
     }
@@ -411,7 +480,6 @@ export const LogicGates = {
     Pair,
     BitArray,
     LogicGate,
-    TFlop,
     Timer,
     Button,
     Switch,

@@ -1,5 +1,13 @@
+export const typeToshapeId: Map<string, string> = new Map(Object.entries({
+  "GATE": "9f0f56e8-2c31-4d83-996c-d00a9b296c3f",
+  "TIMER": "8f7fd0e7-c46e-4944-a414-7ce2437bb30f",
+  "SWITCH": "7cf717d7-d167-4f2d-a6e7-6b2c70aa3986",
+  "BUTTON": "1e8d93a4-506b-470d-9ada-9c0a321e2db5",
+  "OUTPUT": "ed27f5e2-cac5-4a32-a5d9-49f116acc6af"
+}))
 
-
+export const shapeIdToType = new Map(typeToshapeId.entries().map(([k, v]) => [v, k]));
+export const knownShapeIds = new Set(typeToshapeId.values());
 export const pathMap = new Map<string, Path2D>(Object.entries(
   {
     "and": new Path2D("M21 11C21 5.47715 16.5228 1 11 1C5.47715 1 1 5.47715 1 11V21H21V11Z"),
@@ -17,3 +25,14 @@ export const pathMap = new Map<string, Path2D>(Object.entries(
 ));
 
 pathMap.get("button")?.addPath(new Path2D("M11 16.2C8.12812 16.2 5.8 13.8719 5.8 11C5.8 8.12812 8.12812 5.8 11 5.8C13.8719 5.8 16.2 8.12812 16.2 11C16.2 13.8719 13.8719 16.2 11 16.2Z"));
+
+export const gateTypeToMode = new Map<string, number>(Object.entries({
+  'AND': 0,
+  'OR': 1,
+  'XOR': 2,
+  'NAND': 3,
+  'NOR': 4,
+  'XNOR': 5,
+  'T_FLOP': 6,
+}));
+export const gateModeToType = new Map(gateTypeToMode.entries().map(([k, v]) => [v, k]));

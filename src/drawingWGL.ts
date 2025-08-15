@@ -8,8 +8,8 @@ import {
     elementUnderCursor
 } from "./main";
 import m3 from './m3';
-import type { LogicElement } from "./logic";
-import { pathMap } from "./icons";
+import type { LogicElement, LogicGate } from "./logic";
+import { gateModeToType, gateTypeToMode, pathMap } from "./consts";
 
 
 const colors: Record<string, vec4> = {
@@ -368,14 +368,17 @@ function drawIcons() {
     let i = 0;
     for (const el of circuit.elements) {
         const { x, y } = worldToTranslatedScreen(el.x, el.y);
+        let type = el.type === 'GATE' ? gateModeToType.get((el as LogicGate).gateType) || 'AND' : el.type
+
         data[i * 4 + 0] = x;
         data[i * 4 + 1] = y;
         data[i * 4 + 2] = el.value ? 1 : 0;
-        data[i * 4 + 3] = iconMap.get(el.type.toLowerCase()) || 0;
+        data[i * 4 + 3] = iconMap.get(type.toLowerCase()) || 0;
         ++i;
     }
     if (elementUnderCursor) {
         for (const el of elementUnderCursor.inputs) {
+            if (el === elementUnderCursor) continue;
             const { x, y } = worldToTranslatedScreen(el.x, el.y);
             data[i * 4 + 0] = x;
             data[i * 4 + 1] = y;
@@ -384,6 +387,7 @@ function drawIcons() {
             ++i;
         }
         for (const el of elementUnderCursor.outputs) {
+            if (el === elementUnderCursor) continue;
             const { x, y } = worldToTranslatedScreen(el.x, el.y);
             data[i * 4 + 0] = x;
             data[i * 4 + 1] = y;

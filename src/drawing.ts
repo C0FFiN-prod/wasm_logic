@@ -1,4 +1,4 @@
-import { pathMap } from "./icons";
+import { pathMap } from "./consts";
 import { LogicElement, isInputElement, isOutputElement } from "./logic";
 import {
     camera, canvas, gridSize,
