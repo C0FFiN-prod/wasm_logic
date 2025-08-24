@@ -1,5 +1,5 @@
-import { pathMap } from "./consts";
-import { LogicElement, isInputElement, isOutputElement } from "./logic";
+import { gateModeToType, gateTypeToMode, pathMap } from "./consts";
+import { LogicElement, LogicGate, isInputElement, isOutputElement } from "./logic";
 import {
     camera, canvas, gridSize,
     worldToTranslatedScreen, worldToScreen,
@@ -19,10 +19,10 @@ function drawGrid() {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1 / camera.zoom;
 
-    const left = camera.x;
-    const top = camera.y;
-    const right = camera.x + canvas.width / camera.zoom;
-    const bottom = camera.y + canvas.height / camera.zoom;
+    const left = camera.x / camera.zoom;
+    const top = camera.y / camera.zoom;
+    const right = (camera.x + canvas.width) / camera.zoom;
+    const bottom = (camera.y + canvas.height) / camera.zoom;
 
     const startX = Math.floor(left / gridSize) * gridSize;
     const startY = Math.floor(top / gridSize) * gridSize;
@@ -46,7 +46,7 @@ export function draw() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.translate(-camera.x * camera.zoom, -camera.y * camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
     ctx.scale(camera.zoom, camera.zoom);
 
     drawGrid();
@@ -157,7 +157,7 @@ function drawElement(el: LogicElement) {
     ctx.save();
     ctx.translate(wx, wy);
     ctx.strokeStyle = '#555';
-    ctx.fillStyle = el.value ? '#15c' : '#333';
+    ctx.fillStyle = el.value ? '#15c' : el.color;
     ctx.lineWidth = 2 / camera.zoom;
     ctx.beginPath();
     ctx.rect(0, 0, gridSize, gridSize);
@@ -176,9 +176,12 @@ function drawElement(el: LogicElement) {
         ctx.fill();
         ctx.stroke();
     }
-    let path = pathMap.get(el.type.toLowerCase());
-    if (path)
-        drawSvgSymbol(path, 5, 5, 10 / 22, (el.value ? '#59f' : '#eee'), 1);
+    if (camera.zoom > 0.65) {
+        let path = pathMap.get((el.type == 'GATE' ? gateModeToType.get((el as LogicGate).gateType)! : el.type).toLowerCase());
+        if (path)
+            drawSvgSymbol(path, 5, 5, 10 / 22, (el.value ? '#59f' : '#eee'), 1);
+    }
+
     if (selectedTool === 'connect') {
         // Вход
         if (!isInputElement(el)) {

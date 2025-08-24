@@ -314,7 +314,7 @@ export function draw() {
     matrix = m3.scale(matrix, camera.zoom, camera.zoom);
     const h = gridSize * camera.zoom;
 
-    if (camera.zoom !== prevZoom) {
+    if (camera.zoom !== prevZoom && camera.zoom > 0.65) {
         updateIcons();
     }
 
@@ -351,7 +351,7 @@ export function draw() {
     gl.bufferData(gl.ARRAY_BUFFER, paked.attributes, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
     gl.bufferData(gl.ARRAY_BUFFER, paked.colorIndices, gl.DYNAMIC_DRAW);
-    if (prevZoom !== camera.zoom) {
+    if (prevZoom !== camera.zoom && camera.zoom > 0.65) {
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
         // gl.pixelStorei(gl.UNPACK_ROW_LENGTH, iconCanvas.width);
         // gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, iconCanvas.width);
@@ -516,30 +516,26 @@ function packElements(elements: Set<LogicElement>): {
             border = 3;
         let type = (el.type === 'GATE' ? gateModeToType.get((el as LogicGate).gateType) || 'AND' : el.type).toLowerCase()
         let iconIndex = el.value ? typeToActiveIconIndex.get(type) || iconMap.get(type) || 0 : (iconMap.get(type) || 0)
-        let iconBlendMode = 0;
+        let drawIcon = camera.zoom > 0.65 ? 1 : 0;
         let iconOverlayIndex = 0;
         if (elementUnderCursor) {
             if (elementUnderCursor.inputs.has(el) && elementUnderCursor === el) {
                 iconOverlayIndex = iconMap.get('sw')!;
-                iconBlendMode = 1;
             } else if (elementUnderCursor == el) {
                 iconOverlayIndex = iconMap.get('x')!;
-                iconBlendMode = 1;
             } else if (elementUnderCursor.inputs.has(el)) {
                 iconOverlayIndex = iconMap.get('in')!;
-                iconBlendMode = 1;
             } else if (elementUnderCursor.outputs.has(el)) {
                 iconOverlayIndex = iconMap.get('out')!;
-                iconBlendMode = 1;
             }
         }
 
         attributes[i] =
             (iconOverlayIndex & 0xFF) << 16 |
             (iconIndex & 0xFF) << 8 |
-            (iconBlendMode & 0b11) << 6 |
-            (isLuminant << 5) |
-            (isBright << 4) |
+            (drawIcon & 0b1) << 6 |
+            (isLuminant & 0b1) << 5 |
+            (isBright & 0b1) << 4 |
             (el.value ? 1 : 0) << 3 |
             (border & 0b111);
 
@@ -714,14 +710,14 @@ out vec3 v_iconOverlayUV;
 flat out vec4 v_fillColor;
 flat out vec4 v_borderColor;
 flat out lowp uint v_isLuminant;
-// flat out lowp uint v_iconBlendMode;
+flat out lowp uint v_drawIcon;
 void main() {
     v_localPos = a_texcoord * u_gridSize;
     
     uint packed = uint(a_instanceAttribs);
     uint iconOverlayIndex = (packed >> 16) & 0xFFu;
     uint iconIndex = (packed >> 8) & 0xFFu;
-    // v_iconBlendMode = (packed >> 6) & 0x4u;
+    v_drawIcon = (packed >> 6) & 0x1u;
     v_isLuminant = (packed >> 5) & 0x1u;
     lowp uint isBright = (packed >> 4) & 0x1u;
     lowp uint isActive = (packed >> 3) & 0x1u;
@@ -751,7 +747,7 @@ flat in vec4 v_fillColor;
 flat in vec4 v_borderColor;
 
 flat in lowp uint v_isLuminant;
-flat in lowp uint v_iconBlendMode;
+flat in lowp uint v_drawIcon;
 uniform mediump sampler2DArray u_texture;
 uniform float u_borderThickness;
 uniform vec2 u_gridSize;
@@ -770,8 +766,11 @@ void main() {
     );
     vec4 color = mix(v_fillColor, v_borderColor, borderFactor);
     vec4 icon = texture(u_texture, v_iconUV);
-    
-    fragColor = vec4(icon.rgb * (v_isLuminant == 0u ? -1. : 1.) * 0.5 * icon.a + color.rgb, 1);
+    if (v_drawIcon == 1u){
+        fragColor = vec4(icon.rgb * (v_isLuminant == 0u ? -1. : 1.) * 0.5 * icon.a + color.rgb, 1);
+    } else {
+        fragColor = color;
+    }
     if (v_iconOverlayUV.z != 0.) {
         vec4 iconOverlay = texture(u_texture, v_iconOverlayUV);
         fragColor = mix(fragColor, iconOverlay, iconOverlay.a);
@@ -917,8 +916,6 @@ function updateIcons() {
         iconCtx.fillStyle = textColors[i];
         iconCtx.fillText(texts[i], cell, i * stepY + textBoxCenterY);
     }
-
-    console.log(iconCanvas.width, iconCanvas.height, iconCount, iconCanvas.height / iconCount, iconCanvas.width * iconCanvas.width * iconCount, iconCanvas.width * iconCanvas.height);
 }
 
 // Конвертирует Hex (#RRGGBB) в [R, G, B] (0-255)

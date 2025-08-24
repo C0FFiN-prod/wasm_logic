@@ -97,8 +97,6 @@ function optimizedStep() {
 
 
 function addElement(type: string, params: Record<string, any>) {
-  let el;
-  // Переводим координаты центра экрана в мировые координаты через screenToWorld
   const center = screenToWorld(canvas.width / 2, canvas.height / 2);
   params.pos = params.pos || {};
   params.controller = params.controller || {};
@@ -109,6 +107,12 @@ function addElement(type: string, params: Record<string, any>) {
   params.zaxis = params.zaxis || -1;
   params.color = params.color || "222222";
   params.controller.luminance = params.controller.luminance || 50;
+
+  let mode;
+  if ((mode = gateTypeToMode.get(type)) !== undefined) {
+    params.controller.mode = mode;
+    type = 'GATE';
+  }
 
   return circuit.addElement(type, params);
 }
@@ -140,7 +144,7 @@ function pasteSelectedElementsAtCursor(
     const offsetX = el.x - minX;
     const offsetY = el.y - minY;
 
-    const newEl = addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY } });
+    const newEl = addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY }, color: el.color, controller: el.getController() });
     if (newEl)
       oldToNewMap.set(el.id, newEl);
   }
@@ -225,6 +229,9 @@ function getElementAt(screenX: number, screenY: number) {
 function clearCanvas() {
   if (confirm('Вы уверены, что хотите очистить холст?')) {
     circuit.clear();
+    currentFileHandle = null;
+    currentFileName = "Без названия";
+    updateFilenameDisplay();
     clearSelection();
     requestAnimationFrame(draw);
   }
@@ -242,7 +249,7 @@ function connectSelected() {
   // Создаем новые связи
   for (const source of selectedSources) {
     for (const target of selectedTargets) {
-      if (source !== target && (!LogicGates.isOutputElement(source)) && (!LogicGates.isInputElement(target))) {
+      if ((!LogicGates.isOutputElement(source)) && (!LogicGates.isInputElement(target))) {
         circuit.addWire(source, target);
       }
     }
@@ -458,7 +465,7 @@ canvas.addEventListener('wheel', (e) => {
   const h2 = camera.zoom * gridSize;
   camera.x = worldX * h2 - e.offsetX;
   camera.y = worldY * h2 - e.offsetY;
-
+  console.log(camera)
   requestAnimationFrame(draw);
 }, { passive: false });
 
@@ -535,7 +542,7 @@ function updateToolButtons() {
   const el = document.getElementById(id);
   if (el) {
     el.onclick = () => {
-      const type = id.replace('add-', '').toUpperCase();
+      let type = id.replace('add-', '').toUpperCase();
       addElement(type, {});
       requestAnimationFrame(draw);
     };
@@ -563,7 +570,7 @@ setupEvent('clear-canvas', 'onclick', clearCanvas);
 setupEvent('start-sim', 'onclick', (_) => {
   if (!isSimulating) {
     isSimulating = true;
-    simInterval = setInterval(optimizedStep, 25);
+    simInterval = setInterval(optimizedStep, 1000 / parseInt((document.getElementById('speed-sim') as HTMLInputElement).value));
   }
 });
 
@@ -576,6 +583,17 @@ setupEvent('step-sim', 'onclick', (_) => {
 setupEvent('stop-sim', 'onclick', (_) => {
   isSimulating = false;
   clearInterval(simInterval);
+});
+setupEvent('speed-sim', 'onchange', (e) => {
+  if (isSimulating) {
+    
+    isSimulating = false;
+    clearInterval(simInterval);
+    isSimulating = true;
+    simInterval = setInterval(optimizedStep, 1000 / parseFloat((e.target as HTMLInputElement).value));
+  }
+  (e.target as HTMLElement).innerHTML = (e.target as HTMLInputElement).value;
+  console.log((e.target as HTMLInputElement).value)
 });
 
 // Привязка кнопок
@@ -768,8 +786,11 @@ function deserializeCircuit(json: string) {
   const data = JSON.parse(json);
   circuit.clear();
   const idMap = new Map<number, LogicGates.LogicElement>();
-  console.log(data);
   const version = data.version;
+
+  const center = screenToWorld(canvas.width / 2, canvas.height / 2);
+  const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+
   if (version === 3 || version === 4) {
     let type: string | undefined;
     for (const body of data.bodies) {
@@ -778,16 +799,31 @@ function deserializeCircuit(json: string) {
           const obj = addElement(type, child);
           if (obj) {
             idMap.set(child.id, obj);
+            blueprintRect.x0 = Math.min(obj.x, blueprintRect.x0);
+            blueprintRect.y0 = Math.min(obj.y, blueprintRect.y0);
+            blueprintRect.x1 = Math.max(obj.x, blueprintRect.x1);
+            blueprintRect.y1 = Math.max(obj.y, blueprintRect.y1);
           }
         } else {
           unuseBlueprintObjects.push(child);
         }
       }
     }
+    const blueprintCenter = {
+      x: (blueprintRect.x1 + blueprintRect.x0) / 2,
+      y: (blueprintRect.y1 + blueprintRect.y0) / 2
+    }
+    const blueprintDelta = {
+      x: Math.round(center.x - blueprintCenter.x),
+      y: Math.round(center.y - blueprintCenter.y),
+    } 
+    
     for (const body of data.bodies) {
       for (const child of body.childs) {
         if ((type = shapeIdToType.get(child.shapeId))) {
-          const src = idMap.get(child.id);
+          const src = idMap.get(child.id)!;
+          src.x += blueprintDelta.x;
+          src.y += blueprintDelta.y;
           if (child.controller.controllers) {
             for (const controlled of child.controller.controllers) {
               const dst = idMap.get(controlled.id);
