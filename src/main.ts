@@ -54,8 +54,8 @@ function setupEvent(id: string, event: string, handler: (e: Event) => void) {
 export function screenToWorld(sx: number, sy: number) {
   const h = camera.zoom * gridSize;
   return {
-    x: (camera.x * camera.zoom + sx) / h,
-    y: (camera.y * camera.zoom + sy) / h
+    x: (camera.x + sx) / h,
+    y: (camera.y + sy) / h
   };
 }
 
@@ -69,8 +69,8 @@ export function worldToTranslatedScreen(wx: number, wy: number): Point {
 export function worldToScreen(wx: number, wy: number): Point {
   const h = camera.zoom * gridSize;
   return {
-    x: wx * h - camera.x * camera.zoom,
-    y: wy * h - camera.y * camera.zoom
+    x: (wx * h - camera.x),
+    y: (wy * h - camera.y)
   };
 }
 
@@ -101,13 +101,14 @@ function addElement(type: string, params: Record<string, any>) {
   // Переводим координаты центра экрана в мировые координаты через screenToWorld
   const center = screenToWorld(canvas.width / 2, canvas.height / 2);
   params.pos = params.pos || {};
+  params.controller = params.controller || {};
   params.pos.x = params.pos.x || Math.round(center.x + Math.random() * 10 - 5);
   params.pos.y = params.pos.y || Math.round(center.y + Math.random() * 10 - 5);
   params.pos.z = params.pos.z || 0;
   params.xaxis = params.xaxis || -2;
   params.zaxis = params.zaxis || -1;
   params.color = params.color || "222222";
-  params.luminance = params.luminance || 50;
+  params.controller.luminance = params.controller.luminance || 50;
 
   return circuit.addElement(type, params);
 }
@@ -223,8 +224,7 @@ function getElementAt(screenX: number, screenY: number) {
 
 function clearCanvas() {
   if (confirm('Вы уверены, что хотите очистить холст?')) {
-    circuit.elements = [];
-    circuit.wires.clear();
+    circuit.clear();
     clearSelection();
     requestAnimationFrame(draw);
   }
@@ -399,8 +399,8 @@ canvas.addEventListener('mousemove', e => {
   let mouseWorld = screenToWorld(mouseX, mouseY);
 
   if (isHandMoving) {
-    camera.x -= (e.offsetX - prevMousePos.x) / camera.zoom;
-    camera.y -= (e.offsetY - prevMousePos.y) / camera.zoom;
+    camera.x -= (e.offsetX - prevMousePos.x);
+    camera.y -= (e.offsetY - prevMousePos.y);
 
     requestAnimationFrame(draw);
   } else if (isDragging && selectedElements.size > 0) {
@@ -450,17 +450,14 @@ canvas.addEventListener('wheel', (e) => {
 
   const zoomFactor = 1.1;
   const scale = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
-
-  const mouseX = e.offsetX;
-  const mouseY = e.offsetY;
-
-  const worldX = camera.x + mouseX / camera.zoom;
-  const worldY = camera.y + mouseY / camera.zoom;
+  const h1 = camera.zoom * gridSize;
+  const worldX = (camera.x + e.offsetX) / h1;
+  const worldY = (camera.y + e.offsetY) / h1;
 
   camera.zoom *= scale;
-
-  camera.x = worldX - mouseX / camera.zoom;
-  camera.y = worldY - mouseY / camera.zoom;
+  const h2 = camera.zoom * gridSize;
+  camera.x = worldX * h2 - e.offsetX;
+  camera.y = worldY * h2 - e.offsetY;
 
   requestAnimationFrame(draw);
 }, { passive: false });
@@ -489,7 +486,7 @@ document.addEventListener('keydown', e => {
     }
     if (elementUnderCursor && selectedElements.has(elementUnderCursor))
       elementUnderCursor = null;
-    circuit.elements = circuit.elements.filter(el => !selectedElements.has(el));
+    selectedElements.forEach(el => circuit.elements.delete(el));
     clearSelection();
     requestAnimationFrame(draw);
   } else if (selectedTool === 'connect') {
@@ -683,7 +680,7 @@ async function save() {
     }
     try {
       if (currentFileName + '.json' !== currentFileHandle.name)
-      await (currentFileHandle as any).move(currentFileName + '.json');
+        await (currentFileHandle as any).move(currentFileName + '.json');
       await writeToCurrentFile();
     } catch (error) {
       console.error("Error moving file:", error);
@@ -791,12 +788,14 @@ function deserializeCircuit(json: string) {
       for (const child of body.childs) {
         if ((type = shapeIdToType.get(child.shapeId))) {
           const src = idMap.get(child.id);
-          for (const controlled of child.controller.controllers) {
-            const dst = idMap.get(controlled.id);
-            if (src && dst) {
-              circuit.addWire(src, dst);
-              if (src instanceof LogicGates.LogicGate && src.gateType == 2 && src == dst) {
-                src.gateType = 6;
+          if (child.controller.controllers) {
+            for (const controlled of child.controller.controllers) {
+              const dst = idMap.get(controlled.id);
+              if (src && dst) {
+                circuit.addWire(src, dst);
+                if (src instanceof LogicGates.LogicGate && src.gateType == 2 && src == dst) {
+                  src.gateType = 6;
+                }
               }
             }
           }
@@ -808,7 +807,7 @@ function deserializeCircuit(json: string) {
   } else {
     for (const el of data.elements) {
       let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
-      const obj = addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : {pos:{x:el.x,y:el.y}});
+      const obj = addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : { pos: { x: el.x, y: el.y } });
       if (obj) {
         idMap.set(el.id, obj);
       }

@@ -342,11 +342,11 @@ export class Wire {
 }
 
 export class Circuit {
-    elements: LogicElement[];
+    elements: Set<LogicElement>;
     wires: Map<string, Wire>;
     tick: number;
     constructor() {
-        this.elements = [];
+        this.elements = new Set();
         this.wires = new Map(); // Используем Set вместо массива
         this.tick = 0;
     }
@@ -376,7 +376,7 @@ export class Circuit {
                 return null;
         }
 
-        this.elements.push(el);
+        this.elements.add(el);
         return el;
     }
 
@@ -459,7 +459,7 @@ export class Circuit {
         this.tick = 0;
     }
     clear() {
-        this.elements = [];
+        this.elements.clear();
         this.wires.clear();
         this.tick = 0;
         nextId = 0;

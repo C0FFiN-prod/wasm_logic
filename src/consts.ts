@@ -26,6 +26,16 @@ export const pathMap = new Map<string, Path2D>(Object.entries(
 
 pathMap.get("button")?.addPath(new Path2D("M11 16.2C8.12812 16.2 5.8 13.8719 5.8 11C5.8 8.12812 8.12812 5.8 11 5.8C13.8719 5.8 16.2 8.12812 16.2 11C16.2 13.8719 13.8719 16.2 11 16.2Z"));
 
+export const textColors = ['#0F0', '#F00', '#0FF', '#FF0', '#C44', '#C44', '#44C', '#44C', '#4C4', '#4C4'];
+export const texts = ['IN', 'OUT', 'X', 'SW', 'P0', 'Pn', 'N0', 'Nn', 'D0', 'D1'];
+export const typeToActiveIconIndex: Map<string, number> = new Map(Object.entries({
+  output: pathMap.size + 0,
+  button: pathMap.size + 1,
+  switch: pathMap.size + 2
+}))
+
+export const iconCount = pathMap.size + texts.length + typeToActiveIconIndex.size;
+
 export const gateTypeToMode = new Map<string, number>(Object.entries({
   'AND': 0,
   'OR': 1,
