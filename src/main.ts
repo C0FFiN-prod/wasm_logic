@@ -1,5 +1,5 @@
 // main.js
-import { gateTypeToMode, knownShapeIds, shapeIdToType, typeToshapeId } from './consts';
+import { CopyWiresMode, gateTypeToMode, knownShapeIds, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId } from './consts';
 import { draw, initContext } from './drawingWGL';
 import * as LogicGates from './logic';
 export type Point = { x: number, y: number };
@@ -8,7 +8,6 @@ export const gridSize = 20;
 export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
 export const camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
-export let selectedTool = 'move'; // 'move' или 'connect'
 export let elementUnderCursor: LogicGates.LogicElement | null;
 let isSimulating = false;
 let simInterval: NodeJS.Timeout;
@@ -24,20 +23,9 @@ let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
 export let selectionEnd: Point = { x: 0, y: 0 };
 export let selectedElements = new Set<LogicGates.LogicElement>();
-const CopyWiresMode = {
-  None: 0,
-  Inner: 1,
-  All: 2
-} as const;
-type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];
+
+export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
-export const ShowWiresMode = {
-  None: 0,
-  Connect: 1,
-  Temporary: 2,
-  Always: 3
-} as const;
-export type ShowWiresMode = typeof ShowWiresMode[keyof typeof ShowWiresMode];
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
 // === Вспомогательные ===
@@ -326,7 +314,7 @@ canvas.addEventListener('mousedown', e => {
 
   const el = getElementAt(mouseX, mouseY);
   if (el) {
-    if (selectedTool === 'connect') {
+    if (selectedTool === ToolMode.Connect) {
       if (e.button === 0) {
         if (!LogicGates.isOutputElement(el)) {
           if (!selectedSources.has(el)) {
@@ -376,7 +364,7 @@ canvas.addEventListener('mousedown', e => {
       }
     }
   } else {
-    if (selectedTool === 'move' && e.button === 0) {
+    if (selectedTool === ToolMode.Cursor && e.button === 0) {
       isSelecting = true;
       selectionStart = { x: e.offsetX, y: e.offsetY };
       selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -386,7 +374,7 @@ canvas.addEventListener('mousedown', e => {
     }
   }
   if (e.button === 1) {
-    if (selectedTool === 'connect' && el) {
+    if (selectedTool === ToolMode.Connect && el) {
       elementUnderCursor = el;
     } else {
       prevMousePos.x = mouseX;
@@ -496,7 +484,7 @@ document.addEventListener('keydown', e => {
     selectedElements.forEach(el => circuit.elements.delete(el));
     clearSelection();
     requestAnimationFrame(draw);
-  } else if (selectedTool === 'connect') {
+  } else if (selectedTool === ToolMode.Connect) {
     if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
       connectSelected();
     }
@@ -552,14 +540,14 @@ function updateToolButtons() {
 });
 
 setupEvent('tool-move', 'onclick', (_) => {
-  selectedTool = 'move';
+  selectedTool = ToolMode.Cursor;
   clearSelection();
   updateToolButtons();
   requestAnimationFrame(draw);
 });
 
 setupEvent('tool-connect', 'onclick', (_) => {
-  selectedTool = 'connect';
+  selectedTool = ToolMode.Connect;
   clearSelection();
   updateToolButtons();
   requestAnimationFrame(draw);
@@ -586,7 +574,7 @@ setupEvent('stop-sim', 'onclick', (_) => {
 });
 setupEvent('speed-sim', 'onchange', (e) => {
   if (isSimulating) {
-    
+
     isSimulating = false;
     clearInterval(simInterval);
     isSimulating = true;
@@ -816,8 +804,8 @@ function deserializeCircuit(json: string) {
     const blueprintDelta = {
       x: Math.round(center.x - blueprintCenter.x),
       y: Math.round(center.y - blueprintCenter.y),
-    } 
-    
+    }
+
     for (const body of data.bodies) {
       for (const child of body.childs) {
         if ((type = shapeIdToType.get(child.shapeId))) {

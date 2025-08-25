@@ -3,13 +3,13 @@ import {
     worldToTranslatedScreen, screenToWorld, worldToScreen,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
-    selectedTool, ShowWiresMode, showWiresMode, circuit,
+    selectedTool, showWiresMode, circuit,
     type Point,
     elementUnderCursor
 } from "./main";
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
-import { gateModeToType, gateTypeToMode, iconCount, pathMap, textColors, texts, typeToActiveIconIndex } from "./consts";
+import { gateModeToType, gateTypeToMode, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex } from "./consts";
 
 
 const colors: Record<string, vec4> = {
@@ -644,7 +644,7 @@ function drawWires() {
     gl.uniform4fv(program.uniforms.color, colors.wires);
     gl.lineWidth(1 / camera.zoom);
     if (showWiresMode === ShowWiresMode.Always ||
-        showWiresMode === ShowWiresMode.Connect && selectedTool === 'connect') {
+        showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         let lines = new Float32Array(circuit.wires.size * 4);
         let i = 0;
         for (const [_, wire] of circuit.wires) {
@@ -665,7 +665,7 @@ function drawWires() {
         (
             showWiresMode === ShowWiresMode.Always ||
             (showWiresMode === ShowWiresMode.Connect ||
-                showWiresMode === ShowWiresMode.Temporary) && selectedTool === 'connect'
+                showWiresMode === ShowWiresMode.Temporary) && selectedTool === ToolMode.Connect
         ) &&
         selectedSources.size > 0 && selectedTargets.size > 0
     ) {

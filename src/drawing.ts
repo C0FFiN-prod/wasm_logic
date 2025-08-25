@@ -1,4 +1,4 @@
-import { gateModeToType, gateTypeToMode, pathMap } from "./consts";
+import { gateModeToType, gateTypeToMode, pathMap, ToolMode } from "./consts";
 import { LogicElement, LogicGate, isInputElement, isOutputElement } from "./logic";
 import {
     camera, canvas, gridSize,
@@ -51,7 +51,7 @@ export function draw() {
 
     drawGrid();
 
-    if (selectedTool === 'connect') {
+    if (selectedTool === ToolMode.Connect) {
         // Draw wires
         ctx.strokeStyle = '#888';
         ctx.lineWidth = 1;
@@ -182,7 +182,7 @@ function drawElement(el: LogicElement) {
             drawSvgSymbol(path, 5, 5, 10 / 22, (el.value ? '#59f' : '#eee'), 1);
     }
 
-    if (selectedTool === 'connect') {
+    if (selectedTool === ToolMode.Connect) {
         // Вход
         if (!isInputElement(el)) {
             ctx.beginPath();
