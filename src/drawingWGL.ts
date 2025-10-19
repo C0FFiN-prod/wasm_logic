@@ -10,6 +10,7 @@ import {
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
 import { gateModeToType, gateTypeToMode, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex } from "./consts";
+import { hexToRgb, luminance, lightness } from "./utils";
 
 
 const colors: Record<string, vec4> = {
@@ -878,7 +879,7 @@ function updateIcons() {
     iconCtx.lineWidth = 2;
     for (const [key, path] of pathMap) {
         iconCtx.strokeStyle = '#fff';
-        iconCtx.stroke(path);
+        iconCtx.stroke(new Path2D(path));
 
         if (activeIndex = typeToActiveIconIndex.get(key)) {
             const shift = (activeIndex - y) * stepY;
@@ -888,7 +889,7 @@ function updateIcons() {
                 iconCtx.arc(cell * 0.5 + 1, cell * 0.5 + 1, cell / 2, 0, Math.PI * 2);
                 iconCtx.fillStyle = key === 'output' ? '#888' : '#aaa';
                 iconCtx.fill();
-                iconCtx.stroke(path);
+                iconCtx.stroke(new Path2D(path));
             }
             iconCtx.translate(0, -shift);
         }
@@ -918,21 +919,3 @@ function updateIcons() {
     }
 }
 
-// Конвертирует Hex (#RRGGBB) в [R, G, B] (0-255)
-function hexToRgb(hex: string): [number, number, number] {
-    hex = hex.replace('#', '');
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    return [r, g, b];
-}
-
-function luminance(r: number, g: number, b: number): number {
-    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-}
-
-function lightness(r: number, g: number, b: number) {
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    return (max + min) / 510;
-}
