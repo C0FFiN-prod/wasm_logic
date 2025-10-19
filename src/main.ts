@@ -352,14 +352,33 @@ canvas.addEventListener('mousedown', e => {
         isDragging = true;
       }
       else if (e.button === 2) {
-        if (el instanceof LogicGates.Switch) {
+        if (el === null) {
+
+        } else if (el instanceof LogicGates.Switch) {
           el.setValue(!el.value);
         } else if (el instanceof LogicGates.Button) {
           el.setValue(true);
         } else if (el instanceof LogicGates.Timer) {
           let delay = prompt(`Set delay (now ${el.delay} ticks):`);
-          if (delay !== '')
-            el.setDelay(Number(delay));
+          let newDelay = Math.round(Number(delay));
+          if (delay !== '' && !Number.isNaN(newDelay) && (0 <= newDelay && newDelay <= 1024)) {
+            el.setDelay(newDelay);
+            for (const elI of selectedElements) {
+              if (elI instanceof LogicGates.Timer)
+                elI.setDelay(newDelay);
+            }
+          }
+        } else if (el instanceof LogicGates.LogicGate) {
+          let mode = prompt(`Set gate mode (now ${el.gateType}):`);
+          let newMode = Math.round(Number(mode));
+          if (mode !== '' && !Number.isNaN(newMode) && (0 <= newMode && newMode <= 6)) {
+            el.gateType = newMode;
+            for (const elI of selectedElements) {
+              if (elI instanceof LogicGates.LogicGate)
+                elI.gateType = newMode;
+            }
+            requestAnimationFrame(draw);
+          }
         }
       }
     }
