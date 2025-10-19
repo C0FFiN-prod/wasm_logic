@@ -1,5 +1,9 @@
+:root {
+    --text: #dfe6f0;
+    --font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
+}
+
 body {
-    font-family: sans-serif;
     background: #121212;
     color: #e0e0e0;
     margin: 0;
@@ -7,6 +11,8 @@ body {
     user-select: none;
     overflow: hidden;
     height: 100%;
+    font-size: 16px;
+    font-family: var(--font-family);
 }
 
 header {
@@ -51,14 +57,20 @@ header {
     border: 1px solid #333;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
+
 #filename-display {
+    display: inline-block;
     margin-left: 10px;
     cursor: pointer;
     font-size: 16px;
     color: #e0e0e0;
+    padding: 0;
+    margin-bottom: 1px;
+    font-family: var(--font-family);
 }
 
 #filename-input {
+    display: inline-block;
     margin-left: 10px;
     font-size: 16px;
     background: transparent;
@@ -67,4 +79,5 @@ header {
     border-bottom: 1px dotted #aaa;
     outline: none;
     padding: 0;
+    font-family: var(--font-family);
 }

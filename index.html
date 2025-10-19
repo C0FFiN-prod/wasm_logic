@@ -5,13 +5,12 @@
     <meta charset="UTF-8">
     <title>Логический симулятор</title>
     <link rel="stylesheet" href="style.css">
-    <!-- <script src="https://cdn.jsdelivr.net/npm/typescript@latest/lib/typescriptServices.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/systemjs/6.12.1/system.min.js"></script> -->
 </head>
 
 <body>
+    <div class="tip" id="tip"></div>
     <header id="toolbar">
-        <span>Файл: <span id="filename-display">Без названия</span></span>
+        <div>Файл: <span id="filename-display">Без названия</span></div><br>
         <button id="tool-move" class="tool-button active">Move</button>
         <button id="tool-connect" class="tool-button">Connect</button>
         <button id="copy-wires-mode-btn" class="tool-button">Copy wires: Inner</button>
@@ -38,7 +37,6 @@
     <canvas id="circuit-canvas"></canvas>
 
     <input type="file" id="file-input" style="display:none" />
-    <!-- <script src="js/bundle.js"></script> -->
     <script type="module" src="src/consts.ts"></script>
     <script type="module" src="src/logic.ts"></script>
     <script type="module" src="src/drawing.ts"></script>
