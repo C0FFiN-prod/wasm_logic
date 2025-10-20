@@ -69,3 +69,6 @@ export const ShowWiresMode = {
 export type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];
 export type ShowWiresMode = typeof ShowWiresMode[keyof typeof ShowWiresMode];
 export type ToolMode = typeof ToolMode[keyof typeof ToolMode];
+export type Camera = { x: number, y: number, zoom: number };
+export type Point = { x: number, y: number };
+export const gridSize = 20;
