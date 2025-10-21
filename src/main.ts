@@ -1,6 +1,6 @@
 // main.js
 import { CircuitIO } from './circuitIO';
-import { CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point } from './consts';
+import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point } from './consts';
 import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
 import * as LogicGates from './logic';
@@ -35,6 +35,10 @@ let fileIO: FileIO;
 let circuitIO: CircuitIO;
 window.onload = (() => {
   // Инициализация
+  const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const toggleThemeBtn = document.querySelector("#theme-toggle");
+  toggleThemeBtn?.addEventListener("click", () => toggleTheme());
+  toggleTheme(prefersDarkScheme.matches);
   updateToolButtons();
   initContext();
   canvas.width = window.innerWidth;
@@ -63,8 +67,12 @@ window.onload = (() => {
         const getStyle = window.getComputedStyle(floatingMenu);
         const x = parseInt(getStyle.left) + movementX;
         const y = parseInt(getStyle.top) + movementY;
-        floatingMenu.style.left = `${x}px`;
-        floatingMenu.style.top = `${y}px`;
+        if (20 < x && x < window.innerWidth - parseInt(getStyle.width) - 20) {
+          floatingMenu.style.left = `${x}px`;
+        }
+        if (20 < y && y < window.innerHeight - parseInt(getStyle.height) - 20) {
+          floatingMenu.style.top = `${y}px`;
+        }
       }
     });
     const getStyle = window.getComputedStyle(floatingMenu);
@@ -72,6 +80,12 @@ window.onload = (() => {
     const y = parseInt(getStyle.top);
     floatingMenu.style.left = `${x}px`;
     floatingMenu.style.top = `${y}px`;
+    floatingMenu.style.width = getStyle.width;
+    const check = header.querySelector("input[type='checkbox']") as HTMLInputElement;
+    const container = floatingMenu.querySelector(".floating-menu-container");
+    check?.addEventListener("change", () => {
+      container?.classList.toggle("hidden", check.checked);
+    })
   }
 
   // Ctrl+S обработчик
@@ -93,6 +107,39 @@ window.addEventListener('resize', () => {
   canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
   requestAnimationFrame(draw);
 });
+
+function toggleTheme(force?: boolean) {
+  const htmlElement = document.documentElement;
+  const toggleThemeBtnIcon = document.querySelector("#theme-toggle svg");
+  let isDark: boolean;
+  if (force !== undefined) {
+    if (force) {
+      htmlElement.setAttribute('data-theme', 'dark');
+    } else {
+      htmlElement.removeAttribute('data-theme');
+    }
+    isDark = force;
+  } else {
+    if (htmlElement.getAttribute('data-theme') === 'dark') {
+      htmlElement.removeAttribute('data-theme');
+      isDark = false;
+    } else {
+      htmlElement.setAttribute('data-theme', 'dark');
+      isDark = true;
+    }
+  }
+  if (toggleThemeBtnIcon)
+    toggleThemeBtnIcon.innerHTML = `<path d="${(isDark ? pathMap.get('moon') : pathMap.get('sun'))}"/>`;
+  if (isDark) {
+    colors.grid = [0, 0, 0, 1];
+    colors.background = [0.1, 0.1, 0.1, 1];
+  } else {
+    colors.grid = [0.8, 0.8, 0.8, 1];
+    colors.background = [0.9, 0.9, 0.9, 1];
+  }
+  requestAnimationFrame(draw);
+}
+
 // Оптимизация симуляции
 function optimizedStep() {
   circuit.step();
@@ -169,7 +216,7 @@ function updateShowWiresButtonText() {
       btn.textContent = "Show wires: Connect";
       break;
     case ShowWiresMode.Temporary:
-      btn.textContent = "Show wires: Temporary";
+      btn.textContent = "Show wires: Temp";
       break;
     case ShowWiresMode.Always:
       btn.textContent = "Show wires: Always";
@@ -460,7 +507,9 @@ setupEvent('clear-canvas', 'onclick', clearCanvas);
 setupEvent('start-sim', 'onclick', (_) => {
   if (!isSimulating) {
     isSimulating = true;
-    simInterval = setInterval(optimizedStep, 1000 / parseInt((document.getElementById('speed-sim') as HTMLInputElement).value));
+    const clock = (document.getElementById('speed-sim') as HTMLInputElement);
+    const value = parseInt(clock.innerHTML || clock.value || "40");
+    simInterval = setInterval(optimizedStep, 1000 / value);
   }
 });
 
@@ -480,10 +529,13 @@ setupEvent('speed-sim', 'onchange', (e) => {
     isSimulating = false;
     clearInterval(simInterval);
     isSimulating = true;
-    simInterval = setInterval(optimizedStep, 1000 / parseFloat((e.target as HTMLInputElement).value));
+    const clock = (document.getElementById('speed-sim') as HTMLInputElement);
+    const min = parseInt(clock.getAttribute('min') || "1");
+    const max = parseInt(clock.getAttribute('max') || "1000");
+    const value = Math.max(min, Math.min(parseInt(clock.innerHTML || clock.value || "40"), max));
+    clock.value = value.toString();
+    simInterval = setInterval(optimizedStep, 1000 / value);
   }
-  (e.target as HTMLElement).innerHTML = (e.target as HTMLInputElement).value;
-  console.log((e.target as HTMLInputElement).value)
 });
 
 window.addEventListener("beforeunload", (e) => {

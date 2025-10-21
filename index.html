@@ -9,13 +9,15 @@
 
 <body>
     <div class="tip" id="tip"></div>
+    <button id="theme-toggle"><svg xmlns="http://www.w3.org/2000/svg" 
+        fill="transparent" stroke="var(--text)" viewBox="-1 -1 19 19"
+        fill-rule="evenodd" clip-rule="evenodd"></svg></button>
 
 
-
-    <div class="floating-menu" id="fm-tools" style="left: 20px; top: 20px;">
+    <div class="floating-menu" style="left: 20px; top: 20px;">
         <div class="floating-menu-header">
             <span>Tools</span>
-            <input type="checkbox" id="fm-tools-toggle">
+            <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col">
             <button id="tool-move" class="tool-button active">Move</button>
@@ -26,10 +28,10 @@
         </div>
     </div>
 
-    <div class="floating-menu" id="fm-elements" style="left: 20px; top: 420px;">
+    <div class="floating-menu" style="left: 20px; top: 420px;">
         <div class="floating-menu-header">
             <span>Elements</span>
-            <input type="checkbox" id="fm-elements-toggle">
+            <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col justify">
             <button id="add-and">AND</button>
@@ -42,14 +44,14 @@
             <button id="add-timer">Timer</button>
             <button id="add-button">Button</button>
             <button id="add-switch">Switch</button>
-            <button id="add-output">Lamp</button>
+            <button id="add-output">Output</button>
         </div>
     </div>
 
-    <div class="floating-menu" id="fm-file"  style="left: 50%; top: 20px;">
+    <div class="floating-menu" style="left: 50%; top: 20px;">
         <div class="floating-menu-header">
             <span>File</span>
-            <input type="checkbox" id="fm-file-toggle">
+            <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col gap-3">
             <div>Файл: <span id="filename-display">Без названия</span></div>
@@ -61,16 +63,17 @@
         </div>
     </div>
 
-    <div class="floating-menu" id="fm-sim"  style="left: 50%; top: 85%;">
+    <div class="floating-menu" style="left: 50%; top: 85%;">
         <div class="floating-menu-header">
             <span>Simulation</span>
-            <input type="checkbox" id="fm-sim-toggle">
+            <input type="checkbox">
         </div>
         <div class="floating-menu-container">
             <button id="start-sim">⏵</button>
             <button id="step-sim">⏭</button>
             <button id="stop-sim">⏹</button>
-            <input type="range" id="speed-sim" min="1" max="1000"></button>
+            <input type="number" id="speed-sim" min="1" max="1000" value="40">
+            <label for="speed-sim">Hz</label>
         </div>
     </div>
     <canvas id="circuit-canvas"></canvas>

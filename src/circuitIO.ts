@@ -132,7 +132,7 @@ export class CircuitIO {
         params.pos.z = params.pos.z || 0;
         params.xaxis = params.xaxis || -2;
         params.zaxis = params.zaxis || -1;
-        params.color = params.color || "222222";
+        params.color = params.color || (document.documentElement.getAttribute('data-theme') === 'dark' ? "222222" : "eeeeee");
         params.controller.luminance = params.controller.luminance || 50;
 
         let mode;

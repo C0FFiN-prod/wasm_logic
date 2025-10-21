@@ -1,11 +1,29 @@
 :root {
-    --text: #dfe6f0;
     --font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
+    --text: #070707;
+    --bg-color: #e0e0e0;
+    --btn-color: #e7e7e7;
+    --btn-color-hover: #cdcdcd;
+    --btn-color-border: #9e9d9d;
+    --hr-color: #313131;
+    --fm-bg-color: #eeeeee;
+    --fm-border-color: #313131;
+}
+
+[data-theme="dark"] {
+    --text: #e0e0e0;
+    --bg-color: #121212;
+    --btn-color: #333;
+    --btn-color-hover: #444;
+    --btn-color-border: #444;
+    --hr-color: #555;
+    --fm-bg-color: #1e1e1e;
+    --fm-border-color: #555;
 }
 
 body {
-    background: #121212;
-    color: #e0e0e0;
+    background: var(--bg-color);
+    color: var(--text);
     margin: 0;
     padding: 0;
     user-select: none;
@@ -20,39 +38,27 @@ header {
     margin: 0;
 }
 
-#toolbar {
-    padding: 10px;
-    background: #1e1e1e;
-    border-bottom: 1px solid #333;
-}
-
-#toolbar .tool-button.active {
-    background-color: #555;
-    border-color: #777;
-}
-
 button {
     padding: 6px 12px;
     font-size: 16px;
-    background-color: #333;
-    color: #e0e0e0;
-    border: 1px solid #444;
+    background-color: var(--btn-color);
+    color: var(--text);
+    border: 1px solid var(--btn-color-border);
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.2s;
     user-select: none;
 }
 
-#toolbar button:hover {
-    background-color: #444;
+button:hover {
+    background-color: var(--btn-color-hover);
 }
 
 #circuit-canvas {
     display: block;
     width: 100%;
     height: 100%;
-    background: #1a1a1a;
-    border: 1px solid #333;
+    background: none;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
@@ -61,7 +67,7 @@ button {
     margin-left: 10px;
     cursor: pointer;
     font-size: 20px;
-    color: #e0e0e0;
+    color: var(--text);
     padding: 0;
     margin-bottom: 1px;
     font-family: var(--font-family);
@@ -72,9 +78,9 @@ button {
     margin-left: 10px;
     font-size: 20px;
     background: transparent;
-    color: #e0e0e0;
+    color: var(--text);
     border: none;
-    border-bottom: 1px dotted #aaa;
+    border-bottom: 1px dotted var(--text);
     outline: none;
     padding: 0;
     font-family: var(--font-family);
@@ -83,17 +89,18 @@ button {
 hr {
     border: none;
     height: 1px;
-    background-color: #555;
+    background-color: var(--hr-color);
 }
 
 .floating-menu {
     position: absolute;
     padding: 0;
-    background: #1e1e1e;
-    border: 1px solid #555;
+    background: var(--fm-bg-color);
+    border: 1px solid var(--fm-border-color);
     border-radius: 5px;
     font-size: 20px;
     font-family: var(--font-family);
+    box-shadow: 0px 3px 10px 0px #00000073;
 }
 
 .floating-menu-header,
@@ -104,20 +111,44 @@ hr {
 
 .floating-menu-header {
     gap: 3rem;
-
-}
-
-.floating-menu-header>span {
-    width: 100%;
-    display: inline-block;
+    justify-content: space-between;
 }
 
 .floating-menu-header>input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    rotate: -90deg;
+    /* transition: rotate .1s; */
+}
 
+.floating-menu-header>input[type="checkbox"]:checked {
+    rotate: 0deg;
+}
+
+.floating-menu-header>input[type="checkbox"]::after,
+.floating-menu-header>input[type="checkbox"]::before {
+    content: "";
+    display: block;
+    width: 10px;
+    height: 3px;
+    background-color: #F33;
+    position: absolute;
+}
+
+.floating-menu-header>input[type="checkbox"]::before {
+    transform: rotate(45deg);
+    translate: 4px 10px;
+}
+
+.floating-menu-header>input[type="checkbox"]::after {
+    transform: rotate(-45deg);
+    translate: 4px 5px;
 }
 
 .floating-menu-container {
-    border-top: 1px solid #555;
+    border-top: 1px solid var(--fm-border-color);
     gap: 0.5rem;
 }
 
@@ -125,6 +156,48 @@ hr {
     width: 100%;
     height: 1px;
 }
+
+#theme-toggle {
+    width: 40px;
+    height: 40px;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    padding: 3px;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+}
+
+#theme-toggle svg {}
+
+input[type="number"] {
+    -webkit-appearance: textfield;
+    -moz-appearance: textfield;
+    appearance: textfield;
+    background: none;
+    color: var(--text);
+    font-family: var(--font-family);
+    font-size: 20px;
+    padding: 0;
+    border: none;
+    text-align: right;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+}
+
+input[type="number"]:focus,
+input[type="number"]:active,
+input[type="number"]:focus-visible,
+input[type="number"]:hover {
+    border: none;
+    outline: none;
+    border-bottom: 1px solid var(--text);
+}
+
 
 .flex {
     display: flex;
@@ -160,4 +233,8 @@ hr {
 
 .text-center {
     text-align: center;
+}
+
+.hidden {
+    display: none !important;
 }

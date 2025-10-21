@@ -7,28 +7,11 @@ import {
 } from "./main";
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
-import { gateModeToType, gateTypeToMode, gridSize, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex } from "./consts";
+import { borderPalette, colors, gateModeToType, gateTypeToMode, gridSize, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex, type vec3 } from "./consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "./utils";
 
 
-const colors: Record<string, vec4> = {
-    grid: [0, 0, 0, 1],
-    on: [0.066, 0.332, 0.797, 1],
-    off: [0.2, 0.2, 0.2, 1],
-    wires: [0.531, 0.531, 0.531, 1],
-    tempWires: [1, 0.664, 0, 1],
-    border: [0.332, 0.332, 0.332, 1],
-    selection: [0.066, 0.598, 1, 1],
-    source: [0, 1, 0, 1],
-    target: [1, 0, 0, 1],
-}
-const borderPalette = [
-    84, 84, 84, 255, //border
-    16, 152, 255, 255, //selection
-    0, 255, 0, 255, //source
-    255, 0, 0, 255, //target
-    255, 255, 0, 255, //self-wired
-]
+
 type Program = {
     program: WebGLProgram | null,
     attributes: Record<string, GLint>,
@@ -304,8 +287,7 @@ function resize() {
         gl.canvas.height = displayHeight;
     }
 }
-type vec3 = [number, number, number];
-type vec4 = [number, number, number, number];
+
 export function draw() {
     let matrix = m3.projection(canvas.clientWidth, canvas.clientHeight);
     const matrixProjection = matrix;
@@ -319,7 +301,7 @@ export function draw() {
 
     resize();
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0.1, 0.1, 0.1, 1.0);
+    gl.clearColor(...colors.background);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     if (!programs.translated) return;
