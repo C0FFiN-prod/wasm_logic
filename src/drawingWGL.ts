@@ -1,16 +1,14 @@
 import {
-    camera, canvas, gridSize,
-    worldToTranslatedScreen, screenToWorld, worldToScreen,
+    camera, canvas,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
     selectedTool, showWiresMode, circuit,
-    type Point,
     elementUnderCursor
 } from "./main";
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
-import { gateModeToType, gateTypeToMode, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex } from "./consts";
-import { hexToRgb, luminance, lightness } from "./utils";
+import { gateModeToType, gateTypeToMode, gridSize, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex } from "./consts";
+import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "./utils";
 
 
 const colors: Record<string, vec4> = {
@@ -462,7 +460,7 @@ function packElements(elements: Set<LogicElement>): {
     const h = camera.zoom * gridSize;
     const cameraWorldX = camera.x / h - 1;
     const cameraWorldY = camera.y / h - 1;
-    const { x: wx, y: wy } = screenToWorld(canvas.width, canvas.height);
+    const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
     const visibleElements: LogicElement[] = [];
     for (const el of elements) {
         if (cameraWorldX <= el.x && el.x <= wx && cameraWorldY <= el.y && el.y <= wy) {
@@ -477,7 +475,7 @@ function packElements(elements: Set<LogicElement>): {
     let nextColorIndex = 5;
     let i = 0;
     for (const el of visibleElements) {
-        const { x, y } = worldToTranslatedScreen(el.x, el.y);
+        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
         positions[i * 2] = x;
         positions[i * 2 + 1] = y;
         let isBright, isLuminant, color;
@@ -561,7 +559,7 @@ function drawIcons() {
     let data = new Float32Array(count * 4);
     let i = 0;
     for (const el of circuit.elements) {
-        const { x, y } = worldToTranslatedScreen(el.x, el.y);
+        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
         let type = el.type === 'GATE' ? gateModeToType.get((el as LogicGate).gateType) || 'AND' : el.type
 
         data[i * 4 + 0] = x;
@@ -573,7 +571,7 @@ function drawIcons() {
     if (elementUnderCursor) {
         for (const el of elementUnderCursor.inputs) {
             if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
             data[i * 4 + 0] = x;
             data[i * 4 + 1] = y;
             data[i * 4 + 2] = 0;
@@ -582,14 +580,14 @@ function drawIcons() {
         }
         for (const el of elementUnderCursor.outputs) {
             if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
             data[i * 4 + 0] = x;
             data[i * 4 + 1] = y;
             data[i * 4 + 2] = 1;
             data[i * 4 + 3] = iconMap.get('connections') || 0;
             ++i;
         }
-        const { x, y } = worldToTranslatedScreen(elementUnderCursor.x, elementUnderCursor.y);
+        const { x, y } = worldToTranslatedScreen(camera, elementUnderCursor.x, elementUnderCursor.y);
         data[i * 4 + 0] = x;
         data[i * 4 + 1] = y;
         data[i * 4 + 2] = elementUnderCursor.inputs.has(elementUnderCursor) ? 1 : 0;
@@ -649,8 +647,8 @@ function drawWires() {
         let lines = new Float32Array(circuit.wires.size * 4);
         let i = 0;
         for (const [_, wire] of circuit.wires) {
-            let start = worldToTranslatedScreen(wire.src.x, wire.src.y);
-            let end = worldToTranslatedScreen(wire.dst.x, wire.dst.y);
+            let start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
+            let end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
             lines[i * 4 + 0] = start.x + gridSize;
             lines[i * 4 + 1] = start.y + gridSize * .5;
             lines[i * 4 + 2] = end.x;
@@ -675,8 +673,8 @@ function drawWires() {
         let i = 0;
         for (const source of selectedSources) {
             for (const target of selectedTargets) {
-                let start = worldToTranslatedScreen(source.x, source.y);
-                let end = worldToTranslatedScreen(target.x, target.y);
+                let start = worldToTranslatedScreen(camera, source.x, source.y);
+                let end = worldToTranslatedScreen(camera, target.x, target.y);
                 lines[i * 4 + 0] = start.x + gridSize;
                 lines[i * 4 + 1] = start.y + gridSize * .5;
                 lines[i * 4 + 2] = end.x;
@@ -833,7 +831,7 @@ function getPositionsArray(arr: Iterable<LogicElement>, n: number) {
     let instancesPos = new Float32Array(n * 2);
     let i = 0;
     for (const el of arr) {
-        const { x, y } = worldToTranslatedScreen(el.x, el.y);
+        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
         instancesPos[i * 2 + 0] = x;
         instancesPos[i * 2 + 1] = y;
         ++i;

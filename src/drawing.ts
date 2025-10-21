@@ -1,15 +1,13 @@
-import { gateModeToType, gateTypeToMode, pathMap, ShowWiresMode, ToolMode } from "./consts";
+import { gateModeToType, gateTypeToMode, gridSize, pathMap, ShowWiresMode, ToolMode, type Point } from "./consts";
 import { LogicElement, LogicGate, isInputElement, isOutputElement } from "./logic";
 import {
-    camera, canvas, gridSize,
-    worldToTranslatedScreen, worldToScreen,
+    camera, canvas,
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
     selectedTool, circuit, elementUnderCursor,
-    type Point,
     showWiresMode
 } from "./main";
-import { hexToRgb, luminance, lightness, rgbToHex } from "./utils";
+import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen } from "./utils";
 
 let ctx: CanvasRenderingContext2D;
 
@@ -73,15 +71,15 @@ export function draw() {
     if (elementUnderCursor) {
         for (const el of elementUnderCursor.inputs) {
             if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
             writeTextAt(x + gridSize * 0.55, y + gridSize * 0.55, gridSize * 0.5, "#0f0", "IN");
         }
         for (const el of elementUnderCursor.outputs) {
             if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(el.x, el.y);
+            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
             writeTextAt(x + gridSize * 0.55, y + gridSize * 0.55, gridSize * 0.5, "#f00", "OUT");
         }
-        const { x, y } = worldToTranslatedScreen(elementUnderCursor.x, elementUnderCursor.y);
+        const { x, y } = worldToTranslatedScreen(camera, elementUnderCursor.x, elementUnderCursor.y);
         if (elementUnderCursor.inputs.has(elementUnderCursor))
             writeTextAt(x + gridSize * 0.55, y + gridSize * 0.55, gridSize * 0.5, "#ff0", "SW");
         else
@@ -115,8 +113,8 @@ function drawWires() {
         ctx.beginPath();
 
         for (const wire of circuit.wires.values()) {
-            let start = worldToTranslatedScreen(wire.src.x, wire.src.y);
-            let end = worldToTranslatedScreen(wire.dst.x, wire.dst.y);
+            let start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
+            let end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
             ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
             ctx.lineTo(end.x, end.y + gridSize * .5);
 
@@ -137,8 +135,8 @@ function drawWires() {
         ctx.beginPath();
         for (const source of selectedSources) {
             for (const target of selectedTargets) {
-                let start = worldToTranslatedScreen(source.x, source.y);
-                let end = worldToTranslatedScreen(target.x, target.y);
+                let start = worldToTranslatedScreen(camera, source.x, source.y);
+                let end = worldToTranslatedScreen(camera, target.x, target.y);
                 ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
                 ctx.lineTo(end.x, end.y + gridSize * .5);
             }
