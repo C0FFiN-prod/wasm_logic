@@ -46,6 +46,34 @@ window.onload = (() => {
   setupEvent('save-scheme', 'onclick', fileIO.save);
   setupEvent('load-scheme', 'onclick', fileIO.load);
 
+  const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
+  for (const floatingMenu of floatingMenus) {
+    const header = floatingMenu.querySelector(".floating-menu-header") as HTMLElement;
+    header?.addEventListener('mousedown', (e) => {
+      floatingMenu.toggleAttribute("dragging", true);
+    });
+    header?.addEventListener('mouseup', (e) => {
+      floatingMenu.toggleAttribute("dragging", false);
+    });
+    header?.addEventListener('mouseout', (e) => {
+      floatingMenu.toggleAttribute("dragging", false);
+    });
+    header?.addEventListener('mousemove', ({ movementX, movementY }) => {
+      if (floatingMenu.hasAttribute("dragging")) {
+        const getStyle = window.getComputedStyle(floatingMenu);
+        const x = parseInt(getStyle.left) + movementX;
+        const y = parseInt(getStyle.top) + movementY;
+        floatingMenu.style.left = `${x}px`;
+        floatingMenu.style.top = `${y}px`;
+      }
+    });
+    const getStyle = window.getComputedStyle(floatingMenu);
+    const x = parseInt(getStyle.left);
+    const y = parseInt(getStyle.top);
+    floatingMenu.style.left = `${x}px`;
+    floatingMenu.style.top = `${y}px`;
+  }
+
   // Ctrl+S обработчик
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -70,20 +98,6 @@ function optimizedStep() {
   circuit.step();
   requestAnimationFrame(draw);
 }
-
-
-
-
-
-
-
-
-// === Выбор ===
-
-
-
-
-
 
 function clearCanvas() {
   if (confirm('Вы уверены, что хотите очистить холст?')) {

@@ -9,33 +9,71 @@
 
 <body>
     <div class="tip" id="tip"></div>
-    <header id="toolbar">
-        <div>Файл: <span id="filename-display">Без названия</span></div><br>
-        <button id="tool-move" class="tool-button active">Move</button>
-        <button id="tool-connect" class="tool-button">Connect</button>
-        <button id="copy-wires-mode-btn" class="tool-button">Copy wires: Inner</button>
-        <button id="show-wires-mode-btn" class="tool-button">Show wires: Connect</button>
-        <button id="add-and">AND</button>
-        <button id="add-or">OR</button>
-        <button id="add-xor">XOR</button>
-        <button id="add-nand">NAND</button>
-        <button id="add-nor">NOR</button>
-        <button id="add-xnor">XNOR</button>
-        <button id="add-t_flop">T-Flop</button>
-        <button id="add-timer">Timer</button>
-        <button id="add-button">Button</button>
-        <button id="add-switch">Switch</button>
-        <button id="add-output">Lamp</button>
-        <button id="start-sim">⏵</button>
-        <button id="step-sim">⏭</button>
-        <button id="stop-sim">⏹</button>
-        <button id="save-scheme">Save</button>
-        <button id="load-scheme">Load</button>
-        <button id="clear-canvas">Clear</button>
-        <input type="range" id="speed-sim" min="1" max="1000"></button>
-    </header>
-    <canvas id="circuit-canvas"></canvas>
 
+
+
+    <div class="floating-menu" id="fm-tools" style="left: 20px; top: 20px;">
+        <div class="floating-menu-header">
+            <span>Tools</span>
+            <input type="checkbox" id="fm-tools-toggle">
+        </div>
+        <div class="floating-menu-container flex col">
+            <button id="tool-move" class="tool-button active">Move</button>
+            <button id="tool-connect" class="tool-button">Connect</button>
+            <hr>
+            <button id="copy-wires-mode-btn" class="tool-button">Copy wires: Inner</button>
+            <button id="show-wires-mode-btn" class="tool-button">Show wires: Connect</button>
+        </div>
+    </div>
+
+    <div class="floating-menu" id="fm-elements" style="left: 20px; top: 420px;">
+        <div class="floating-menu-header">
+            <span>Elements</span>
+            <input type="checkbox" id="fm-elements-toggle">
+        </div>
+        <div class="floating-menu-container flex col justify">
+            <button id="add-and">AND</button>
+            <button id="add-or">OR</button>
+            <button id="add-xor">XOR</button>
+            <button id="add-nand">NAND</button>
+            <button id="add-nor">NOR</button>
+            <button id="add-xnor">XNOR</button>
+            <button id="add-t_flop">T-Flop</button>
+            <button id="add-timer">Timer</button>
+            <button id="add-button">Button</button>
+            <button id="add-switch">Switch</button>
+            <button id="add-output">Lamp</button>
+        </div>
+    </div>
+
+    <div class="floating-menu" id="fm-file"  style="left: 50%; top: 20px;">
+        <div class="floating-menu-header">
+            <span>File</span>
+            <input type="checkbox" id="fm-file-toggle">
+        </div>
+        <div class="floating-menu-container flex col gap-3">
+            <div>Файл: <span id="filename-display">Без названия</span></div>
+            <div>
+                <button id="save-scheme">Save</button>
+                <button id="load-scheme">Load</button>
+                <button id="clear-canvas">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="floating-menu" id="fm-sim"  style="left: 50%; top: 85%;">
+        <div class="floating-menu-header">
+            <span>Simulation</span>
+            <input type="checkbox" id="fm-sim-toggle">
+        </div>
+        <div class="floating-menu-container">
+            <button id="start-sim">⏵</button>
+            <button id="step-sim">⏭</button>
+            <button id="stop-sim">⏹</button>
+            <input type="range" id="speed-sim" min="1" max="1000"></button>
+        </div>
+    </div>
+    <canvas id="circuit-canvas"></canvas>
     <input type="file" id="file-input" style="display:none" />
     <script type="module" src="src/consts.ts"></script>
     <script type="module" src="src/logic.ts"></script>
