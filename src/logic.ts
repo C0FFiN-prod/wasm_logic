@@ -114,7 +114,7 @@ let nextId = 1;
 export class LogicElement {
     setValue(_: boolean) { throw new Error("Method not implemented."); }
     eval() { throw new Error("Method not implemented."); };
-    getController(): Object | null { return null; };
+    getController(): Record<string, any> | null { return null; };
     id: number;
     type: string;
     x: number;

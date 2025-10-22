@@ -41,6 +41,7 @@ export const colors: Record<string, vec4> = {
   selection: [0.066, 0.598, 1, 1],
   source: [0, 1, 0, 1],
   target: [1, 0, 0, 1],
+  paint: [1, 0, 1, 1],
 }
 export const borderPalette = [
   84, 84, 84, 255, //border
@@ -48,6 +49,7 @@ export const borderPalette = [
   0, 255, 0, 255, //source
   255, 0, 0, 255, //target
   255, 255, 0, 255, //self-wired
+  255, 0, 255, 255, //paint
 ]
 
 export const textColors = ['#0F0', '#F00', '#0FF', '#FF0', '#C44', '#C44', '#44C', '#44C', '#4C4', '#4C4'];

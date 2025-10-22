@@ -7,10 +7,17 @@ export class CircuitIO {
     circuit: LogicGates.Circuit;
     canvas: HTMLCanvasElement;
     camera: Camera;
-    constructor(circuit: LogicGates.Circuit, camera: Camera, canvas: HTMLCanvasElement) {
+    colorPicker: HTMLInputElement;
+    constructor(
+        circuit: LogicGates.Circuit,
+        colorPicker: HTMLInputElement,
+        camera: Camera,
+        canvas: HTMLCanvasElement
+    ) {
         this.circuit = circuit;
         this.canvas = canvas;
         this.camera = camera;
+        this.colorPicker = colorPicker;
     }
     serializeCircuit(): string {
         const data = {
@@ -132,7 +139,7 @@ export class CircuitIO {
         params.pos.z = params.pos.z || 0;
         params.xaxis = params.xaxis || -2;
         params.zaxis = params.zaxis || -1;
-        params.color = params.color || (document.documentElement.getAttribute('data-theme') === 'dark' ? "222222" : "eeeeee");
+        params.color = params.color || this._getColor();
         params.controller.luminance = params.controller.luminance || 50;
 
         let mode;
@@ -143,6 +150,13 @@ export class CircuitIO {
 
         return this.circuit.addElement(type, params);
     }
+
+    paintSelected(selectedElements: Iterable<LogicGates.LogicElement>) {
+        for (const el of selectedElements) {
+            el.color = this._getColor()
+        }
+    }
+
     pasteSelectedElementsAtCursor(
         copyWiresMode: CopyWiresMode,
         selectedElements: Set<LogicGates.LogicElement>,
@@ -170,8 +184,10 @@ export class CircuitIO {
         for (const el of selectedElements) {
             const offsetX = el.x - minX;
             const offsetY = el.y - minY;
-
-            const newEl = this.addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY }, color: el.color, controller: el.getController() });
+            const controller = el.getController();
+            if (controller && el instanceof LogicGates.LogicGate && el.gateType === 6)
+                controller.mode = 6;
+            const newEl = this.addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY }, color: el.color, controller: controller });
             if (newEl)
                 oldToNewMap.set(el.id, newEl);
         }
@@ -201,5 +217,7 @@ export class CircuitIO {
             }
         }
     }
-
+    _getColor() {
+        return this.colorPicker.value.replace("#", "");
+    }
 }

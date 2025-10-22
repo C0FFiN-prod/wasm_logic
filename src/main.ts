@@ -1,6 +1,6 @@
 // main.js
 import { CircuitIO } from './circuitIO';
-import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point } from './consts';
+import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point, type vec4 } from './consts';
 import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
 import * as LogicGates from './logic';
@@ -15,8 +15,7 @@ let isSimulating = false;
 let simInterval: NodeJS.Timeout;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
-export let selectedSources = new Set<LogicGates.LogicElement>();
-export let selectedTargets = new Set<LogicGates.LogicElement>();
+
 let mouseX = 0;
 let mouseY = 0;
 let isHandMoving = false;
@@ -24,7 +23,11 @@ export let isSelecting = false;
 let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
 export let selectionEnd: Point = { x: 0, y: 0 };
+export let selectionColor: vec4;
 export let selectedElements = new Set<LogicGates.LogicElement>();
+export let selectedSources = new Set<LogicGates.LogicElement>();
+export let selectedTargets = new Set<LogicGates.LogicElement>();
+let selectionSet: Set<LogicGates.LogicElement>;
 
 export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
@@ -39,11 +42,12 @@ window.onload = (() => {
   const toggleThemeBtn = document.querySelector("#theme-toggle");
   toggleThemeBtn?.addEventListener("click", () => toggleTheme());
   toggleTheme(prefersDarkScheme.matches);
-  updateToolButtons();
+  updateToolButtons(document.querySelector("#tool-move") as HTMLElement);
   initContext();
   canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
-  circuitIO = new CircuitIO(circuit, camera, canvas);
+  canvas.height = window.innerHeight;
+  const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
+  circuitIO = new CircuitIO(circuit, colorPicker, camera, canvas);
   fileIO = new FileIO(circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
 
   // Привязка кнопок
@@ -174,7 +178,6 @@ function connectSelected() {
   }
 
   clearSelection();
-  requestAnimationFrame(draw);
 }
 
 function disconnectSelected() {
@@ -187,7 +190,6 @@ function disconnectSelected() {
   }
 
   clearSelection();
-  requestAnimationFrame(draw);
 }
 
 function updateCopyWiresButtonText() {
@@ -313,13 +315,26 @@ canvas.addEventListener('mousedown', e => {
       }
     }
   } else {
+    isSelecting = true;
+    selectionStart = { x: e.offsetX, y: e.offsetY };
+    selectionEnd = { x: e.offsetX, y: e.offsetY };
     if (selectedTool === ToolMode.Cursor && e.button === 0) {
-      isSelecting = true;
-      selectionStart = { x: e.offsetX, y: e.offsetY };
-      selectionEnd = { x: e.offsetX, y: e.offsetY };
-      if (!e.shiftKey) {
-        clearSelection();
-      }
+      selectionColor = colors.selection;
+      selectionSet = selectedElements;
+    }
+    else if (selectedTool === ToolMode.Connect && e.button === 0) {
+      selectionColor = colors.source;
+      selectionSet = selectedSources;
+    }
+    else if (selectedTool === ToolMode.Connect && e.button === 2) {
+      selectionColor = colors.target;
+      selectionSet = selectedTargets;
+    }
+    else if (selectedTool === ToolMode.Paint && e.button === 0) {
+      selectionColor = colors.paint;
+      selectionSet = selectedElements;
+    } else {
+      isSelecting = false;
     }
   }
   if (e.button === 1) {
@@ -365,11 +380,14 @@ canvas.addEventListener('mousemove', e => {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
     const rect = getSelectionWorldRect(camera, selectionStart, selectionEnd);
     if (e.ctrlKey && e.shiftKey)
-      getElementsInRect(circuit, rect).forEach(el => selectedElements.delete(el));
+      getElementsInRect(circuit, rect).forEach(el => selectionSet.delete(el));
     else if (e.shiftKey)
-      getElementsInRect(circuit, rect).forEach(el => selectedElements.add(el));
-    else
-      selectedElements = getElementsInRect(circuit, rect);
+      getElementsInRect(circuit, rect).forEach(el => selectionSet.add(el));
+    else {
+      selectionSet.clear();
+      getElementsInRect(circuit, rect).forEach(el => selectionSet.add(el));
+
+    }
     requestAnimationFrame(draw);
   }
   prevMousePos.x = e.offsetX;
@@ -440,10 +458,6 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Backspace') {
       disconnectSelected();
     }
-    else if (e.key === 'Escape') {
-      clearSelection();
-      requestAnimationFrame(draw);
-    }
   } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
     // Игнорируем, если фокус на input/textarea
     const target = e.target as HTMLElement;
@@ -459,19 +473,24 @@ document.addEventListener('keydown', e => {
 
     circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
     requestAnimationFrame(draw);
+  } else if (selectedTool === ToolMode.Paint) {
+    if (e.key === 'Enter')
+      circuitIO.paintSelected(selectedElements);
+  } else if (e.key === 'Escape') {
+    clearSelection();
   }
+  requestAnimationFrame(draw);
 
 
 
 });
 
 // Обновление кнопок инструментов
-function updateToolButtons() {
-  document.querySelectorAll('#toolbar .tool-button').forEach(btn => {
-    btn.classList.remove('active');
+function updateToolButtons(pressedBtn?: HTMLElement) {
+  document.querySelectorAll('.tool-button').forEach(btn => {
+    btn.removeAttribute('active');
   });
-  document.getElementById(`tool-${selectedTool}`)?.classList.add('active');
-  updateCopyWiresButtonText();
+  pressedBtn?.setAttribute('active', 'true');
 }
 
 // Toolbar buttons
@@ -488,17 +507,23 @@ function updateToolButtons() {
 
 });
 
-setupEvent('tool-move', 'onclick', (_) => {
+setupEvent('tool-move', 'onclick', (e) => {
   selectedTool = ToolMode.Cursor;
   clearSelection();
-  updateToolButtons();
+  updateToolButtons(e.target as HTMLElement);
   requestAnimationFrame(draw);
 });
 
-setupEvent('tool-connect', 'onclick', (_) => {
+setupEvent('tool-connect', 'onclick', (e) => {
   selectedTool = ToolMode.Connect;
   clearSelection();
-  updateToolButtons();
+  updateToolButtons(e.target as HTMLElement);
+  requestAnimationFrame(draw);
+});
+setupEvent('tool-paint', 'onclick', (e) => {
+  selectedTool = ToolMode.Paint;
+  clearSelection();
+  updateToolButtons(e.target as HTMLElement);
   requestAnimationFrame(draw);
 });
 

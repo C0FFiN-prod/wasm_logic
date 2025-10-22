@@ -20,11 +20,15 @@
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col">
-            <button id="tool-move" class="tool-button active">Move</button>
+            <button id="tool-move" class="tool-button">Move</button>
             <button id="tool-connect" class="tool-button">Connect</button>
+            <div class="flex gap-1">
+                <input type="color" id="tool-color-picker" value="#222222">
+                <button id="tool-paint" class="tool-button flex-1">Paint</button>
+            </div>
             <hr>
-            <button id="copy-wires-mode-btn" class="tool-button">Copy wires: Inner</button>
-            <button id="show-wires-mode-btn" class="tool-button">Show wires: Connect</button>
+            <button id="copy-wires-mode-btn">Copy wires: Inner</button>
+            <button id="show-wires-mode-btn">Show wires: Connect</button>
         </div>
     </div>
 
@@ -68,11 +72,11 @@
             <span>Simulation</span>
             <input type="checkbox">
         </div>
-        <div class="floating-menu-container">
+        <div class="floating-menu-container align-center">
             <button id="start-sim">⏵</button>
             <button id="step-sim">⏭</button>
             <button id="stop-sim">⏹</button>
-            <input type="number" id="speed-sim" min="1" max="1000" value="40">
+            <input type="number" id="speed-sim" min="1" max="1000" value="40" style="width:50px;">
             <label for="speed-sim">Hz</label>
         </div>
     </div>

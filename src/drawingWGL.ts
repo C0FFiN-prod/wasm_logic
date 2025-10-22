@@ -3,7 +3,8 @@ import {
     isSelecting, selectionEnd, selectionStart,
     selectedElements, selectedSources, selectedTargets,
     selectedTool, showWiresMode, circuit,
-    elementUnderCursor
+    elementUnderCursor,
+    selectionColor
 } from "./main";
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
@@ -353,7 +354,7 @@ export function draw() {
         gl.useProgram(program.program);
         gl.bindVertexArray(vaos.pos2only);
 
-        gl.uniform4fv(program.uniforms.color, colors.selection);
+        gl.uniform4fv(program.uniforms.color, selectionColor);
         gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
@@ -454,7 +455,7 @@ function packElements(elements: Set<LogicElement>): {
     const attributes = new Uint32Array(visibleCount);
     const colorIndices = new Uint32Array(visibleCount);
 
-    let nextColorIndex = 5;
+    let nextColorIndex = borderPalette.length / 4;
     let i = 0;
     for (const el of visibleElements) {
         const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
@@ -488,7 +489,7 @@ function packElements(elements: Set<LogicElement>): {
         // Упаковка атрибутов в 16 бит
         let border = 0;
         if (selectedElements.has(el))
-            border = 1;
+            border = selectedTool === ToolMode.Cursor ? 1 : 5;
         else if (selectedTargets.has(el) && selectedSources.has(el))
             border = 4;
         else if (selectedSources.has(el))

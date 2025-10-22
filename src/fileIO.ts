@@ -42,6 +42,7 @@ export class FileIO {
                 }
             });
         });
+        console.log(this)
     }
 
     clearFileHandle() {
@@ -53,7 +54,7 @@ export class FileIO {
         this.filenameDisplay.textContent = this.currentFileName;
     }
     // ======= Сохранение =======
-    async saveAs() {
+    saveAs = async (): Promise<void> => {
         if (this.hasFSAPI) {
             // --- FSAPI способ ---
             const options = {
@@ -84,7 +85,7 @@ export class FileIO {
             URL.revokeObjectURL(a.href);
         }
     }
-    async save() {
+    save = async (): Promise<void> => {
         if (this.hasFSAPI) {
             if (!this.currentFileHandle) {
                 await this.saveAs();
@@ -105,7 +106,7 @@ export class FileIO {
         }
     }
 
-    async writeToCurrentFile() {
+    writeToCurrentFile = async(): Promise<void> => {
         if (!this.currentFileHandle) {
             await this.saveAs();
             return;
@@ -116,7 +117,7 @@ export class FileIO {
     }
 
     // ======= Загрузка =======
-    async load() {
+    load = async (): Promise<void> => {
         if (this.hasFSAPI) {
             const [fileHandle] = await (window as any).showOpenFilePicker({
                 types: [

@@ -4,6 +4,7 @@
     --bg-color: #e0e0e0;
     --btn-color: #e7e7e7;
     --btn-color-hover: #cdcdcd;
+    --btn-color-active: #f3f3f3;
     --btn-color-border: #9e9d9d;
     --hr-color: #313131;
     --fm-bg-color: #eeeeee;
@@ -15,6 +16,7 @@
     --bg-color: #121212;
     --btn-color: #333;
     --btn-color-hover: #444;
+    --btn-color-active: #525252;
     --btn-color-border: #444;
     --hr-color: #555;
     --fm-bg-color: #1e1e1e;
@@ -52,6 +54,10 @@ button {
 
 button:hover {
     background-color: var(--btn-color-hover);
+}
+
+button[active] {
+    background-color: var(--btn-color-active);
 }
 
 #circuit-canvas {
@@ -167,9 +173,8 @@ hr {
     margin: 0;
     display: flex;
     justify-content: center;
+    box-shadow: 0px 3px 10px 0px #00000073;
 }
-
-#theme-toggle svg {}
 
 input[type="number"] {
     -webkit-appearance: textfield;
@@ -198,9 +203,31 @@ input[type="number"]:hover {
     border-bottom: 1px solid var(--text);
 }
 
+input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: 1px solid var(--btn-color-border);
+    border-radius: 4px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    outline: none !important;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+input[type="color"]::-webkit-color-swatch {
+    border: none;
+}
 
 .flex {
     display: flex;
+}
+
+.flex-1 {
+    flex: 1;
 }
 
 .row {
@@ -237,4 +264,8 @@ input[type="number"]:hover {
 
 .hidden {
     display: none !important;
+}
+
+.align-center {
+    align-items: center;
 }
