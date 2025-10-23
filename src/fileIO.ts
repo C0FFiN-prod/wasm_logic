@@ -42,7 +42,6 @@ export class FileIO {
                 }
             });
         });
-        console.log(this)
     }
 
     clearFileHandle() {

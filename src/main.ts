@@ -12,7 +12,7 @@ export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
 export let elementUnderCursor: LogicGates.LogicElement | null;
 let isSimulating = false;
-let simInterval: NodeJS.Timeout;
+let simInterval: number;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
 
@@ -194,7 +194,6 @@ function disconnectSelected() {
 
 function updateCopyWiresButtonText() {
   const btn = document.getElementById("copy-wires-mode-btn")!;
-  console.log(copyWiresMode);
   switch (copyWiresMode) {
     case CopyWiresMode.None:
       btn.textContent = "Copy wires: None";
@@ -209,7 +208,6 @@ function updateCopyWiresButtonText() {
 }
 function updateShowWiresButtonText() {
   const btn = document.getElementById("show-wires-mode-btn")!;
-  console.log(showWiresMode);
   switch (showWiresMode) {
     case ShowWiresMode.None:
       btn.textContent = "Show wires: None";
@@ -407,20 +405,22 @@ canvas.addEventListener('mouseout', _ => {
   isDragging = false;
 });
 
-canvas.addEventListener('wheel', (e) => {
-  e.preventDefault();
-
+function zoomCanvas(isZoomIn:boolean, centerX:number, centerY:number){
   const zoomFactor = 1.1;
-  const scale = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor;
+  const scale = isZoomIn ? zoomFactor : 1 / zoomFactor;
   const h1 = camera.zoom * gridSize;
-  const worldX = (camera.x + e.offsetX) / h1;
-  const worldY = (camera.y + e.offsetY) / h1;
+  const worldX = (camera.x + centerX) / h1;
+  const worldY = (camera.y + centerY) / h1;
 
   camera.zoom *= scale;
   const h2 = camera.zoom * gridSize;
-  camera.x = worldX * h2 - e.offsetX;
-  camera.y = worldY * h2 - e.offsetY;
-  console.log(camera)
+  camera.x = worldX * h2 - centerX;
+  camera.y = worldY * h2 - centerY;
+}
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoomCanvas(e.deltaY < 0, e.offsetX, e.offsetY);
   requestAnimationFrame(draw);
 }, { passive: false });
 
@@ -450,7 +450,35 @@ document.addEventListener('keydown', e => {
       elementUnderCursor = null;
     selectedElements.forEach(el => circuit.elements.delete(el));
     clearSelection();
-    requestAnimationFrame(draw);
+  } else if (e.key === '-' || e.key === '+') {
+    zoomCanvas(e.key === '+', canvas.width/2, canvas.height/2);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')){
+    const mul =( e.shiftKey ? 5 : 1) * gridSize;
+    if (e.key === 'ArrowRight') {
+      camera.x += mul;
+    } else if (e.key === 'ArrowLeft') {
+      camera.x -= mul;
+    } else if (e.key === 'ArrowUp') {
+      camera.y -= mul;
+    } else if (e.key === 'ArrowDown') {
+      camera.y += mul;
+    }
+  } else if (e.key.startsWith('Arrow') && selectedElements.size>0){
+    const deltaWorld = {x:0,y:0};
+    const mul = e.shiftKey ? 5 : 1;
+    if (e.key === 'ArrowRight') {
+      deltaWorld.x = mul;
+    } else if (e.key === 'ArrowLeft') {
+      deltaWorld.x = -mul;
+    } else if (e.key === 'ArrowUp') {
+      deltaWorld.y = -mul;
+    } else if (e.key === 'ArrowDown') {
+      deltaWorld.y = mul;
+    }
+    for (const el of selectedElements) {
+      el.x += deltaWorld.x;
+      el.y += deltaWorld.y;
+    }
   } else if (selectedTool === ToolMode.Connect) {
     if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
       connectSelected();
