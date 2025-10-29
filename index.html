@@ -13,7 +13,26 @@
         fill="transparent" stroke="var(--text)" viewBox="-1 -1 19 19"
         fill-rule="evenodd" clip-rule="evenodd"></svg></button>
 
-
+    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;">
+        <div class="floating-menu-header">
+            <span>LogEq Editor</span>
+            <button class="hide"></button>
+        </div>
+        <div class="floating-menu-container flex col justify">
+            <textarea name="logeq-text" id="logeq-text" cols="60" rows="10" placeholder="A = S0; 
+B = B0;
+L0 = A ^ B;"></textarea>
+            <div class="flex row between">
+                <button id="logeq-clear">Clear</button>
+                <select name="logeq-input-el" id="logeq-input-el">
+                    <option value="AND">AND</option>
+                    <option value="SWITCH">Switch</option>
+                    <option value="BUTTON">Button</option>
+                </select>
+                <button id="logeq-parse">Parse</button>
+            </div>
+        </div>
+    </div>
     <div class="floating-menu" style="left: 20px; top: 20px;">
         <div class="floating-menu-header">
             <span>Tools</span>
@@ -29,6 +48,8 @@
             <hr>
             <button id="copy-wires-mode-btn">Copy wires: Inner</button>
             <button id="show-wires-mode-btn">Show wires: Connect</button>
+            <hr>
+            <button id="toggle-logeq-editor">Edit LogEq</button>
         </div>
     </div>
 

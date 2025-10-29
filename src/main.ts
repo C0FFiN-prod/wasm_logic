@@ -4,7 +4,8 @@ import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap
 import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
 import * as LogicGates from './logic';
-import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect } from './utils';
+import { LogicalExpressionParser } from './parser';
+import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp } from './utils';
 
 
 export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
@@ -36,6 +37,7 @@ export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим �
 
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
+let logEqParser: LogicalExpressionParser;
 window.onload = (() => {
   // Инициализация
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -49,35 +51,39 @@ window.onload = (() => {
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
   circuitIO = new CircuitIO(circuit, colorPicker, camera, canvas);
   fileIO = new FileIO(circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
-
+  logEqParser = new LogicalExpressionParser();
   // Привязка кнопок
   setupEvent('save-scheme', 'onclick', fileIO.save);
   setupEvent('load-scheme', 'onclick', fileIO.load);
 
   const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
+  let mouse = { x: 0, y: 0 };
   for (const floatingMenu of floatingMenus) {
     const header = floatingMenu.querySelector(".floating-menu-header") as HTMLElement;
     header?.addEventListener('mousedown', (e) => {
-      floatingMenu.toggleAttribute("dragging", true);
-    });
-    header?.addEventListener('mouseup', (e) => {
-      floatingMenu.toggleAttribute("dragging", false);
-    });
-    header?.addEventListener('mouseout', (e) => {
-      floatingMenu.toggleAttribute("dragging", false);
-    });
-    header?.addEventListener('mousemove', ({ movementX, movementY }) => {
-      if (floatingMenu.hasAttribute("dragging")) {
-        const getStyle = window.getComputedStyle(floatingMenu);
-        const x = parseInt(getStyle.left) + movementX;
-        const y = parseInt(getStyle.top) + movementY;
-        if (20 < x && x < window.innerWidth - parseInt(getStyle.width) - 20) {
-          floatingMenu.style.left = `${x}px`;
+      // floatingMenu.toggleAttribute("dragging", true);
+      e.preventDefault();
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      const onMouseMove = (e: MouseEvent) => {
+        e.preventDefault();
+        if (20 > e.clientX || e.clientX > window.innerWidth - 20 ||
+          20 > e.clientY || e.clientY > window.innerHeight - 20) {
+          onMouseUp();
         }
-        if (20 < y && y < window.innerHeight - parseInt(getStyle.height) - 20) {
-          floatingMenu.style.top = `${y}px`;
-        }
+        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX) / window.devicePixelRatio, 20, window.innerWidth - parseInt(getStyle.width) - 20);
+        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY) / window.devicePixelRatio, 20, window.innerHeight - parseInt(getStyle.height) - 20);
+        floatingMenu.style.left = `${x}px`;
+        floatingMenu.style.top = `${y}px`;
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
       }
+      const onMouseUp = () => {
+        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('mousemove', onMouseMove);
+      };
+      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('mousemove', onMouseMove);
     });
     const getStyle = window.getComputedStyle(floatingMenu);
     const x = parseInt(getStyle.left);
@@ -86,11 +92,40 @@ window.onload = (() => {
     floatingMenu.style.top = `${y}px`;
     floatingMenu.style.width = getStyle.width;
     const check = header.querySelector("input[type='checkbox']") as HTMLInputElement;
+    const hideBtn = header.querySelector("button.hide") as HTMLButtonElement;
     const container = floatingMenu.querySelector(".floating-menu-container");
     check?.addEventListener("change", () => {
       container?.classList.toggle("hidden", check.checked);
     })
+    hideBtn?.addEventListener("click", () => {
+      floatingMenu.classList.toggle("hidden", true);
+    })
   }
+  const fmLogEq = document.querySelector("#fm-logeq");
+  const logEqText = document.querySelector("#logeq-text") as HTMLTextAreaElement;
+  const logEqInputEl = document.querySelector("#logeq-input-el") as HTMLSelectElement;
+  document.querySelector("#toggle-logeq-editor")?.addEventListener('click', () => {
+    fmLogEq?.classList.toggle("hidden", false);
+  });
+  document.querySelector("#logeq-clear")?.addEventListener('click', () => {
+    logEqText.value = '';
+  });
+  document.querySelector("#logeq-parse")?.addEventListener('click', () => {
+    if (logEqText.value) {
+      try {
+        const newEls = circuitIO.fromLayers(logEqParser.parse(logEqText.value), logEqInputEl.value);
+        selectedElements.clear();
+        for (const newEl of newEls) {
+          selectedElements.add(newEl);
+        }
+        requestAnimationFrame(draw);
+      }
+      catch (err) {
+        console.log(err);
+      }
+    }
+      
+  });
 
   // Ctrl+S обработчик
   document.addEventListener('keydown', (e) => {
@@ -405,7 +440,7 @@ canvas.addEventListener('mouseout', _ => {
   isDragging = false;
 });
 
-function zoomCanvas(isZoomIn:boolean, centerX:number, centerY:number){
+function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   const zoomFactor = 1.1;
   const scale = isZoomIn ? zoomFactor : 1 / zoomFactor;
   const h1 = camera.zoom * gridSize;
@@ -451,9 +486,9 @@ document.addEventListener('keydown', e => {
     selectedElements.forEach(el => circuit.elements.delete(el));
     clearSelection();
   } else if (e.key === '-' || e.key === '+') {
-    zoomCanvas(e.key === '+', canvas.width/2, canvas.height/2);
-  } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')){
-    const mul =( e.shiftKey ? 5 : 1) * gridSize;
+    zoomCanvas(e.key === '+', canvas.width / 2, canvas.height / 2);
+  } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
+    const mul = (e.shiftKey ? 5 : 1) * gridSize;
     if (e.key === 'ArrowRight') {
       camera.x += mul;
     } else if (e.key === 'ArrowLeft') {
@@ -463,8 +498,8 @@ document.addEventListener('keydown', e => {
     } else if (e.key === 'ArrowDown') {
       camera.y += mul;
     }
-  } else if (e.key.startsWith('Arrow') && selectedElements.size>0){
-    const deltaWorld = {x:0,y:0};
+  } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
+    const deltaWorld = { x: 0, y: 0 };
     const mul = e.shiftKey ? 5 : 1;
     if (e.key === 'ArrowRight') {
       deltaWorld.x = mul;

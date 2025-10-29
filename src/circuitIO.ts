@@ -1,7 +1,7 @@
 import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode } from "./consts";
 import * as LogicGates from "./logic";
 import { screenToWorld } from "./utils";
-
+export type Element = { id: string, type: string, inputs: string[], layer: number };
 // Сериализация схемы в JSON
 export class CircuitIO {
     circuit: LogicGates.Circuit;
@@ -18,6 +18,41 @@ export class CircuitIO {
         this.canvas = canvas;
         this.camera = camera;
         this.colorPicker = colorPicker;
+    }
+    fromLayers(layers: Element[][], inputElementType: string) {
+        let maxHeight = 0;
+        for (const layer of layers) maxHeight = Math.max(layer.length, maxHeight);
+
+        const center = screenToWorld(this.camera, this.canvas.width / 2, this.canvas.height / 2);
+        const topLeft = { x: Math.round(center.x) - layers.length, y: Math.round(center.y) - maxHeight };
+        if (!typeToshapeId.has(inputElementType) && !gateTypeToMode.has(inputElementType)
+            || typeToshapeId.has(inputElementType) && inputElementType === 'GATE')
+            inputElementType = 'AND';
+        const idMap = new Map<string, LogicGates.LogicElement>();
+        let i = 0, j = 0;
+        for (const layer of layers) {
+            j = 0;
+            const padding = maxHeight - layer.length;
+            for (const el of layer) {
+                const type = el.type === 'INPUT' ? inputElementType : el.type;
+                const obj = this.addElement(type,
+                    {
+                        pos: { x: topLeft.x + 2 * i, y: topLeft.y + 2 * j + padding }
+                    }
+                );
+                if (obj) {
+                    idMap.set(el.id, obj);
+                    for (const input of el.inputs) {
+                        const from = idMap.get(input);
+                        if (from)
+                            this.circuit.addWire(from, obj);
+                    }
+                }
+                ++j;
+            }
+            ++i;
+        }
+        return idMap.values();
     }
     serializeCircuit(): string {
         const data = {

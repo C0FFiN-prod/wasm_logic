@@ -1,5 +1,6 @@
+import { type Element } from "./circuitIO";
 type Operator = { precedence: number, type: string, arity: number, associative: boolean }
-type Element = { id: string, type: string, inputs: string[], layer: number }
+
 class LogicalExpressionParser {
     static OPERATORS:Record<string, Operator> = {
         // Precedence: lower number means higher precedence
@@ -35,14 +36,14 @@ class LogicalExpressionParser {
         this.elements = [];
         this.variableMap = new Map(); // Maps variable name to its corresponding gate ID
         this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, OUTPUT: 0 };
-        this.lastLayer = 0;
+        this.lastLayer = 1;
     }
 
     parse(text: string) {
         this.elements = [];
         this.variableMap = new Map();
         this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, OUTPUT: 0 };
-        this.lastLayer = 0;
+        this.lastLayer = 1;
 
         const expressions = text.split(/;\s*|:\s*|\n/).filter((line: string) => line.trim() !== "");
 

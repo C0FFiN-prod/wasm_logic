@@ -101,3 +101,6 @@ export function getElementAt(circuit: Circuit, camera: Camera, screenX: number, 
   return null;
 }
 
+export function clamp(value: number, lower: number, upper: number) {
+  return Math.min(Math.max(value, lower), upper);
+}
