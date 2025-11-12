@@ -9,6 +9,11 @@
     --hr-color: #313131;
     --fm-bg-color: #eeeeee;
     --fm-border-color: #313131;
+    --fm-padding: 15px;
+    --li-pad: 20px;
+    --code-bg-color: #fff;
+    --code-border-color: #ddd;
+    --code-text-color: #F33;
 }
 
 [data-theme="dark"] {
@@ -21,6 +26,8 @@
     --hr-color: #555;
     --fm-bg-color: #1e1e1e;
     --fm-border-color: #555;
+    --code-bg-color: #313131;
+    --code-border-color: #555555;
 }
 
 body * {
@@ -76,18 +83,19 @@ button[active] {
 
 #filename-display {
     display: inline-block;
-    margin-left: 10px;
     cursor: pointer;
     font-size: 20px;
     color: var(--text);
     padding: 0;
     margin-bottom: 1px;
     font-family: var(--font-family);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #filename-input {
     display: inline-block;
-    margin-left: 10px;
     font-size: 20px;
     background: transparent;
     color: var(--text);
@@ -96,6 +104,7 @@ button[active] {
     outline: none;
     padding: 0;
     font-family: var(--font-family);
+    width: 100%;
 }
 
 hr {
@@ -117,7 +126,7 @@ hr {
 
 .floating-menu-header,
 .floating-menu-container {
-    padding: 15px;
+    padding: var(--fm-padding);
     display: flex;
 }
 
@@ -173,12 +182,24 @@ hr {
     height: 1px;
 }
 
-#theme-toggle {
-    width: 40px;
-    height: 40px;
+#settings-toggle {
     position: absolute;
     top: 20px;
     right: 20px;
+}
+
+#settings-menu {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    flex-direction: column;
+}
+
+.setting-btn {
+    width: 40px;
+    height: 40px;
     padding: 3px;
     margin: 0;
     display: flex;
@@ -256,6 +277,7 @@ button.hide::after {
     transform: rotate(-45deg);
     translate: -50% -1px;
 }
+
 select,
 textarea {
     background-color: var(--fm-bg-color);
@@ -278,8 +300,77 @@ textarea:hover {
     border: 1px solid var(--text);
 }
 
+#logeq-text {
+    min-width: calc(100% - 10px);
+}
+
 select {
     padding: 6px 12px;
+}
+
+
+.collapse-section {
+    margin: 10px 0;
+    font-size: medium;
+}
+
+.collapse-section summary {
+    cursor: pointer;
+    font-weight: bold;
+    list-style: none;
+}
+
+.collapse-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapse-section summary::before {
+    content: '▶';
+    display: inline-block;
+    margin-right: 8px;
+    transition: transform 0.2s;
+}
+
+.collapse-section[open]>summary::before {
+    transform: rotate(90deg);
+}
+
+.collapse-section .content {
+    padding-left: var(--li-pad);
+    width: 700px;
+    color: var(--text);
+    font-family: var(--font-family);
+    font-size: medium;
+    line-height: 1.5;
+}
+
+#fm-user-manual {
+    width: auto !important;
+}
+
+#fm-user-manual>.resizeable {
+    min-width: calc(100% - var(--fm-padding) * 2);
+}
+
+ul {
+    padding-left: var(--li-pad);
+}
+
+code {
+    background: var(--code-bg-color);
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid var(--code-border-color);
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    text-wrap-mode: nowrap;
+    text-wrap: nowrap;
+    color: var(--code-text-color);
+}
+
+.resizeable {
+    resize: both;
+    overflow: auto;
 }
 
 .flex {

@@ -28,7 +28,7 @@ export function lightness(r: number, g: number, b: number) {
 export function setupEvent(id: string, event: string, handler: (e: Event) => void) {
   const element = document.getElementById(id);
   if (element) {
-    (element as any)[event] = handler;
+    element.addEventListener(event, handler);
   } else {
     console.warn(`Element with id "${id}" not found`);
   }

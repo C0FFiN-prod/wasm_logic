@@ -19,6 +19,10 @@ export class CircuitIO {
         this.camera = camera;
         this.colorPicker = colorPicker;
     }
+    clearCircuit() {
+        this.circuit.clear();
+    }
+
     fromLayers(layers: Element[][], inputElementType: string) {
         let maxHeight = 0;
         for (const layer of layers) maxHeight = Math.max(layer.length, maxHeight);

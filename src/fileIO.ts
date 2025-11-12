@@ -3,7 +3,7 @@ import { draw } from "./drawingWGL";
 
 export class FileIO {
     currentFileHandle: FileSystemFileHandle | null = null;
-    currentFileName = "Без названия";
+    currentFileName = "Unnamed";
     // Проверка поддержки FSAPI
     hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
     filenameDisplay: HTMLSpanElement;
@@ -16,8 +16,7 @@ export class FileIO {
             const input = document.createElement("input");
             input.type = "text";
             input.id = "filename-input";
-            input.value = this.currentFileName;;
-            input.style.width = Math.max(120, this.currentFileName.length * 8) + "px";
+            input.value = this.currentFileName;
 
             this.filenameDisplay.replaceWith(input);
             input.focus();
@@ -27,7 +26,7 @@ export class FileIO {
             const finishEdit = () => {
                 if (finished) return;
                 finished = true;
-                this.currentFileName = input.value.trim() || "Без названия";
+                this.currentFileName = input.value.trim() || "Unnamed";
                 input.replaceWith(this.filenameDisplay);
                 this.updateFilenameDisplay();
             };
@@ -46,7 +45,7 @@ export class FileIO {
 
     clearFileHandle() {
         this.currentFileHandle = null;
-        this.currentFileName = "Без названия";
+        this.currentFileName = "Unnamed";
         this.updateFilenameDisplay();
     }
     updateFilenameDisplay() {
@@ -116,7 +115,7 @@ export class FileIO {
     }
 
     // ======= Загрузка =======
-    load = async (): Promise<void> => {
+    load = async (add: boolean): Promise<void> => {
         if (this.hasFSAPI) {
             const [fileHandle] = await (window as any).showOpenFilePicker({
                 types: [
@@ -126,13 +125,16 @@ export class FileIO {
                     }
                 ]
             });
-            this.currentFileHandle = fileHandle;
-            this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || "Без названия";
-            this.updateFilenameDisplay();
-
+            if (!add) {
+                this.currentFileHandle = fileHandle;
+                this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || "Unnamed";
+                this.updateFilenameDisplay();
+            }
             const file = await fileHandle.getFile();
             const contents = await file.text();
+            if (!add) this.circuitIO.clearCircuit();
             this.circuitIO.deserializeCircuit(contents);
+            requestAnimationFrame(draw);
         } else {
             const input = document.createElement("input");
             input.type = "file";
@@ -140,15 +142,17 @@ export class FileIO {
             input.onchange = async () => {
                 const file = (input.files as FileList)[0];
                 if (!file) return;
-                this.currentFileName = file.name.replace(/\.json$/i, "");
-                this.updateFilenameDisplay();
-
+                if (!add) {
+                    this.currentFileName = file.name.replace(/\.json$/i, "");
+                    this.updateFilenameDisplay();
+                }
                 const text = await file.text();
+                if (!add) this.circuitIO.clearCircuit();
                 this.circuitIO.deserializeCircuit(text);
+                requestAnimationFrame(draw);
             };
             input.click();
         }
-        requestAnimationFrame(draw);
     }
 
 }

@@ -40,9 +40,10 @@ let circuitIO: CircuitIO;
 let logEqParser: LogicalExpressionParser;
 window.onload = (() => {
   // Инициализация
+  setupEvent('settings-toggle', "click", () => document.getElementById('settings-menu')?.classList.toggle('hidden'));
+  setupEvent('theme-toggle', "click", () => toggleTheme());
+  setupEvent('user-manual-toggle', "click", () => document.getElementById('fm-user-manual')?.classList.toggle('hidden'));
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
-  const toggleThemeBtn = document.querySelector("#theme-toggle");
-  toggleThemeBtn?.addEventListener("click", () => toggleTheme());
   toggleTheme(prefersDarkScheme.matches);
   updateToolButtons(document.querySelector("#tool-move") as HTMLElement);
   initContext();
@@ -53,8 +54,70 @@ window.onload = (() => {
   fileIO = new FileIO(circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
   logEqParser = new LogicalExpressionParser();
   // Привязка кнопок
-  setupEvent('save-scheme', 'onclick', fileIO.save);
-  setupEvent('load-scheme', 'onclick', fileIO.load);
+  setupEvent('save-scheme', 'click', fileIO.save);
+  setupEvent('load-scheme', 'click', () => fileIO.load(false));
+  setupEvent('add-scheme', 'click', () => fileIO.load(true));
+  setupEvent('copy-wires-mode-btn', 'click', cycleCopyWiresMode);
+  setupEvent('show-wires-mode-btn', 'click', cycleShowWiresMode);
+
+  // Toolbar buttons
+  ['and', 'or', 'xor', 'nand', 'nor', 'xnor', 't_flop', 'timer', 'button', 'switch', 'output'].forEach(id => {
+    const el = document.getElementById('add-'+id);
+    if (el) {
+      el.onclick = () => {
+        let type = id.toUpperCase();
+        circuitIO.addElement(type, {});
+        requestAnimationFrame(draw);
+      };
+    }
+
+
+  });
+  const switchTool = (e: Event, toolMode: ToolMode) => {
+    selectedTool = toolMode;
+    clearSelection();
+    updateToolButtons(e.target as HTMLElement);
+    requestAnimationFrame(draw);
+  }
+  setupEvent('tool-move', 'click', (e) => switchTool(e, ToolMode.Cursor));
+  setupEvent('tool-connect', 'click', (e) => switchTool(e, ToolMode.Connect));
+  setupEvent('tool-paint', 'click', (e) => switchTool(e, ToolMode.Paint));
+
+  setupEvent('clear-canvas', 'click', clearCanvas);
+
+  setupEvent('start-sim', 'click', () => {
+    if (!isSimulating) {
+      isSimulating = true;
+      const clock = (document.getElementById('speed-sim') as HTMLInputElement);
+      const value = parseInt(clock.innerHTML || clock.value || "40");
+      simInterval = setInterval(optimizedStep, 1000 / value);
+    }
+  });
+
+  setupEvent('step-sim', 'click', () => {
+    isSimulating = false;
+    clearInterval(simInterval);
+    optimizedStep();
+  });
+
+  setupEvent('stop-sim', 'click', () => {
+    isSimulating = false;
+    clearInterval(simInterval);
+  });
+  setupEvent('speed-sim', 'change', () => {
+    if (isSimulating) {
+
+      isSimulating = false;
+      clearInterval(simInterval);
+      isSimulating = true;
+      const clock = (document.getElementById('speed-sim') as HTMLInputElement);
+      const min = parseInt(clock.getAttribute('min') || "1");
+      const max = parseInt(clock.getAttribute('max') || "1000");
+      const value = Math.max(min, Math.min(parseInt(clock.innerHTML || clock.value || "40"), max));
+      clock.value = value.toString();
+      simInterval = setInterval(optimizedStep, 1000 / value);
+    }
+  });
 
   const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
   let mouse = { x: 0, y: 0 };
@@ -104,13 +167,13 @@ window.onload = (() => {
   const fmLogEq = document.querySelector("#fm-logeq");
   const logEqText = document.querySelector("#logeq-text") as HTMLTextAreaElement;
   const logEqInputEl = document.querySelector("#logeq-input-el") as HTMLSelectElement;
-  document.querySelector("#toggle-logeq-editor")?.addEventListener('click', () => {
+  setupEvent("toggle-logeq-editor",'click', () => {
     fmLogEq?.classList.toggle("hidden", false);
   });
-  document.querySelector("#logeq-clear")?.addEventListener('click', () => {
+  setupEvent("logeq-clear",'click', () => {
     logEqText.value = '';
   });
-  document.querySelector("#logeq-parse")?.addEventListener('click', () => {
+  setupEvent("logeq-parse",'click', () => {
     if (logEqText.value) {
       try {
         const newEls = circuitIO.fromLayers(logEqParser.parse(logEqText.value), logEqInputEl.value);
@@ -270,8 +333,7 @@ function cycleShowWiresMode() {
   requestAnimationFrame(draw);
 }
 
-setupEvent('copy-wires-mode-btn', 'onclick', cycleCopyWiresMode);
-setupEvent('show-wires-mode-btn', 'onclick', cycleShowWiresMode);
+
 
 canvas.addEventListener('mousedown', e => {
   mouseX = e.offsetX;
@@ -447,7 +509,7 @@ function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   const worldX = (camera.x + centerX) / h1;
   const worldY = (camera.y + centerY) / h1;
 
-  camera.zoom *= scale;
+  camera.zoom = clamp(camera.zoom*scale, 0.35, 25);
   const h2 = camera.zoom * gridSize;
   camera.x = worldX * h2 - centerX;
   camera.y = worldY * h2 - centerY;
@@ -544,8 +606,6 @@ document.addEventListener('keydown', e => {
   }
   requestAnimationFrame(draw);
 
-
-
 });
 
 // Обновление кнопок инструментов
@@ -555,76 +615,6 @@ function updateToolButtons(pressedBtn?: HTMLElement) {
   });
   pressedBtn?.setAttribute('active', 'true');
 }
-
-// Toolbar buttons
-['add-and', 'add-or', 'add-xor', 'add-nand', 'add-nor', 'add-xnor', 'add-t_flop', 'add-timer', 'add-button', 'add-switch', 'add-output'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) {
-    el.onclick = () => {
-      let type = id.replace('add-', '').toUpperCase();
-      circuitIO.addElement(type, {});
-      requestAnimationFrame(draw);
-    };
-  }
-
-
-});
-
-setupEvent('tool-move', 'onclick', (e) => {
-  selectedTool = ToolMode.Cursor;
-  clearSelection();
-  updateToolButtons(e.target as HTMLElement);
-  requestAnimationFrame(draw);
-});
-
-setupEvent('tool-connect', 'onclick', (e) => {
-  selectedTool = ToolMode.Connect;
-  clearSelection();
-  updateToolButtons(e.target as HTMLElement);
-  requestAnimationFrame(draw);
-});
-setupEvent('tool-paint', 'onclick', (e) => {
-  selectedTool = ToolMode.Paint;
-  clearSelection();
-  updateToolButtons(e.target as HTMLElement);
-  requestAnimationFrame(draw);
-});
-
-setupEvent('clear-canvas', 'onclick', clearCanvas);
-
-setupEvent('start-sim', 'onclick', (_) => {
-  if (!isSimulating) {
-    isSimulating = true;
-    const clock = (document.getElementById('speed-sim') as HTMLInputElement);
-    const value = parseInt(clock.innerHTML || clock.value || "40");
-    simInterval = setInterval(optimizedStep, 1000 / value);
-  }
-});
-
-setupEvent('step-sim', 'onclick', (_) => {
-  isSimulating = false;
-  clearInterval(simInterval);
-  optimizedStep();
-});
-
-setupEvent('stop-sim', 'onclick', (_) => {
-  isSimulating = false;
-  clearInterval(simInterval);
-});
-setupEvent('speed-sim', 'onchange', (e) => {
-  if (isSimulating) {
-
-    isSimulating = false;
-    clearInterval(simInterval);
-    isSimulating = true;
-    const clock = (document.getElementById('speed-sim') as HTMLInputElement);
-    const min = parseInt(clock.getAttribute('min') || "1");
-    const max = parseInt(clock.getAttribute('max') || "1000");
-    const value = Math.max(min, Math.min(parseInt(clock.innerHTML || clock.value || "40"), max));
-    clock.value = value.toString();
-    simInterval = setInterval(optimizedStep, 1000 / value);
-  }
-});
 
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
