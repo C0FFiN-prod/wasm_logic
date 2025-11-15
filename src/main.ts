@@ -390,9 +390,9 @@ canvas.addEventListener('mousedown', e => {
         } else if (el instanceof LogicGates.Button) {
           el.setValue(true);
         } else if (el instanceof LogicGates.Timer) {
-          let delay = prompt(`Set delay (now ${el.delay} ticks):`);
-          let newDelay = Math.round(Number(delay));
-          if (delay !== '' && !Number.isNaN(newDelay) && (0 <= newDelay && newDelay <= 1024)) {
+          const delay = prompt(`Set delay (now ${el.delay} ticks):`)?.trim();
+          const newDelay = Math.round(Number(delay));
+          if (delay !== null && delay !== '' && !Number.isNaN(newDelay) && (0 <= newDelay && newDelay <= 1024)) {
             el.setDelay(newDelay);
             for (const elI of selectedElements) {
               if (elI instanceof LogicGates.Timer)
@@ -400,9 +400,9 @@ canvas.addEventListener('mousedown', e => {
             }
           }
         } else if (el instanceof LogicGates.LogicGate) {
-          let mode = prompt(`Set gate mode (now ${el.gateType}):`);
-          let newMode = Math.round(Number(mode));
-          if (mode !== '' && !Number.isNaN(newMode) && (0 <= newMode && newMode <= 6)) {
+          const mode = prompt(`Set gate mode (now ${el.gateType}):`)?.trim();
+          const newMode = Math.round(Number(mode));
+          if (mode !== null && mode !== '' && !Number.isNaN(newMode) && (0 <= newMode && newMode <= 6)) {
             el.gateType = newMode;
             for (const elI of selectedElements) {
               if (elI instanceof LogicGates.LogicGate)
@@ -607,7 +607,6 @@ document.addEventListener('keydown', e => {
         const cursorX = prevMousePos.x;
         const cursorY = prevMousePos.y;
         circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
-        requestAnimationFrame(draw);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
         e.preventDefault();
         const cursorX = prevMousePos.x;
@@ -617,7 +616,6 @@ document.addEventListener('keydown', e => {
             const newElements = circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY));
             selectedElements.clear();
             newElements.forEach(el => selectedElements.add(el));
-            requestAnimationFrame(draw);
           } catch (err) {
             console.log(err);
           }
@@ -643,8 +641,12 @@ document.addEventListener('keydown', e => {
       }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
         navigator.clipboard.readText().then((color) => {
-          if (color.match('#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})')) {
-            circuitIO.paintSelected(selectedElements, color.replace('#', ''));
+          color = color.trim().replace('#', '');
+          if (color.match('[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}')) {
+            if (color.length === 3) {
+              color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2]; 
+            }
+            circuitIO.paintSelected(selectedElements, color);
             requestAnimationFrame(draw);
           }
         })

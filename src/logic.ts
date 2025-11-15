@@ -238,8 +238,8 @@ export class Timer extends LogicElement {
     }
 
     eval() {
-        this.nextValue = this.buffer.at(this.delay);
         this.buffer.unshift(someInIterable(this.inputs, (input => input.value)) || false);
+        this.nextValue = this.buffer.at(this.delay);
     }
 
     getController() {

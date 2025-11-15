@@ -235,16 +235,20 @@ export class CircuitIO {
     rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean) {
         const sinF = clockwise ? -1 : 1;
         const blueprintRect = this._getBlueprintRect(selectedElements);
-        const cX = Math.round((blueprintRect.x1 + blueprintRect.x0) / 2);
-        const cY = Math.round((blueprintRect.y1 + blueprintRect.y0) / 2);
-        console.log(cX, cY)
+        const bpcX = (blueprintRect.x1 + blueprintRect.x0) / 2;
+        const bpcY = (blueprintRect.y1 + blueprintRect.y0) / 2;
+
+        const cX = Math.ceil(bpcX);
+        const cY = Math.ceil(bpcY);
+        const compensateX = clockwise ? 0 : (cX - Math.floor(bpcX));
+        const compensateY = clockwise ? (cY - Math.floor(bpcY)) : 0;
         selectedElements.forEach(el => {
             const elX = el.x;
             const elY = el.y;
-            el.x = cX - (elY - cY) * sinF;
-            el.y = cY + (elX - cX) * sinF;
+            el.x = cX - (elY - cY) * sinF - compensateX;
+            el.y = cY + (elX - cX) * sinF - compensateY;
         });
-        
+
     }
 
     flipSelected(selectedElements: Set<LogicGates.LogicElement>, vertical: boolean) {
@@ -322,15 +326,15 @@ export class CircuitIO {
 
     addElement(type: string, params: Record<string, any>) {
         const center = screenToWorld(this.camera, this.canvas.width / 2, this.canvas.height / 2);
-        params.pos = params.pos || {};
-        params.controller = params.controller || {};
-        params.pos.x = params.pos.x || Math.round(center.x + Math.random() * 10 - 5);
-        params.pos.y = params.pos.y || Math.round(center.y + Math.random() * 10 - 5);
-        params.pos.z = params.pos.z || 0;
-        params.xaxis = params.xaxis || -2;
-        params.zaxis = params.zaxis || -1;
-        params.color = params.color || this._getColor();
-        params.controller.luminance = params.controller.luminance || 50;
+        params.pos = params.pos ?? {};
+        params.controller = params.controller ?? {};
+        params.pos.x = params.pos.x ?? Math.round(center.x + Math.random() * 10 - 5);
+        params.pos.y = params.pos.y ?? Math.round(center.y + Math.random() * 10 - 5);
+        params.pos.z = params.pos.z ?? 0;
+        params.xaxis = params.xaxis ?? -2;
+        params.zaxis = params.zaxis ?? -1;
+        params.color = params.color ?? this._getColor();
+        params.controller.luminance = params.controller.luminance ?? 50;
 
         let mode;
         if ((mode = gateTypeToMode.get(type)) !== undefined) {
@@ -371,7 +375,7 @@ export class CircuitIO {
         baseWorldY = Math.floor(baseWorldY);
 
         // 3. Копируем элементы с сохранением смещений
-        const oldToNewMap = new Map<number, LogicGates.LogicElement>();
+        const idMap = new Map<number, LogicGates.LogicElement>();
 
         for (const el of selectedElements) {
             const offsetX = el.x - minX;
@@ -381,28 +385,45 @@ export class CircuitIO {
                 controller.mode = 6;
             const newEl = this.addElement(el.type, { pos: { x: baseWorldX + offsetX, y: baseWorldY + offsetY }, color: el.color, controller: controller });
             if (newEl)
-                oldToNewMap.set(el.id, newEl);
+                idMap.set(el.id, newEl);
         }
 
         // 4. Восстанавливаем соединения в зависимости от режима
         if (copyWiresMode !== CopyWiresMode.None) {
             for (const oldEl of selectedElements) {
-                const newEl = oldToNewMap.get(oldEl.id)!;
+                const newEl = idMap.get(oldEl.id)!;
 
                 for (const inputEl of oldEl.inputs) {
                     if (copyWiresMode === CopyWiresMode.Inner) {
                         // Только внутренние связи
                         if (selectedElements.has(inputEl)) {
-                            const newInputEl = oldToNewMap.get(inputEl.id)!;
+                            const newInputEl = idMap.get(inputEl.id)!;
                             this.circuit.addWire(newInputEl, newEl);
                         }
                     } else if (copyWiresMode === CopyWiresMode.All) {
                         // Внутренние + внешние
                         if (selectedElements.has(inputEl)) {
-                            const newInputEl = oldToNewMap.get(inputEl.id)!;
+                            const newInputEl = idMap.get(inputEl.id)!;
                             this.circuit.addWire(newInputEl, newEl);
                         } else {
                             this.circuit.addWire(inputEl, newEl);
+                        }
+                    }
+                }
+                for (const outputEl of oldEl.outputs) {
+                    if (copyWiresMode === CopyWiresMode.Inner) {
+                        // Только внутренние связи
+                        if (selectedElements.has(outputEl)) {
+                            const newInputEl = idMap.get(outputEl.id)!;
+                            this.circuit.addWire(newEl, newInputEl);
+                        }
+                    } else if (copyWiresMode === CopyWiresMode.All) {
+                        // Внутренние + внешние
+                        if (selectedElements.has(outputEl)) {
+                            const newInputEl = idMap.get(outputEl.id)!;
+                            this.circuit.addWire(newEl, newInputEl);
+                        } else {
+                            this.circuit.addWire(newEl, outputEl);
                         }
                     }
                 }
