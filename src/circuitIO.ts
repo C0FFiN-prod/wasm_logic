@@ -2,6 +2,7 @@ import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMod
 import * as LogicGates from "./logic";
 import { screenToWorld } from "./utils";
 export type Element = { id: string, type: string, inputs: string[], layer: number };
+type Rect = { x0: number, y0: number, x1: number, y1: number };
 // Сериализация схемы в JSON
 export class CircuitIO {
 
@@ -230,7 +231,48 @@ export class CircuitIO {
         }
 
     }
-    private _getBlueprintDeltaToPoint(blueprintRect: { x0: number; y0: number; x1: number; y1: number; }, point: Point) {
+
+    rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean) {
+        const sinF = clockwise ? -1 : 1;
+        const blueprintRect = this._getBlueprintRect(selectedElements);
+        const cX = Math.round((blueprintRect.x1 + blueprintRect.x0) / 2);
+        const cY = Math.round((blueprintRect.y1 + blueprintRect.y0) / 2);
+        console.log(cX, cY)
+        selectedElements.forEach(el => {
+            const elX = el.x;
+            const elY = el.y;
+            el.x = cX - (elY - cY) * sinF;
+            el.y = cY + (elX - cX) * sinF;
+        });
+        
+    }
+
+    flipSelected(selectedElements: Set<LogicGates.LogicElement>, vertical: boolean) {
+        const blueprintRect = this._getBlueprintRect(selectedElements);
+        const cX = Math.round((blueprintRect.x1 + blueprintRect.x0) / 2);
+        const cY = Math.round((blueprintRect.y1 + blueprintRect.y0) / 2);
+        if (vertical)
+            selectedElements.forEach(el => el.y += (cY - el.y) * 2);
+        else
+            selectedElements.forEach(el => el.x += (cX - el.x) * 2);
+    }
+
+    private _getBlueprintRect(iterable: any): Rect {
+        const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        for (const el of iterable) {
+            this._updateBlueprintRect(el, blueprintRect);
+        }
+        return blueprintRect;
+    }
+
+    private _updateBlueprintRect(obj: Point, blueprintRect: Rect) {
+        blueprintRect.x0 = Math.min(obj.x, blueprintRect.x0);
+        blueprintRect.y0 = Math.min(obj.y, blueprintRect.y0);
+        blueprintRect.x1 = Math.max(obj.x, blueprintRect.x1);
+        blueprintRect.y1 = Math.max(obj.y, blueprintRect.y1);
+    }
+
+    private _getBlueprintDeltaToPoint(blueprintRect: Rect, point: Point) {
         const blueprintCenter = {
             x: (blueprintRect.x1 + blueprintRect.x0) / 2,
             y: (blueprintRect.y1 + blueprintRect.y0) / 2
@@ -242,7 +284,7 @@ export class CircuitIO {
         return blueprintDelta;
     }
 
-    private _fillIdMap(iterable: any, idMap: Map<number, LogicGates.LogicElement>, blueprintRect: { x0: number; y0: number; x1: number; y1: number; } | null) {
+    private _fillIdMap(iterable: any, idMap: Map<number, LogicGates.LogicElement>, blueprintRect: Rect | null) {
         let type: string | undefined;
         for (const child of iterable) {
             if ((type = shapeIdToType.get(child.shapeId))) {
@@ -250,10 +292,7 @@ export class CircuitIO {
                 if (obj) {
                     idMap.set(child.id, obj);
                     if (blueprintRect) {
-                        blueprintRect.x0 = Math.min(obj.x, blueprintRect.x0);
-                        blueprintRect.y0 = Math.min(obj.y, blueprintRect.y0);
-                        blueprintRect.x1 = Math.max(obj.x, blueprintRect.x1);
-                        blueprintRect.y1 = Math.max(obj.y, blueprintRect.y1);
+                        this._updateBlueprintRect(obj, blueprintRect);
                     }
                 }
             } else {

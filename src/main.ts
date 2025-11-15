@@ -343,7 +343,12 @@ canvas.addEventListener('mousedown', e => {
 
   const el = getElementAt(circuit, camera, mouseX, mouseY);
   if (el) {
-    if (selectedTool === ToolMode.Connect) {
+    if (e.button === 1) {
+      if (elementUnderCursor === el)
+        elementUnderCursor = null;
+      else
+        elementUnderCursor = el;
+    } else if (selectedTool === ToolMode.Connect) {
       if (e.button === 0) {
         if (!LogicGates.isOutputElement(el)) {
           if (!selectedSources.has(el)) {
@@ -352,10 +357,7 @@ canvas.addEventListener('mousedown', e => {
             selectedSources.delete(el);
           }
         }
-      } else if (e.button === 1) {
-        elementUnderCursor = el;
-      }
-      else if (e.button === 2) {
+      } else if (e.button === 2) {
         if (!LogicGates.isInputElement(el)) {
           if (!selectedTargets.has(el)) {
             selectedTargets.add(el);
@@ -564,6 +566,10 @@ document.addEventListener('keydown', e => {
       cycleCopyWiresMode();
     } else if (e.shiftKey && e.key.toLowerCase() === "w") {
       cycleShowWiresMode();
+    } else if (e.key.toLowerCase() === "r") {
+      circuitIO.rotateSelected(selectedElements, e.shiftKey);
+    } else if (e.key.toLowerCase() === "f") {
+      circuitIO.flipSelected(selectedElements, e.shiftKey);
     } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
       const mul = (e.shiftKey ? 5 : 1) * gridSize;
       if (e.key === 'ArrowRight') {
