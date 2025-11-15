@@ -14,6 +14,8 @@
     --code-bg-color: #fff;
     --code-border-color: #ddd;
     --code-text-color: #F33;
+    --accent-color: #F33;
+    --input-border-color: #767676;
 }
 
 [data-theme="dark"] {
@@ -72,6 +74,43 @@ button:hover {
 button[active] {
     background-color: var(--btn-color-active);
 }
+
+input[type="checkbox"] {
+    vertical-align: bottom;
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+    width: 20px;
+    height: 20px;
+    background: none;
+    border-radius: 5px;
+    border: 1px solid var(--input-border-color);
+}
+
+input[type="checkbox"]:checked {
+    background: none;
+}
+
+input[type="checkbox"]:checked::after,
+input[type="checkbox"]:checked::before {
+    background: var(--accent-color);
+    content: '';
+    height: 3px;
+    position: absolute;
+}
+
+input[type="checkbox"]:checked::after {
+    rotate: -45deg;
+    translate: 4px 8px;
+    width: 15px;
+}
+input[type="checkbox"]:checked::before {
+    rotate: 45deg;
+    translate: 0px 10px;
+    width: 10px;
+}
+
+
 
 #circuit-canvas {
     display: block;
@@ -145,6 +184,8 @@ hr {
     height: 20px;
     width: 20px;
     rotate: -90deg;
+    border: none;
+    background: none;
     /* transition: rotate .1s; */
 }
 
@@ -158,7 +199,7 @@ hr {
     display: block;
     width: 10px;
     height: 3px;
-    background-color: #F33;
+    background-color: var(--accent-color);
     position: absolute;
 }
 
@@ -264,7 +305,7 @@ button.hide::before {
     display: block;
     width: 20px;
     height: 3px;
-    background-color: #F33;
+    background-color: var(--accent-color);
     position: absolute;
 }
 
@@ -328,7 +369,6 @@ select {
     content: '▶';
     display: inline-block;
     margin-right: 8px;
-    transition: transform 0.2s;
 }
 
 .collapse-section[open]>summary::before {
@@ -371,6 +411,10 @@ code {
 .resizeable {
     resize: both;
     overflow: auto;
+}
+
+.lh-1 {
+    line-height: 1;
 }
 
 .flex {
@@ -421,6 +465,10 @@ code {
     display: none !important;
 }
 
-.align-center {
+.align-items-center {
     align-items: center;
+}
+
+.align-content-center {
+    align-content: center;
 }

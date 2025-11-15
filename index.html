@@ -37,14 +37,19 @@ B = B0;
 L0 = A ^ B;"></textarea>
             <div class="flex row between">
                 <button id="logeq-clear">Clear</button>
-                <span>
+                <label class="align-content-center lh-1">
+                    Flatten:
+                    <input type="checkbox" id="logeq-flatten">
+                </label>
+
+                <label class="align-content-center">
                     Args:
                     <select name="logeq-input-el" id="logeq-input-el">
                         <option value="AND">AND</option>
                         <option value="SWITCH">Switch</option>
                         <option value="BUTTON">Button</option>
                     </select>
-                </span>
+                </label>
 
                 <button id="logeq-parse">Parse</button>
             </div>
@@ -111,7 +116,7 @@ L0 = A ^ B;"></textarea>
             <span>Simulation</span>
             <input type="checkbox">
         </div>
-        <div class="floating-menu-container align-center">
+        <div class="floating-menu-container align-items-center">
             <button id="start-sim">⏵</button>
             <button id="step-sim">⏭</button>
             <button id="stop-sim">⏹</button>
@@ -129,7 +134,8 @@ L0 = A ^ B;"></textarea>
                     <ul>
                         <li> <b>Dots Menu</b>: Dots icon toggles Dots Menu visibility </li>
                         <li> <b>Switch Theme</b>: Moon/Sun - Dark/Bright</li>
-                        <li> <b>User Manual</b>: Question mark icon toggles user manual visibility. User Manual FM is resizeable.</li>
+                        <li> <b>User Manual</b>: Question mark icon toggles user manual visibility. User Manual FM is
+                            resizeable.</li>
                     </ul>
                 </div>
             </details>

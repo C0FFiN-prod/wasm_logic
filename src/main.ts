@@ -62,7 +62,7 @@ window.onload = (() => {
 
   // Toolbar buttons
   ['and', 'or', 'xor', 'nand', 'nor', 'xnor', 't_flop', 'timer', 'button', 'switch', 'output'].forEach(id => {
-    const el = document.getElementById('add-'+id);
+    const el = document.getElementById('add-' + id);
     if (el) {
       el.onclick = () => {
         let type = id.toUpperCase();
@@ -134,8 +134,8 @@ window.onload = (() => {
           20 > e.clientY || e.clientY > window.innerHeight - 20) {
           onMouseUp();
         }
-        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX) / window.devicePixelRatio, 20, window.innerWidth - parseInt(getStyle.width) - 20);
-        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY) / window.devicePixelRatio, 20, window.innerHeight - parseInt(getStyle.height) - 20);
+        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX) / window.devicePixelRatio, 20, window.innerWidth - parseInt(getStyleFMH.width) - 55);
+        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY) / window.devicePixelRatio, 20, window.innerHeight - parseInt(getStyleFMH.height) - 55);
         floatingMenu.style.left = `${x}px`;
         floatingMenu.style.top = `${y}px`;
         mouse.x = e.clientX;
@@ -148,12 +148,13 @@ window.onload = (() => {
       document.addEventListener('mouseup', onMouseUp);
       document.addEventListener('mousemove', onMouseMove);
     });
-    const getStyle = window.getComputedStyle(floatingMenu);
-    const x = parseInt(getStyle.left);
-    const y = parseInt(getStyle.top);
+    const getStyleFM = window.getComputedStyle(floatingMenu);
+    const getStyleFMH = window.getComputedStyle(header);
+    const x = parseInt(getStyleFM.left);
+    const y = parseInt(getStyleFM.top);
     floatingMenu.style.left = `${x}px`;
     floatingMenu.style.top = `${y}px`;
-    floatingMenu.style.width = getStyle.width;
+    floatingMenu.style.width = getStyleFM.width;
     const check = header.querySelector("input[type='checkbox']") as HTMLInputElement;
     const hideBtn = header.querySelector("button.hide") as HTMLButtonElement;
     const container = floatingMenu.querySelector(".floating-menu-container");
@@ -164,19 +165,20 @@ window.onload = (() => {
       floatingMenu.classList.toggle("hidden", true);
     })
   }
-  const fmLogEq = document.querySelector("#fm-logeq");
-  const logEqText = document.querySelector("#logeq-text") as HTMLTextAreaElement;
-  const logEqInputEl = document.querySelector("#logeq-input-el") as HTMLSelectElement;
-  setupEvent("toggle-logeq-editor",'click', () => {
+  const fmLogEq = document.getElementById("fm-logeq");
+  const logEqText = document.getElementById("logeq-text") as HTMLTextAreaElement;
+  const logEqFlatten = document.getElementById("logeq-flatten") as HTMLInputElement;
+  const logEqInputEl = document.getElementById("logeq-input-el") as HTMLSelectElement;
+  setupEvent("toggle-logeq-editor", 'click', () => {
     fmLogEq?.classList.toggle("hidden", false);
   });
-  setupEvent("logeq-clear",'click', () => {
+  setupEvent("logeq-clear", 'click', () => {
     logEqText.value = '';
   });
-  setupEvent("logeq-parse",'click', () => {
+  setupEvent("logeq-parse", 'click', () => {
     if (logEqText.value) {
       try {
-        const newEls = circuitIO.fromLayers(logEqParser.parse(logEqText.value), logEqInputEl.value);
+        const newEls = circuitIO.fromLayers(logEqParser.parse(logEqFlatten.checked, logEqText.value), logEqInputEl.value);
         selectedElements.clear();
         for (const newEl of newEls) {
           selectedElements.add(newEl);
@@ -187,7 +189,7 @@ window.onload = (() => {
         console.log(err);
       }
     }
-      
+
   });
 
   // Ctrl+S обработчик
@@ -509,7 +511,7 @@ function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   const worldX = (camera.x + centerX) / h1;
   const worldY = (camera.y + centerY) / h1;
 
-  camera.zoom = clamp(camera.zoom*scale, 0.35, 25);
+  camera.zoom = clamp(camera.zoom * scale, 0.35, 25);
   const h2 = camera.zoom * gridSize;
   camera.x = worldX * h2 - centerX;
   camera.y = worldY * h2 - centerY;
@@ -538,73 +540,113 @@ canvas.addEventListener('mouseup', e => {
 
 // Обработка клавиш
 document.addEventListener('keydown', e => {
-  if (e.key === 'Delete' && selectedElements.size > 0) {
-    // Удаление выбранных элементов
-    for (const element of selectedElements) {
-      circuit.removeWiresForElement(element);
-    }
-    if (elementUnderCursor && selectedElements.has(elementUnderCursor))
-      elementUnderCursor = null;
-    selectedElements.forEach(el => circuit.elements.delete(el));
-    clearSelection();
-  } else if (e.key === '-' || e.key === '+') {
-    zoomCanvas(e.key === '+', canvas.width / 2, canvas.height / 2);
-  } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
-    const mul = (e.shiftKey ? 5 : 1) * gridSize;
-    if (e.key === 'ArrowRight') {
-      camera.x += mul;
-    } else if (e.key === 'ArrowLeft') {
-      camera.x -= mul;
-    } else if (e.key === 'ArrowUp') {
-      camera.y -= mul;
-    } else if (e.key === 'ArrowDown') {
-      camera.y += mul;
-    }
-  } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
-    const deltaWorld = { x: 0, y: 0 };
-    const mul = e.shiftKey ? 5 : 1;
-    if (e.key === 'ArrowRight') {
-      deltaWorld.x = mul;
-    } else if (e.key === 'ArrowLeft') {
-      deltaWorld.x = -mul;
-    } else if (e.key === 'ArrowUp') {
-      deltaWorld.y = -mul;
-    } else if (e.key === 'ArrowDown') {
-      deltaWorld.y = mul;
-    }
-    for (const el of selectedElements) {
-      el.x += deltaWorld.x;
-      el.y += deltaWorld.y;
-    }
-  } else if (selectedTool === ToolMode.Connect) {
-    if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
-      connectSelected();
-    }
-    else if (e.key === 'Backspace') {
-      disconnectSelected();
-    }
-  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
-    // Игнорируем, если фокус на input/textarea
-    const target = e.target as HTMLElement;
-    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
-      return;
-    }
+  if (document.activeElement === document.body) {
+    if (e.key === 'Delete' && selectedElements.size > 0) {
+      // Удаление выбранных элементов
+      for (const element of selectedElements) {
+        circuit.removeWiresForElement(element);
+      }
+      if (elementUnderCursor && selectedElements.has(elementUnderCursor))
+        elementUnderCursor = null;
+      selectedElements.forEach(el => circuit.elements.delete(el));
+      clearSelection();
+    } else if (e.key === '-' || e.key === '+') {
+      zoomCanvas(e.key === '+', canvas.width / 2, canvas.height / 2);
+    } else if (e.key === 'Escape') {
+      clearSelection();
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'c') {
+      document.getElementById('tool-connect')?.click();
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'v') {
+      document.getElementById('tool-move')?.click();
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'p') {
+      document.getElementById('tool-paint')?.click();
+    } else if (e.altKey && e.key.toLowerCase() === "w") {
+      cycleCopyWiresMode();
+    } else if (e.shiftKey && e.key.toLowerCase() === "w") {
+      cycleShowWiresMode();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
+      const mul = (e.shiftKey ? 5 : 1) * gridSize;
+      if (e.key === 'ArrowRight') {
+        camera.x += mul;
+      } else if (e.key === 'ArrowLeft') {
+        camera.x -= mul;
+      } else if (e.key === 'ArrowUp') {
+        camera.y -= mul;
+      } else if (e.key === 'ArrowDown') {
+        camera.y += mul;
+      }
+    } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
+      const deltaWorld = { x: 0, y: 0 };
+      const mul = e.shiftKey ? 5 : 1;
+      if (e.key === 'ArrowRight') {
+        deltaWorld.x = mul;
+      } else if (e.key === 'ArrowLeft') {
+        deltaWorld.x = -mul;
+      } else if (e.key === 'ArrowUp') {
+        deltaWorld.y = -mul;
+      } else if (e.key === 'ArrowDown') {
+        deltaWorld.y = mul;
+      }
+      for (const el of selectedElements) {
+        el.x += deltaWorld.x;
+        el.y += deltaWorld.y;
+      }
+    } else if (selectedTool === ToolMode.Cursor) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
 
-    e.preventDefault();
-
-    // Берём текущие координаты курсора
-    const cursorX = prevMousePos.x; // сюда подставь переменную с координатами экрана X
-    const cursorY = prevMousePos.y; // сюда подставь переменную с координатами экрана Y
-
-    circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
+        navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectedElements)).catch((err) => { console.log(err) });
+      } else if (e.shiftKey && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        const cursorX = prevMousePos.x;
+        const cursorY = prevMousePos.y;
+        circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
+        requestAnimationFrame(draw);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        const cursorX = prevMousePos.x;
+        const cursorY = prevMousePos.y;
+        navigator.clipboard.readText().then((json) => {
+          try {
+            const newElements = circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY));
+            selectedElements.clear();
+            newElements.forEach(el => selectedElements.add(el));
+            requestAnimationFrame(draw);
+          } catch (err) {
+            console.log(err);
+          }
+        }).catch(err => console.log(err));
+      }
+    } else if (selectedTool === ToolMode.Connect) {
+      if (e.key === 'Enter' && (selectedSources.size > 0 && selectedTargets.size > 0)) {
+        connectSelected();
+      }
+      else if (e.key === 'Backspace') {
+        disconnectSelected();
+      } 
+    } else if (selectedTool === ToolMode.Paint) {
+      if (e.key === 'Enter')
+        circuitIO.paintSelected(selectedElements, null);
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        const cursorX = prevMousePos.x;
+        const cursorY = prevMousePos.y;
+        const el = getElementAt(circuit, camera, cursorX, cursorY);
+        if (el) {
+          navigator.clipboard.writeText(el.color).catch((err) => { console.log(err) });
+        }
+      }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        navigator.clipboard.readText().then((color) => {
+          if (color.match('#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})')) {
+            circuitIO.paintSelected(selectedElements, color.replace('#', ''));
+            requestAnimationFrame(draw);
+          }
+        })
+      }
+    }
     requestAnimationFrame(draw);
-  } else if (selectedTool === ToolMode.Paint) {
-    if (e.key === 'Enter')
-      circuitIO.paintSelected(selectedElements);
-  } else if (e.key === 'Escape') {
-    clearSelection();
   }
-  requestAnimationFrame(draw);
+
 
 });
 

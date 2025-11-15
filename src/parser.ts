@@ -2,7 +2,7 @@ import { type Element } from "./circuitIO";
 type Operator = { precedence: number, type: string, arity: number, associative: boolean }
 
 class LogicalExpressionParser {
-    static OPERATORS:Record<string, Operator> = {
+    static OPERATORS: Record<string, Operator> = {
         // Precedence: lower number means higher precedence
         // All binary operators are left-associative
         // Added 'associative' property to help with N-ary grouping
@@ -35,14 +35,14 @@ class LogicalExpressionParser {
     constructor() {
         this.elements = [];
         this.variableMap = new Map(); // Maps variable name to its corresponding gate ID
-        this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, OUTPUT: 0 };
+        this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, NOT: 0, OUTPUT: 0 };
         this.lastLayer = 1;
     }
 
-    parse(text: string) {
+    parse(flatten: boolean, text: string) {
         this.elements = [];
         this.variableMap = new Map();
-        this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, OUTPUT: 0 };
+        this.idCounters = { AND: 0, OR: 0, XOR: 0, NAND: 0, NOR: 0, XNOR: 0, NOT: 0, OUTPUT: 0 };
         this.lastLayer = 1;
 
         const expressions = text.split(/;\s*|:\s*|\n/).filter((line: string) => line.trim() !== "");
@@ -50,8 +50,8 @@ class LogicalExpressionParser {
         for (const expr of expressions) {
             this.processExpression(expr.trim());
         }
-
-        this.flattenAssociativeGates();
+        if (flatten)
+            this.flattenAssociativeGates();
         this.recalculateLayers();
 
         return this.getLayers();
@@ -140,7 +140,7 @@ class LogicalExpressionParser {
                     const op2 = operatorStack[operatorStack.length - 1];
                     // Handle associativity and precedence
                     if (
-                        (LogicalExpressionParser.getAssociativity(op1) === 'left' && LogicalExpressionParser.getPrecedence(op1) <= LogicalExpressionParser.getPrecedence(op2)) ||
+                        (LogicalExpressionParser.getAssociativity(op1) === 'left' && op1 != op2 && LogicalExpressionParser.getPrecedence(op1) <= LogicalExpressionParser.getPrecedence(op2)) ||
                         (LogicalExpressionParser.getAssociativity(op1) === 'right' && LogicalExpressionParser.getPrecedence(op1) < LogicalExpressionParser.getPrecedence(op2))
                     ) {
                         outputQueue.push(operatorStack.pop());
@@ -168,34 +168,43 @@ class LogicalExpressionParser {
     buildCircuitFromRPN(rpnTokens: string[]) {
         const operandStack: { id: string }[] = []; // Stores { id: string }
 
-        for (const token of rpnTokens) {
+        for (let i = 0; i < rpnTokens.length; ++i) {
+            const token = rpnTokens[i];
             if (LogicalExpressionParser.isOperator(token)) {
                 const operatorInfo = LogicalExpressionParser.OPERATORS[token];
                 const gateType = operatorInfo.type;
-                const arity = operatorInfo.arity;
+                const isNot = (gateType === 'NOT');
+                let j = 0;
+                while (i + j + 1 < rpnTokens.length && rpnTokens[i + j + 1] == rpnTokens[i]) ++j;
+                const arity = operatorInfo.arity + (isNot ? 0 : j);
 
                 if (operandStack.length < arity) throw new Error(`Not enough operands for operator ${token}`);
 
-                const operands: { id: string }[] = [];
-                for (let i = 0; i < arity; i++) {
-                    operands.unshift(operandStack.pop()!);
+                const inputs: string[] = [];
+                for (let k = 0; k < arity; k++) {
+                    inputs.unshift(operandStack.pop()!.id);
                 }
 
-                const inputs = operands.map(op => op.id);
                 let newElementId;
 
-                if (gateType === 'NOT') {
+                if (isNot) {
                     // Special handling for NOT: NAND with duplicated input
                     if (inputs.length !== 1) throw new Error('NOT operator expects exactly one input');
                     const inputId = inputs[0];
-                    newElementId = `NAND_${this.idCounters.NAND++}`;
-                    this.elements.push({ id: newElementId, type: 'NAND', inputs: [inputId, inputId], layer: 1 });
+                    newElementId = `NOT_${this.idCounters.NOT++}`;
+                    this.elements.push({ id: newElementId, type: 'NOT', inputs: [inputId], layer: 1 });
+                    for (let k = j; k--;) {
+                        const prevElementId = newElementId;
+                        newElementId = `NOT_${this.idCounters.NOT++}`;
+                        this.elements.push({ id: newElementId, type: 'NOT', inputs: [prevElementId], layer: 1 });
+                    }
+
                 } else {
                     newElementId = `${gateType}_${this.idCounters[gateType]++}`;
                     this.elements.push({ id: newElementId, type: gateType, inputs: inputs, layer: 1 });
                 }
                 operandStack.push({ id: newElementId });
-
+                i += j;
             } else {
                 // Operand (variable or previous gate output)
                 operandStack.push(this.resolveInput(token));
@@ -231,23 +240,58 @@ class LogicalExpressionParser {
     // Step 3: Flatten associative gates (e.g., A & B & C should be one AND gate with 3 inputs)
     flattenAssociativeGates() {
         const elementsToRemove = new Set();
+        const elementsToSave = new Set();
+        const outputCount = new Map();
+        for (const element of this.elements) {
+            for (const inputId of element.inputs) {
+                outputCount.set(inputId, (outputCount.get(inputId) || 0) + 1);
+            }
+        }
         for (const element of this.elements) {
             const operatorInfo = Object.values(LogicalExpressionParser.OPERATORS).find(op => op.type === element.type);
+
             if (operatorInfo && operatorInfo.associative) {
                 const newInputs = [];
+
                 for (const inputId of element.inputs) {
-                    const inputElement = this.elements.find((el: { id: any; }) => el.id === inputId);
-                    if (inputElement && inputElement.type === element.type) {
+                    const inputElement = this.elements.find(el => el.id === inputId);
+                    if (inputElement && !elementsToSave.has(inputId) &&
+                        inputElement.type === element.type && outputCount.get(inputId) === 1) {
                         newInputs.push(...inputElement.inputs);
                         elementsToRemove.add(inputId);
                     } else {
                         newInputs.push(inputId);
+                        elementsToSave.add(inputId);
                     }
                 }
                 element.inputs = [...new Set(newInputs)];
+            } else if (operatorInfo && element.type === 'NOT') {
+                const inputId = element.inputs[0] || null;
+                if (inputId) {
+                    const inputElement = this.elements.find(el => el.id === inputId);
+                    if (inputElement && !elementsToSave.has(inputId) && outputCount.get(inputId) === 1) {
+                        let newType: string;
+                        switch (inputElement.type) {
+                            case 'NOT': newType = 'AND'; break;
+                            case 'AND': newType = 'NAND'; break;
+                            case 'OR': newType = 'NOR'; break;
+                            case 'XOR': newType = 'XNOR'; break;
+                            case 'NAND': newType = 'AND'; break;
+                            case 'NOR': newType = 'OR'; break;
+                            case 'XNOR': newType = 'XOR'; break;
+                            default: continue;
+                        }
+                        element.type = newType;
+                        elementsToRemove.add(inputId);
+                        element.inputs = inputElement.inputs;
+                    }
+                }
+
+
             }
         }
-        this.elements = this.elements.filter((el: { id: unknown; }) => !elementsToRemove.has(el.id));
+
+        this.elements = this.elements.filter(el => elementsToSave.has(el.id) || !elementsToRemove.has(el.id));
     }
 
     // Step 4: Recalculate layers based on dependencies
@@ -282,11 +326,13 @@ class LogicalExpressionParser {
     }
 
     getLayers() {
-        const layers:Element[][] = [];
+        const layers: Element[][] = [];
         for (let i = this.lastLayer; i--;) layers.push([]);
 
         for (const element of this.elements) {
-            layers[element.layer - 1].push(element); 
+            if (element.type == 'OUTPUT') element.layer = this.lastLayer;
+            else if (element.type == 'NOT') element.type = 'NAND';
+            layers[element.layer - 1].push(element);
         }
         return layers;
     }
