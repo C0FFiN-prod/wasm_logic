@@ -1,0 +1,10 @@
+{
+  "floating-menu-tools": {
+    "header": "Инструменты",
+    "move": "Переместить",
+    "connect": "Соединить"
+  },
+  "floating-menu-elements": {
+    "header": "Элементы"
+  }
+}

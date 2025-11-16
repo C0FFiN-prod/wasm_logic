@@ -1,0 +1,10 @@
+{
+  "floating-menu-tools": {
+    "header": "Tools",
+    "move": "Move",
+    "connect": "Connect"
+  },
+  "floating-menu-elements": {
+    "header": "Elements"
+  }
+}

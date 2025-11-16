@@ -3,6 +3,8 @@ import { CircuitIO } from './circuitIO';
 import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point, type vec4 } from './consts';
 import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
+import { I18n } from './i18n';
+import { ruLocale, enLocale } from './locales';
 import * as LogicGates from './logic';
 import { LogicalExpressionParser } from './parser';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp } from './utils';
@@ -38,10 +40,28 @@ export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим �
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
 let logEqParser: LogicalExpressionParser;
+
+const locales = {
+  ru: ruLocale,
+  en: enLocale,
+}
+type LocaleNames = keyof typeof locales
+const i18n = new I18n(locales, 'ru')
+
+const toggleLocale = () => {
+  const localesToggleMap = {
+    'ru': 'en',
+    'en': 'ru',
+  } satisfies Record<LocaleNames, LocaleNames>
+
+  i18n.setLocale(localesToggleMap[i18n.localeName] as typeof i18n['localeName'])
+}
+
 window.onload = (() => {
   // Инициализация
   setupEvent('settings-toggle', "click", () => document.getElementById('settings-menu')?.classList.toggle('hidden'));
   setupEvent('theme-toggle', "click", () => toggleTheme());
+  setupEvent('locale-toggle', "click", () => toggleLocale());
   setupEvent('user-manual-toggle', "click", () => document.getElementById('fm-user-manual')?.classList.toggle('hidden'));
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
   toggleTheme(prefersDarkScheme.matches);
