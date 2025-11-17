@@ -147,7 +147,46 @@ L0 = A ^ B;"></textarea>
                         <li> <b>Pan Workspace</b>: Hold Mouse Wheel + Drag OR <code>Ctrl + Arrow Keys</code> /
                             <code>Ctrl + Shift + Arrow Keys</code>.
                         </li>
+
+                        <li> <b>Area Selection</b>: Hold Mouse Button (LMB or RMB) and drag to select elements
+                            within the area. While dragging:<ul>
+                                <li>With no modifiers old selection will be cleared</li>
+                                <li>Hold <code>Shift</code> to add to current selection</li>
+                                <li>Hold <code>Ctrl+Shift</code> to exclude from current selection</li>
+                            </ul>
+                        </li>
+                        <li> <b>Move Element(s)</b>: LMB on an element + Drag OR use
+                            <code>Arrow Keys</code>/<code>Shift+Arrow Keys</code>.
+                            Moves all selected elements.
+                        </li>
+                        <li> <b>Rotate Element(s)</b>:
+                            <code>R</code>/<code>Shift+R</code> to rotate selected elements by 90 degrees clockwise or
+                            counterclockwise.
+                        </li>
+                        <li> <b>Flip Element(s)</b>:
+                            <code>F</code>/<code>Shift+F</code> to flip selected elements horizontaly or verticaly.
+                        </li>
+                        <li> <b>Tools shortcuts</b>: switch current tool
+                            <ul>
+                                <li><b>Move</b>: <code>V</code></li>
+                                <li><b>Connect</b>: <code>C</code></li>
+                                <li><b>Paint</b>: <code>P</code></li>
+                            </ul>
+                        </li>
+                        <li> <b>Cycle Show Wires Mode</b>: <code>Shift+W</code> </li>
+                        <li> <b>Cycle Copy Wires Mode</b>: <code>Alt+W</code> </li>
+
+                        <li> <b>Interact with Element(s)</b>: Right-Click (RMB) on an element to:
+                            <ul>
+                                <li> Press a button/toggle a switch.</li>
+                                <li> Change a logical operation. (for all gates in selection)</li>
+                                <li> Change a timer's delay. (for all timers in selection)</li>
+                            </ul>
+                        </li>
+
+                        <li> <b>Delete</b>: <code>Delete</code> key removes selected elements.</li>
                     </ul>
+                    Move, Rotate, Flip and Interact available only in <b>Connect</b> and <b>Paint</b>.
                 </div>
             </details>
             <details class="collapse-section">
@@ -175,25 +214,14 @@ L0 = A ^ B;"></textarea>
                             <p>
                                 Activates move/selection mode.
                             <ul>
-                                <li> <b>Area Selection</b>: Hold Left Mouse Button (LMB) and drag to select elements
-                                    within
-                                    the area.</li>
-                                <li> <b>Move Element(s)</b>: LMB on an element + Drag OR use
-                                    <code>Arrow Keys</code>/`Shift+Arrow
-                                    Keys`. Moves all selected elements if an area is selected.
+                                <li> <b>Duplicate</b>: <code>Shift+V</code> duplicates
+                                    selected elements under the cursor. Behavior depends on the <b>Copy wires</b> mode.
                                 </li>
-                                <li> <b>Interact with Element(s)</b>: Right-Click (RMB) on an element to:
-                                    <ul>
-                                        <li> Press a button/toggle a switch.</li>
-                                        <li> Change a logical operation.</li>
-                                        <li> Change a timer's delay.</li>
-                                        <li> In a selected area, the action applies to all elements of the same class.
-                                        </li>
-                                    </ul>
+                                <li> <b>Copy</b>: <code>Ctr+C</code> copy
+                                    selected elements to clipboard.</li>
+                                <li> <b>Paste</b>: <code>Ctrl+V</code> paste copied scheme from clipboard under the
+                                    cursor. Behavior depends on the <b>Copy wires</b> mode.
                                 </li>
-                                <li> <b>Duplicate</b>: <code>Ctrl+V</code> (English keyboard layout only) duplicates
-                                    selected elements
-                                    under the cursor. Behavior depends on the <b>Copy wires</b> mode.</li>
                                 <li> <b>Delete</b>: <code>Delete</code> key removes selected elements.</li>
                             </ul>
 
@@ -231,19 +259,19 @@ L0 = A ^ B;"></textarea>
                                 <li> <b>Area Selection</b>: Hold LMB and drag to select elements within the area.</li>
                                 <li> <b>Move Element(s)</b>: LMB on an element + Drag OR use
                                     <code>Arrow Keys</code>/<code>Shift+Arrow Keys</code>. Moves all selected elements
-                                    if an
-                                    area is
-                                    selected.
+                                    if an area is selected.
                                 </li>
-
-
                                 <li> <b>Interact with Element(s)</b>: RMB on an element (same behavior as in Move Tool).
                                 </li>
                                 <li> <b>Recolor</b>: <code>Enter</code> changes the color of selected elements to the
                                     current <b>ColorPicker</b> color.
                                 </li>
+                                <li> <b>Pick color</b>: <code>Ctr+C</code> copy hex color of element under cursor to
+                                    clipboard.</li>
+                                <li> <b>Paint selected</b>: <code>Ctrl+V</code> changes color of selected elements to
+                                    hex (3 or 6 digits) color from clipboard.
+                                </li>
 
-                                <li> <b>Delete</b>: <code>Delete</code> key removes selected elements.</li>
                             </ul>
 
                             </p>

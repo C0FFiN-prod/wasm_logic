@@ -171,11 +171,13 @@ hr {
 
 .floating-menu-header {
     gap: 3rem;
+    align-items: center;
     justify-content: space-between;
 }
 
 .floating-menu-header>span {
     pointer-events: none;
+    text-overflow: ellipsis;
 }
 
 .floating-menu-header>input[type="checkbox"] {
@@ -204,12 +206,12 @@ hr {
 }
 
 .floating-menu-header>input[type="checkbox"]::before {
-    transform: rotate(45deg);
+    rotate: 45deg;
     translate: 4px 10px;
 }
 
 .floating-menu-header>input[type="checkbox"]::after {
-    transform: rotate(-45deg);
+    rotate: -45deg;
     translate: 4px 5px;
 }
 
