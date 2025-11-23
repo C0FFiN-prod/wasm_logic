@@ -1,14 +1,18 @@
 import type { CircuitIO } from "./circuitIO";
+import type { LocaleNames } from "./consts";
 import { draw } from "./drawingWGL";
+import type { I18n, I18nLocale, I18nLocales } from "./i18n";
 
 export class FileIO {
     currentFileHandle: FileSystemFileHandle | null = null;
-    currentFileName = "Unnamed";
+    currentFileName = '';
     // Проверка поддержки FSAPI
     hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
     filenameDisplay: HTMLSpanElement;
     circuitIO: CircuitIO;
-    constructor(circuitIO: CircuitIO, filenameDisplaySpan: HTMLSpanElement) {
+    i18n;
+    constructor(i18n: I18n<I18nLocale, LocaleNames, I18nLocales<LocaleNames, I18nLocale>>, circuitIO: CircuitIO, filenameDisplaySpan: HTMLSpanElement) {
+        this.i18n = i18n;
         this.filenameDisplay = filenameDisplaySpan;
         this.circuitIO = circuitIO;
         // Клик по имени — превращаем в input для редактирования
@@ -16,7 +20,7 @@ export class FileIO {
             const input = document.createElement("input");
             input.type = "text";
             input.id = "filename-input";
-            input.value = this.currentFileName;
+            input.value = this.currentFileName || this.unnamed;
 
             this.filenameDisplay.replaceWith(input);
             input.focus();
@@ -26,7 +30,7 @@ export class FileIO {
             const finishEdit = () => {
                 if (finished) return;
                 finished = true;
-                this.currentFileName = input.value.trim() || "Unnamed";
+                this.currentFileName = input.value.trim();
                 input.replaceWith(this.filenameDisplay);
                 this.updateFilenameDisplay();
             };
@@ -42,14 +46,16 @@ export class FileIO {
             });
         });
     }
-
+    private get unnamed() {
+        return this.i18n.getValue("dynamic", "no-file") || "Unnamed";
+    } 
     clearFileHandle() {
         this.currentFileHandle = null;
-        this.currentFileName = "Unnamed";
+        this.currentFileName = '';
         this.updateFilenameDisplay();
     }
     updateFilenameDisplay() {
-        this.filenameDisplay.textContent = this.currentFileName;
+        this.filenameDisplay.textContent = this.currentFileName || this.unnamed;
     }
     // ======= Сохранение =======
     saveAs = async (): Promise<void> => {
@@ -76,7 +82,7 @@ export class FileIO {
             const blob = new Blob([dataStr], { type: "application/json" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
-            a.download = (this.currentFileName || "scheme") + ".json";
+            a.download = (this.currentFileName || this.unnamed) + ".json";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -127,7 +133,7 @@ export class FileIO {
             });
             if (!add) {
                 this.currentFileHandle = fileHandle;
-                this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || "Unnamed";
+                this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || this.unnamed;
                 this.updateFilenameDisplay();
             }
             const file = await fileHandle.getFile();

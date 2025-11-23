@@ -1,7 +1,8 @@
+import { mdToHtml } from "./mdParser"
 
-type I18nLocaleSection = Record<string, string>
-type I18nLocale = Record<string, Record<string, string>>
-type I18nLocales<LocaleName extends string, Locale extends I18nLocale> = Record<LocaleName, Locale>
+export type I18nLocaleSection = Record<string, string | string[]>
+export type I18nLocale = Record<string, I18nLocaleSection>
+export type I18nLocales<LocaleName extends string, Locale extends I18nLocale> = Record<LocaleName, Locale>
 
 export class I18n<Locale extends I18nLocale, LocaleNames extends string, Locales extends I18nLocales<LocaleNames, Locale>> {
 
@@ -61,7 +62,9 @@ export class I18n<Locale extends I18nLocale, LocaleNames extends string, Locales
     this.render()
   }
 
-  private getValue<LocaleSection extends keyof Locale>(section: LocaleSection, key: keyof Locale[LocaleSection]) {
-    return this.locale[section]?.[key] ?? ''
+  getValue<LocaleSection extends keyof Locale>(section: LocaleSection, key: keyof Locale[LocaleSection]) {
+    return key.toString().startsWith('md-') ?
+      mdToHtml((this.locale[section]?.[key] ?? []) as string[]) :
+      (this.locale[section]?.[key] as string ?? '');
   }
 }
