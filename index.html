@@ -17,6 +17,11 @@
     <div id="settings-menu" class="hidden">
         <button class="setting-btn" id="theme-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
                 stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd"></svg></button>
+        <button class="setting-btn" id="locale-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
+                stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
+                <path d="M0.5 1.71905H6.75778M6.75778 1.71905V0.5M6.75778 1.71905H10.74M1.63778 13.719C6.18889 9.14762 10.74 4.76667 10.74 1.71905M10.74 1.71905H12.5178M9.10445 16.5L10.2991 13.0714M16.5 16.5L15.476 13.0714M10.2991 13.0714H15.476M10.2991 13.0714L12.8928 5.62784C12.9195 5.55129 12.9917 5.5 13.0727 5.5C13.157 5.5 13.2312 5.5553 13.2553 5.63601L15.476 13.0714M2.65445 3.7C3.65389 6.1391 6.22025 9.10092 9.27189 12.2333"
+                    stroke-linecap="round" />
+        </svg></button>
         <button class="setting-btn" id="user-manual-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
                 stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
                 <path
@@ -26,94 +31,92 @@
     </div>
 
 
-    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;">
+    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;" data-locale-section="floating-menu-logeq-editor">
         <div class="floating-menu-header">
-            <span>LogEq Editor</span>
+            <span data-locale="header"></span>
             <button class="hide"></button>
         </div>
         <div class="floating-menu-container flex col justify">
             <textarea name="logeq-text" id="logeq-text" cols="60" rows="10" placeholder="A = S0; 
 B = B0;
 L0 = A ^ B;"></textarea>
-            <div class="flex row between">
-                <button id="logeq-clear">Clear</button>
-                <label class="align-content-center lh-1">
-                    Flatten:
+            <div class="flex row between gap-3">
+                <button id="logeq-clear" data-locale="clear"></button>
+                <span class="align-content-center lh-1">
+                    <label for="logeq-flatten" data-locale="flatten"></label>
                     <input type="checkbox" id="logeq-flatten">
-                </label>
-
-                <label class="align-content-center">
-                    Args:
+                </span>
+                <span class="align-content-center">
+                    <label for="logeq-input-el" data-locale="args"></label>
                     <select name="logeq-input-el" id="logeq-input-el">
-                        <option value="AND">AND</option>
-                        <option value="SWITCH">Switch</option>
-                        <option value="BUTTON">Button</option>
+                        <option value="AND" data-locale="and"></option>
+                        <option value="SWITCH" data-locale="switch"></option>
+                        <option value="BUTTON" data-locale="button"></option>
                     </select>
-                </label>
-
-                <button id="logeq-parse">Parse</button>
+                </span>
+                <button id="logeq-parse" data-locale="parse"></button>
             </div>
         </div>
     </div>
-    <div class="floating-menu" style="left: 20px; top: 20px;">
+    <div class="floating-menu" style="left: 20px; top: 20px;" data-locale-section="floating-menu-tools">
         <div class="floating-menu-header">
-            <span>Tools</span>
+            <span data-locale="header"></span>
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col">
-            <button id="tool-move" class="tool-button">Move</button>
-            <button id="tool-connect" class="tool-button">Connect</button>
+            <button id="tool-move" class="tool-button" data-locale="move"></button>
+            <button id="tool-connect" class="tool-button" data-locale="connect"></button>
             <div class="flex gap-1">
                 <input type="color" id="tool-color-picker" value="#222222">
-                <button id="tool-paint" class="tool-button flex-1">Paint</button>
+                <button id="tool-paint" class="tool-button flex-1" data-locale="paint"></button>
             </div>
             <hr>
             <button id="copy-wires-mode-btn">Copy wires: Inner</button>
             <button id="show-wires-mode-btn">Show wires: Connect</button>
             <hr>
-            <button id="toggle-logeq-editor">Edit LogEq</button>
+            <button id="toggle-logeq-editor" data-locale="edit-logeq"></button>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 20px; top: 420px;">
+    <div class="floating-menu" style="left: 20px; top: 420px;" data-locale-section="floating-menu-elements">
         <div class="floating-menu-header">
-            <span>Elements</span>
+            <span data-locale="header"></span>
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col justify">
-            <button id="add-and">AND</button>
-            <button id="add-or">OR</button>
-            <button id="add-xor">XOR</button>
-            <button id="add-nand">NAND</button>
-            <button id="add-nor">NOR</button>
-            <button id="add-xnor">XNOR</button>
-            <button id="add-t_flop">T-Flop</button>
-            <button id="add-timer">Timer</button>
-            <button id="add-button">Button</button>
-            <button id="add-switch">Switch</button>
-            <button id="add-output">Output</button>
+            <button id="add-and" data-locale="and"></button>
+            <button id="add-or" data-locale="or"></button>
+            <button id="add-xor" data-locale="xor"></button>
+            <button id="add-nand" data-locale="nand"></button>
+            <button id="add-nor" data-locale="nor"></button>
+            <button id="add-xnor" data-locale="xnor"></button>
+            <button id="add-t_flop" data-locale="t-flop"></button>
+            <button id="add-timer" data-locale="timer"></button>
+            <button id="add-button" data-locale="button"></button>
+            <button id="add-switch" data-locale="switch"></button>
+            <button id="add-output" data-locale="output"></button>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 50%; top: 20px;">
+    <div class="floating-menu" style="left: 50%; top: 20px;" data-locale-section="floating-menu-file">
         <div class="floating-menu-header">
-            <span>File</span>
+            <span data-locale="header"></span>
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col gap-3">
-            <div class="flex gap-1">File:&nbsp;<span id="filename-display">Unnamed</span></div>
-            <div>
-                <button id="save-scheme">Save</button>
-                <button id="load-scheme">Load</button>
-                <button id="add-scheme">Add</button>
-                <button id="clear-canvas">Clear</button>
+            <div class="flex gap-1"><span data-locale="file"></span>&nbsp;<span id="filename-display">Unnamed</span></div>
+            <div class="flex gap-1">
+                <button id="save-scheme" class="flex-1" data-locale="save"></button>
+                <button id="load-scheme" class="flex-1" data-locale="load"></button>
+                <button id="add-scheme" class="flex-1" data-locale="add"></button>
+                <button id="clear-canvas" class="flex-1" data-locale="clear"></button>
             </div>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 50%; top: 85%;">
+    <div class="floating-menu" style="left: 50%; top: 85%;" data-locale-section="floating-menu-simulation">
         <div class="floating-menu-header">
-            <span>Simulation</span>
+            <span data-locale="header"></span>
             <input type="checkbox">
         </div>
         <div class="floating-menu-container align-items-center">
@@ -121,267 +124,13 @@ L0 = A ^ B;"></textarea>
             <button id="step-sim">⏭</button>
             <button id="stop-sim">⏹</button>
             <input type="number" id="speed-sim" min="1" max="1000" value="40" style="width:50px;">
-            <label for="speed-sim">Hz</label>
+            <label for="speed-sim" data-locale="hz"></label>
         </div>
     </div>
 
-    <div class="floating-menu hidden" id="fm-user-manual">
-        <div class="floating-menu-header"><span>User Manual</span><button class="hide"></button></div>
-        <div class="floating-menu-container col resizeable">
-            <details class="collapse-section">
-                <summary>Dots Menu</summary>
-                <div class="content">
-                    <ul>
-                        <li> <b>Dots Menu</b>: Dots icon toggles Dots Menu visibility </li>
-                        <li> <b>Switch Theme</b>: Moon/Sun - Dark/Bright</li>
-                        <li> <b>User Manual</b>: Question mark icon toggles user manual visibility. User Manual FM is
-                            resizeable.</li>
-                    </ul>
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>Controls</summary>
-                <div class="content">
-                    <ul>
-                        <li> <b>Zoom In/Out</b>: Mouse Wheel (scroll) OR <code>+</code>/<code>-</code> keys.</li>
-                        <li> <b>Pan Workspace</b>: Hold Mouse Wheel + Drag OR <code>Ctrl + Arrow Keys</code> /
-                            <code>Ctrl + Shift + Arrow Keys</code>.
-                        </li>
-
-                        <li> <b>Area Selection</b>: Hold Mouse Button (LMB or RMB) and drag to select elements
-                            within the area. While dragging:<ul>
-                                <li>With no modifiers old selection will be cleared</li>
-                                <li>Hold <code>Shift</code> to add to current selection</li>
-                                <li>Hold <code>Ctrl+Shift</code> to exclude from current selection</li>
-                            </ul>
-                        </li>
-                        <li> <b>Move Element(s)</b>: LMB on an element + Drag OR use
-                            <code>Arrow Keys</code>/<code>Shift+Arrow Keys</code>.
-                            Moves all selected elements.
-                        </li>
-                        <li> <b>Rotate Element(s)</b>:
-                            <code>R</code>/<code>Shift+R</code> to rotate selected elements by 90 degrees clockwise or
-                            counterclockwise.
-                        </li>
-                        <li> <b>Flip Element(s)</b>:
-                            <code>F</code>/<code>Shift+F</code> to flip selected elements horizontaly or verticaly.
-                        </li>
-                        <li> <b>Tools shortcuts</b>: switch current tool
-                            <ul>
-                                <li><b>Move</b>: <code>V</code></li>
-                                <li><b>Connect</b>: <code>C</code></li>
-                                <li><b>Paint</b>: <code>P</code></li>
-                            </ul>
-                        </li>
-                        <li> <b>Cycle Show Wires Mode</b>: <code>Shift+W</code> </li>
-                        <li> <b>Cycle Copy Wires Mode</b>: <code>Alt+W</code> </li>
-
-                        <li> <b>Interact with Element(s)</b>: Right-Click (RMB) on an element to:
-                            <ul>
-                                <li> Press a button/toggle a switch.</li>
-                                <li> Change a logical operation. (for all gates in selection)</li>
-                                <li> Change a timer's delay. (for all timers in selection)</li>
-                            </ul>
-                        </li>
-
-                        <li> <b>Delete</b>: <code>Delete</code> key removes selected elements.</li>
-                    </ul>
-                    Move, Rotate, Flip and Interact available only in <b>Connect</b> and <b>Paint</b>.
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>Floating Menus (FM)</summary>
-                <div class="content">
-                    <p>
-                        The screen contains several Floating Menus.
-                    <ul>
-                        <li> <b>Move</b>: Drag the top bar of a menu.</li>
-                        <li> <b>Collapse/Expand</b>: Click the <code>&lt;</code> icon (if present).</li>
-                        <li> <b>Close</b>: Click the <code>X</code> icon The menu will become completely
-                            invisible.</li>
-                        <li> <b>Boundaries</b>: Windows cannot be dragged outside the application window.</li>
-                    </ul>
-
-                    </p>
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>FM: Tools</summary>
-                <div class="content">
-                    <details class="collapse-section">
-                        <summary>Move Tool</summary>
-                        <div class="content">
-                            <p>
-                                Activates move/selection mode.
-                            <ul>
-                                <li> <b>Duplicate</b>: <code>Shift+V</code> duplicates
-                                    selected elements under the cursor. Behavior depends on the <b>Copy wires</b> mode.
-                                </li>
-                                <li> <b>Copy</b>: <code>Ctr+C</code> copy
-                                    selected elements to clipboard.</li>
-                                <li> <b>Paste</b>: <code>Ctrl+V</code> paste copied scheme from clipboard under the
-                                    cursor. Behavior depends on the <b>Copy wires</b> mode.
-                                </li>
-                                <li> <b>Delete</b>: <code>Delete</code> key removes selected elements.</li>
-                            </ul>
-
-                            </p>
-                        </div>
-                    </details>
-                    <details class="collapse-section">
-                        <summary>Connect Tool</summary>
-                        <div class="content">
-                            <p>
-                                Activates connection mode.
-                            <ul>
-                                <li> <b>Add Source</b>: LMB on an element adds it to the source list.</li>
-                                <li> <b>Add Target</b>: RMB on an element adds it to the target list.</li>
-                                <li> <b>Area Selection</b>: Hold and drag LMB/RMB to select elements within the area.
-                                </li>
-                                <li> <b>Connect</b>: <code>Enter</code> connects all sources to all targets.</li>
-                                <li> <b>Show Connections</b>: Press Mouse Wheel on an element to display all its
-                                    incoming
-                                    and outgoing connections.</li>
-                                <li> <b>Cancel Selection</b>: <code>Esc</code>.</li>
-                                <li> <b>Disconnect</b>: <code>Backspace</code> disconnects all sources from all targets.
-                                </li>
-                            </ul>
-
-                            </p>
-                        </div>
-                    </details>
-                    <details class="collapse-section">
-                        <summary>Paint Tool</summary>
-                        <div class="content">
-                            <p>
-                                Activates painting mode.
-                            <ul>
-                                <li> <b>Area Selection</b>: Hold LMB and drag to select elements within the area.</li>
-                                <li> <b>Move Element(s)</b>: LMB on an element + Drag OR use
-                                    <code>Arrow Keys</code>/<code>Shift+Arrow Keys</code>. Moves all selected elements
-                                    if an area is selected.
-                                </li>
-                                <li> <b>Interact with Element(s)</b>: RMB on an element (same behavior as in Move Tool).
-                                </li>
-                                <li> <b>Recolor</b>: <code>Enter</code> changes the color of selected elements to the
-                                    current <b>ColorPicker</b> color.
-                                </li>
-                                <li> <b>Pick color</b>: <code>Ctr+C</code> copy hex color of element under cursor to
-                                    clipboard.</li>
-                                <li> <b>Paint selected</b>: <code>Ctrl+V</code> changes color of selected elements to
-                                    hex (3 or 6 digits) color from clipboard.
-                                </li>
-
-                            </ul>
-
-                            </p>
-                        </div>
-                    </details>
-                    <details class="collapse-section">
-                        <summary>Additional Buttons & Actions</summary>
-                        <div class="content">
-                            <p>
-                            <ul>
-                                <li> <b>ColorPicker</b>: The square next to the Paint tool allows you to select a color
-                                    for
-                                    painting and new elements.</li>
-                                <li> <b>Copy wires Mode</b>: Toggles wire copying behavior during duplication.</li>
-                                <ul>
-                                    <li> <code>None</code>: No wires are copied.</li>
-                                    <li> <code>Inner</code>: Only wires within the selection are copied.</li>
-                                    <li> <code>All</code>: All connected wires are copied.</li>
-                                </ul>
-
-                                <li> <b>Show wires Mode</b>: Toggles wire visibility.</li>
-                                <ul>
-                                    <li> <code>None</code>: Wires are hidden.</li>
-                                    <li> <code>Connect</code>: Wires are visible only in Connect mode.</li>
-                                    <li> <code>Temporary</code>: Only temporary wires (in Connect mode) are visible.
-                                    </li>
-                                    <li> <code>Always</code>: Wires are always visible.</li>
-                                </ul>
-                                <li><b>Edit LogEq</b>: Opens the logic expression editor.</li>
-                            </ul>
-                            </p>
-                        </div>
-                    </details>
-
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>FM: Simulation</summary>
-                <div class="content">
-                    <p>
-                    <ul>
-                        <li> <b>Start ⏵</b>: Starts the simulation; signals begin propagating.</li>
-                        <li> <b>Step ⏭</b>: Pauses the simulation and executes a single simulation step.</li>
-                        <li> <b>Stop ⏹</b>: Pauses the simulation.</li>
-                        <li> <b>Frequency Input (<code>...Hz</code>)</b>: Sets the simulation speed in Hertz.</li>
-                    </ul>
-
-                    </p>
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>FM: LogEq Editor</summary>
-                <div class="content">
-                    <p>
-
-                    <ul>
-                        <li> <b>Clear Button</b>: Deletes all text in the editor.</li>
-                        <li> <b>Parse Button</b>: Parses the logic expression and adds the corresponding circuit to
-                            the workspace.</li>
-                        <li> <b>Args Dropdown Menu</b>: Defines the component type for free arguments in the
-                            expression:</li>
-                        <li> <code>AND</code>: Logic AND gate.</li>
-                        <li> <code>Switch</code>: Toggle switch.</li>
-                        <li> <code>Button</code>: Button.</li>
-                    </ul>
-
-                    </p>
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>FM: File</summary>
-                <div class="content">
-                    <p>
-                    <ul>
-                        <li> <b>File Name Field</b>: Displays the name of the current file. This name will be used for
-                            saving. If supported by the browser, changing the name here and saving will rename the file
-                            on
-                            disk.</li>
-                        <li> <b>Save Button</b>: Exports the current circuit to a file (JSON format). If supported by
-                            the
-                            browser, it saves changes to the currently open file.</li>
-                        <li> <b>Load Button</b>: Imports a saved file and restores the circuit on the workspace.</li>
-                        <li> <b>Add Button</b>: Adds imported circuit to current one. Does not affect current file
-                            pointer.
-                        </li>
-                        <li> <b>Clear Button</b>: Clears the workspace, deletes the circuit, and resets the current file
-                            pointer.</li>
-                    </ul>
-                    </p>
-                </div>
-            </details>
-            <details class="collapse-section">
-                <summary>FM: Elements</summary>
-                <div class="content">
-                    <p>
-                        <b>Add Component</b>: LMB on a component in the palette adds it to the workspace (places it
-                        randomly
-                        in the center, sometimes underneath existing elements).<br>
-                        This palette contains all available circuit components:
-                    <ul>
-                        <li> <b>Logic Gates</b>: AND, OR, XOR, NAND, NOR, XNOR</li>
-                        <li> <b>Sequential Logic</b>: T-Flip-Flop (T-Flop)</li>
-                        <li> <b>Timing</b>: Timer (delays an incoming signal sequence by N simulation ticks)</li>
-                        <li> <b>Inputs</b>: Button (sends a signal for 1 tick), Switch</li>
-                        <li> <b>Output</b>: Output (indicator lamp)</li>
-                    </ul>
-                    </p>
-                </div>
-            </details>
-        </div>
+    <div class="floating-menu hidden" id="fm-user-manual" data-locale-section="floating-menu-user-manual">
+        <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
+        <div class="floating-menu-container col resizeable" data-locale="md-user-manual"></div>
     </div>
 
     <canvas id="circuit-canvas"></canvas>

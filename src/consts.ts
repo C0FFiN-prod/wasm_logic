@@ -1,3 +1,5 @@
+import { ruLocale, enLocale } from "./locales";
+
 export const typeToshapeId: Map<string, string> = new Map(Object.entries({
   "GATE": "9f0f56e8-2c31-4d83-996c-d00a9b296c3f",
   "TIMER": "8f7fd0e7-c46e-4944-a414-7ce2437bb30f",
@@ -89,6 +91,12 @@ export const ShowWiresMode = {
   Temporary: 2,
   Always: 3
 } as const;
+
+export const locales = {
+  ru: ruLocale,
+  en: enLocale,
+}
+export type LocaleNames = keyof typeof locales
 
 export type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];
 export type ShowWiresMode = typeof ShowWiresMode[keyof typeof ShowWiresMode];

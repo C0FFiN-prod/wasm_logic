@@ -1,8 +1,9 @@
 // main.js
 import { CircuitIO } from './circuitIO';
-import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type Point, type vec4 } from './consts';
+import { colors, CopyWiresMode, gateTypeToMode, gridSize, knownShapeIds, locales, pathMap, shapeIdToType, ShowWiresMode, ToolMode, typeToshapeId, type Camera, type LocaleNames, type Point, type vec4 } from './consts';
 import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
+import { I18n } from './i18n';
 import * as LogicGates from './logic';
 import { LogicalExpressionParser } from './parser';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp } from './utils';
@@ -38,10 +39,28 @@ export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим �
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
 let logEqParser: LogicalExpressionParser;
+
+
+const i18n = new I18n(locales, 'ru')
+
+const toggleLocale = () => {
+  const localesToggleMap = {
+    'ru': 'en',
+    'en': 'ru',
+  } satisfies Record<LocaleNames, LocaleNames>
+
+  i18n.setLocale(localesToggleMap[i18n.localeName] as typeof i18n['localeName'])
+  updateCopyWiresButtonText()
+  updateShowWiresButtonText()
+  fileIO.updateFilenameDisplay()
+  resizeFMs()
+}
+
 window.onload = (() => {
   // Инициализация
   setupEvent('settings-toggle', "click", () => document.getElementById('settings-menu')?.classList.toggle('hidden'));
   setupEvent('theme-toggle', "click", () => toggleTheme());
+  setupEvent('locale-toggle', "click", () => toggleLocale());
   setupEvent('user-manual-toggle', "click", () => document.getElementById('fm-user-manual')?.classList.toggle('hidden'));
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
   toggleTheme(prefersDarkScheme.matches);
@@ -51,8 +70,13 @@ window.onload = (() => {
   canvas.height = window.innerHeight;
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
   circuitIO = new CircuitIO(circuit, colorPicker, camera, canvas);
-  fileIO = new FileIO(circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
+  fileIO = new FileIO(i18n, circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
   logEqParser = new LogicalExpressionParser();
+
+  updateCopyWiresButtonText();
+  updateShowWiresButtonText();
+  fileIO.updateFilenameDisplay();
+
   // Привязка кнопок
   setupEvent('save-scheme', 'click', fileIO.save);
   setupEvent('load-scheme', 'click', () => fileIO.load(false));
@@ -63,9 +87,9 @@ window.onload = (() => {
   // Toolbar buttons
   ['and', 'or', 'xor', 'nand', 'nor', 'xnor', 't_flop', 'timer', 'button', 'switch', 'output'].forEach(id => {
     const el = document.getElementById('add-' + id);
+    const type = id.toUpperCase();
     if (el) {
       el.onclick = () => {
-        let type = id.toUpperCase();
         circuitIO.addElement(type, {});
         requestAnimationFrame(draw);
       };
@@ -212,6 +236,15 @@ window.addEventListener('resize', () => {
   requestAnimationFrame(draw);
 });
 
+function resizeFMs() {
+  const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
+  for (const floatingMenu of floatingMenus) {
+    floatingMenu.style.width = "";
+    const getStyleFM = window.getComputedStyle(floatingMenu);
+    floatingMenu.style.width = getStyleFM.width;
+  }
+}
+
 function toggleTheme(force?: boolean) {
   const htmlElement = document.documentElement;
   const toggleThemeBtnIcon = document.querySelector("#theme-toggle svg");
@@ -294,34 +327,38 @@ function disconnectSelected() {
 
 function updateCopyWiresButtonText() {
   const btn = document.getElementById("copy-wires-mode-btn")!;
+  let copyWiresText = (i18n.getValue('dynamic', 'copy-wires-mode') || 'Copy wires') + ': ';
   switch (copyWiresMode) {
     case CopyWiresMode.None:
-      btn.textContent = "Copy wires: None";
+      copyWiresText += i18n.getValue('dynamic', 'none') || 'None';
       break;
     case CopyWiresMode.Inner:
-      btn.textContent = "Copy wires: Inner";
+      copyWiresText += i18n.getValue('dynamic', 'inner') || 'Inner';
       break;
     case CopyWiresMode.All:
-      btn.textContent = "Copy wires: All";
+      copyWiresText += i18n.getValue('dynamic', 'all') || 'All';
       break;
   }
+  btn.textContent = copyWiresText;
 }
 function updateShowWiresButtonText() {
   const btn = document.getElementById("show-wires-mode-btn")!;
+  let showWiresText = (i18n.getValue('dynamic', 'show-wires-mode') || 'Show wires') + ': ';
   switch (showWiresMode) {
     case ShowWiresMode.None:
-      btn.textContent = "Show wires: None";
+      showWiresText += i18n.getValue('dynamic', 'none') || 'None';
       break;
     case ShowWiresMode.Connect:
-      btn.textContent = "Show wires: Connect";
+      showWiresText += i18n.getValue('dynamic', 'connect') || 'Connect';
       break;
     case ShowWiresMode.Temporary:
-      btn.textContent = "Show wires: Temp";
+      showWiresText += i18n.getValue('dynamic', 'temporary') || 'Temporary';
       break;
     case ShowWiresMode.Always:
-      btn.textContent = "Show wires: Always";
+      showWiresText += i18n.getValue('dynamic', 'always') || 'Always';
       break;
   }
+  btn.textContent = showWiresText;
 }
 
 function cycleCopyWiresMode() {
