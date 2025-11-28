@@ -40,6 +40,13 @@ let fileIO: FileIO;
 let circuitIO: CircuitIO;
 let logEqParser: LogicalExpressionParser;
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+    .then(() => navigator.serviceWorker.ready.then((worker) => {
+      (worker as any).sync.register('syncdata');
+    }))
+    .catch((err) => console.log(err));
+}
 
 const i18n = new I18n(locales, 'ru')
 
