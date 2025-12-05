@@ -1,6 +1,13 @@
 import { gridSize, type Camera, type Point } from "./consts";
 import type { Circuit, LogicElement } from "./logic";
 
+export function formatString(template: string, args: any[]): string {
+    return template.replace(/%(\d+)/g, (match: string, index: string) => {
+        const i = parseInt(index, 10) - 1;
+        return i >= 0 && i < args.length ? args[i] : match;
+    });
+}
+
 // Конвертирует Hex (#RRGGBB) в [R, G, B] (0-255)
 export function hexToRgb(hex: string): [number, number, number] {
     hex = hex.replace('#', '');
