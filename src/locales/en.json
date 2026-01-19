@@ -1,4 +1,37 @@
 {
+  "logeq-lexer": {
+    "unexpected-character":"Unexpected character",
+    "invalid-number":"Invalid numeric value",
+    "invalid-identifier":"Invalid identifier",
+    "unknown-operator":"Unknown operator"
+  },
+  "logeq-parser": {
+      "compilation-errors": "Compilation errors",
+      "expected-function-name": "Expected function name",
+      "expected-left-paren-after-function-name": "Expected '(' after function name",
+      "expected-parameter": "Expected parameter",
+      "expected-right-paren-after-params": "Expected ')' after parameter list",
+      "expected-equal-after-signature": "Expected '=' after function signature",
+      "expected-left-brace-after-equal": "Expected '{' after '='",
+      "expected-right-brace-after-body": "Expected '}' after function body",
+      "expected-identifier-after-comma": "Expected identifier after comma",
+      "expected-semicolon-after-expression": "Expected ';' after expression",
+      "expected-right-paren-after-expression": "Expected ')' after expression",
+      "expected-right-paren-after-args": "Expected ')' after arguments",
+      "expected-semicolon-after-call": "Expected ';' after function call",
+      "expected-semicolon-after-expression-list": "Expected ';' after expression list",
+      "expected-right-paren-after-arguments": "Expected ')' after arguments",
+      "expected-expression": "Expected expression",
+      "expected-semicolon-after-return": "Expected ';' after return"
+  },
+  "logeq-builder": {
+    "unknown-identifier": "Unknown identifier %1",
+    "function-undefined": "Function %1 is undefined",
+    "function-return-n-but-assign-to-m": "Function %1 returns %2 values, but assigned to %3 variables",
+    "function-expected-n-but-got-m": "Function %1 expects %2 arguments, got %3",
+    "function-return-n-but-need-one": "Function %1 returns %2 values, but 1 expected in expression context",
+    "unknown-expression-type": "Unknown expression type: %1"
+  },
   "dynamic": {
     "no-file": "Unnamed",
     "none": "None",

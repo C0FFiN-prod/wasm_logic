@@ -1,4 +1,37 @@
 {
+  "logeq-lexer": {
+    "unexpected-character": "Неожиданный символ",
+    "invalid-number": "Недопустимое числовое значение",
+    "invalid-identifier": "Недопустимый идентификатор",
+    "unknown-operator": "Неизвестный оператор"
+  },
+  "logeq-parser": {
+    "compilation-errors": "Ошибки компиляции",
+    "expected-function-name": "Ожидается имя функции",
+    "expected-left-paren-after-function-name": "После имени функции ожидается '('",
+    "expected-parameter": "Ожидается параметр",
+    "expected-right-paren-after-params": "После списка параметров ожидается ')'",
+    "expected-equal-after-signature": "После сигнатуры функции ожидается '='",
+    "expected-left-brace-after-equal": "После '=' ожидается '{'",
+    "expected-right-brace-after-body": "После тела функции ожидается '}'",
+    "expected-identifier-after-comma": "Ожидается идентификатор после запятой",
+    "expected-semicolon-after-expression": "После выражения ожидается ';'",
+    "expected-right-paren-after-expression": "После выражения ожидается ')'",
+    "expected-right-paren-after-args": "После аргументов ожидается ')'",
+    "expected-semicolon-after-call": "После вызова функции ожидается ';'",
+    "expected-semicolon-after-expression-list": "После списка выражений ожидается ';'",
+    "expected-right-paren-after-arguments": "После аргументов ожидается ')'",
+    "expected-expression": "Ожидается выражение",
+    "expected-semicolon-after-return": "После return ожидается ';'"
+  },
+  "logeq-builder": {
+    "unknown-identifier": "Неизвестный идентификатор %1",
+    "function-undefined": "Функция %1 не определена",
+    "function-return-n-but-assign-to-m": "Функция %1 возвращает %2 значений, но присваивается %3 переменным",
+    "function-expected-n-but-got-m": "функция %1 ожидает %2 аргументов, получено %3",
+    "function-return-n-but-need-one": "Функция %1 возвращает %2 значений, но в контексте выражения ожидается 1",
+    "unknown-expression-type": "Неизвестный тип выражения: %1"
+  },
   "dynamic": {
     "no-file": "Без названия",
     "none": "Нет",

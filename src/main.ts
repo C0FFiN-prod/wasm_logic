@@ -5,8 +5,8 @@ import { draw, initContext } from './drawingWGL';
 import { FileIO } from './fileIO';
 import { I18n } from './i18n';
 import * as LogicGates from './logic';
-import { LogicalExpressionParser } from './parser';
-import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp } from './utils';
+import { LogEqLangCompiler, LexerError, BuildError  } from './logeqCompiler';
+import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString } from './utils';
 
 
 export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
@@ -38,7 +38,7 @@ export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим �
 
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
-let logEqParser: LogicalExpressionParser;
+let logEqParser: LogEqLangCompiler = new LogEqLangCompiler();
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js')
@@ -82,7 +82,7 @@ window.onload = (() => {
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
   circuitIO = new CircuitIO(circuit, colorPicker, camera, canvas);
   fileIO = new FileIO(i18n, circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
-  logEqParser = new LogicalExpressionParser();
+  
 
   updateCopyWiresButtonText();
   updateShowWiresButtonText();
@@ -213,15 +213,39 @@ window.onload = (() => {
   setupEvent("logeq-parse", 'click', () => {
     if (logEqText.value) {
       try {
-        const newEls = circuitIO.fromLayers(logEqParser.parse(logEqFlatten.checked, logEqText.value), logEqInputEl.value);
-        selectedElements.clear();
-        for (const newEl of newEls) {
-          selectedElements.add(newEl);
+        const tokens = logEqParser.tokenize(logEqText.value);
+        const parsed = logEqParser.parse(tokens);
+        // logEqParser.printAST(parsed.ast);
+        if (parsed.errors.length === 0){
+          
+          const layers = logEqParser.buildFromAst(parsed.ast, logEqFlatten.checked);
+          // logEqParser.printCircuit(layers);
+          const newEls = circuitIO.fromLayers(layers, logEqInputEl.value);
+          selectedElements.clear();
+          for (const newEl of newEls) {
+            selectedElements.add(newEl);
+          }
+          requestAnimationFrame(draw);
+        } else {
+          console.log(i18n.getValue("logeq-parser","compilation-errors")+":");
+          parsed.errors.forEach(err =>
+              console.log(`  - [${err.token.line}:${err.token.column}] ${i18n.getValue("logeq-parser", err.message) || err.message}`));
         }
-        requestAnimationFrame(draw);
       }
-      catch (err) {
-        console.log(err);
+      catch (error: any) {
+        if (error instanceof LexerError) {
+            logEqParser.highlighter(logEqText.value, error.pos, error.width);
+            console.log(i18n.getValue("logeq-lexer", error.message) || error.message+": " + error.value);
+        } else if (error instanceof BuildError) {
+            console.log(`BuildError: [${error.pos.line}:${error.pos.column}] ` + 
+              formatString(i18n.getValue("logeq-builder", error.message) || error.message, error.args));
+        } 
+        else {
+            console.error(error.message);
+            if (error.stack) {
+              console.error(error.stack);
+            }
+        }
       }
     }
 
