@@ -169,8 +169,8 @@ function drawElement(el: LogicElement) {
     const wy = el.y * gridSize; 
     
     const [r, g, b] = hexToRgb(el.color);
-    let isLuminant = luminance(r, g, b) >= 0.5;
-    let isBright = lightness(r, g, b) >= 0.5;
+    let isLuminant = luminance(r, g, b) >= 127;
+    let isBright = lightness(r, g, b) >= 127;
     const shiftedColor = rgbToHex(
         Math.floor(r * 0.5 + 63.75),
         Math.floor(g * 0.5 + 63.75),

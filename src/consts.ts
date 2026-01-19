@@ -48,21 +48,19 @@ export const colors: Record<string, vec4> = {
 export const borderPalette = [
   84, 84, 84, 255, //border
   16, 152, 255, 255, //selection
-  0, 255, 0, 255, //source
-  255, 0, 0, 255, //target
-  255, 255, 0, 255, //self-wired
+  0, 255, 0, 255, //source | IN
+  255, 0, 0, 255, //target | OUT
+  255, 255, 0, 255, //self-wired | SW
   255, 0, 255, 255, //paint
+  0, 255, 255, // X
+  204, 68, 68, // A0 | A1 | An
+  68, 68, 204, // B0 | B1 | Bn
+  68, 204, 68, // R0 | R1 | Rn
 ]
-
+export const overlayColorIndexes = [0, 6, 4, 2, 3, 7, 7, 7, 8, 8, 8, 9, 9, 9];
 export const textColors = ['#0F0', '#F00', '#0FF', '#FF0', '#C44', '#C44', '#44C', '#44C', '#4C4', '#4C4'];
 export const texts = ['IN', 'OUT', 'X', 'SW', 'P0', 'Pn', 'N0', 'Nn', 'D0', 'D1'];
-export const typeToActiveIconIndex: Map<string, number> = new Map(Object.entries({
-  output: pathMap.size + 0,
-  button: pathMap.size + 1,
-  switch: pathMap.size + 2
-}))
 
-export const iconCount = pathMap.size + texts.length + typeToActiveIconIndex.size;
 
 export const gateTypeToMode = new Map<string, number>(Object.entries({
   'AND': 0,

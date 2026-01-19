@@ -8,7 +8,7 @@ import {
 } from "./main";
 import m3 from './m3';
 import { Pair, type LogicElement, type LogicGate } from "./logic";
-import { borderPalette, colors, gateModeToType, gateTypeToMode, gridSize, iconCount, pathMap, ShowWiresMode, textColors, texts, ToolMode, typeToActiveIconIndex, type vec3 } from "./consts";
+import { borderPalette, colors, gateModeToType, gateTypeToMode, gridSize, overlayColorIndexes, pathMap, ShowWiresMode, textColors, texts, ToolMode, type vec3 } from "./consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "./utils";
 
 
@@ -21,7 +21,7 @@ type Program = {
 let gl: WebGL2RenderingContext;
 let program: Program;
 let texture: WebGLTexture;
-let textureColorPalette: WebGLTexture;
+let textures: Record<string, WebGLTexture>;
 
 const programs: Record<string, Program> = {};
 const buffers: Record<string, WebGLBuffer> = {};
@@ -81,8 +81,11 @@ export function initContext() {
             textureStep: gl.getUniformLocation(program, "u_textureStep"),
             borderThickness: gl.getUniformLocation(program, "u_borderThickness"),
             colorPalette: gl.getUniformLocation(program, "u_colorPalette"),
-            texture: gl.getUniformLocation(program, "u_texture"),
+            icons: gl.getUniformLocation(program, "u_icons"),
+            overlays: gl.getUniformLocation(program, "u_overlays"),
             gridSize: gl.getUniformLocation(program, "u_gridSize"),
+            screenPxRange: gl.getUniformLocation(program, "screenPxRange"),
+            drawIcons: gl.getUniformLocation(program, "u_drawIcon"),
         },
     };
 
@@ -135,13 +138,18 @@ export function initContext() {
     buffers.instanceAttribs = gl.createBuffer();
     buffers.instanceFillColorIdx = gl.createBuffer();
     buffers.texcoord = gl.createBuffer();
-    textureColorPalette = gl.createTexture();
+    textures = {
+        colorPalette: gl.createTexture(),
+        icons: gl.createTexture(),
+        overlays: gl.createTexture(),
+    }
+    // textures.colorPalette = gl.createTexture();
     texture = gl.createTexture();
     vaos.allInOne = initAllInOne();
     vaos.pos2only = initPos2Only();
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // gl.enable(gl.BLEND);
+    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     updateIcons();
     requestAnimationFrame(draw);
@@ -197,17 +205,19 @@ function initAllInOne() {
     gl.vertexAttribPointer(program.attributes.texcoord, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(program.attributes.texcoord);
 
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    // gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    // gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
     // активируем и биндим текстуру 0
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
-    gl.uniform1i(program.uniforms.texture, 0);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.icons);
+    gl.uniform1i(program.uniforms.icons, 0);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
     // активируем и биндим текстуру 1
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, textureColorPalette);
+    gl.bindTexture(gl.TEXTURE_2D, textures.colorPalette);
     gl.uniform1i(program.uniforms.colorPalette, 1);
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -215,8 +225,14 @@ function initAllInOne() {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    // mesh
+    // активируем и биндим текстуру 2
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.overlays);
+    gl.uniform1i(program.uniforms.overlays, 2);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
+    // mesh
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceAttribs);
     gl.vertexAttribIPointer(program.attributes.instanceAttribs, 1, gl.UNSIGNED_INT, 0, 0);
     gl.enableVertexAttribArray(program.attributes.instanceAttribs);
@@ -236,58 +252,6 @@ function initAllInOne() {
     gl.bindVertexArray(null);
     return vao;
 }
-function initIcons() {
-    const vao = gl.createVertexArray();
-    const program = programs.icons;
-    if (!program) throw "Could not init icons VAO";
-    gl.bindVertexArray(vao);
-    // texcoord
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texcoord || null);
-    gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array(
-            [
-                0, 0,
-                0, 1,
-                1, 0,
-                1, 1,
-            ]),
-        gl.STATIC_DRAW);
-    gl.vertexAttribPointer(program.attributes.texcoord, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.texcoord);
-
-    // mesh
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.elementMesh || null);
-    gl.vertexAttribPointer(program.attributes.mesh, 2, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.mesh);
-
-    // instance data
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
-    gl.vertexAttribPointer(program.attributes.instancePos, 4, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(program.attributes.instancePos);
-    gl.vertexAttribDivisor(program.attributes.instancePos, 1);
-
-    gl.bindVertexArray(null);
-    return vao;
-}
-
-function resize() {
-    var realToCSSPixels = window.devicePixelRatio;
-
-    // Берём заданный браузером размер canvas в CSS-пикселях и вычисляем нужный
-    // нам размер, чтобы буфер отрисовки совпадал с ним в действительных пикселях
-    var displayWidth = Math.floor((gl.canvas as HTMLCanvasElement).clientWidth * realToCSSPixels);
-    var displayHeight = Math.floor((gl.canvas as HTMLCanvasElement).clientHeight * realToCSSPixels);
-
-    //  проверяем, отличается ли размер canvas
-    if (gl.canvas.width !== displayWidth ||
-        gl.canvas.height !== displayHeight) {
-
-        // подгоняем размер буфера отрисовки под размер HTML-элемента
-        gl.canvas.width = displayWidth;
-        gl.canvas.height = displayHeight;
-    }
-}
 
 export function draw() {
     let matrix = m3.projection(canvas.clientWidth, canvas.clientHeight);
@@ -296,11 +260,6 @@ export function draw() {
     matrix = m3.scale(matrix, camera.zoom, camera.zoom);
     const h = gridSize * camera.zoom;
 
-    if (camera.zoom !== prevZoom && camera.zoom > 0.65) {
-        updateIcons();
-    }
-
-    resize();
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(...colors.background);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -322,8 +281,9 @@ export function draw() {
 
     gl.uniform1f(program.uniforms.borderThickness, 1);
     gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
+    gl.uniform1f(program.uniforms.drawIcons, camera.zoom > 0.35 ? 1 : 0);
     gl.uniform2f(program.uniforms.gridSize, h, h);
-    // gl.uniform2f(program.uniforms.textureStep, h / iconCanvas.width, h / iconCanvas.height);
+    gl.uniform1f(program.uniforms.screenPxRange, Math.max(gridSize * camera.zoom / 24 * 1, 1));
 
     const paked = packElements(circuit.elements);
 
@@ -333,17 +293,9 @@ export function draw() {
     gl.bufferData(gl.ARRAY_BUFFER, paked.attributes, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
     gl.bufferData(gl.ARRAY_BUFFER, paked.colorIndices, gl.DYNAMIC_DRAW);
-    if (prevZoom !== camera.zoom && camera.zoom > 0.65) {
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        // gl.pixelStorei(gl.UNPACK_ROW_LENGTH, iconCanvas.width);
-        // gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, iconCanvas.width);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D_ARRAY, texture);
-        gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, iconCanvas.width, iconCanvas.width, iconCount, 0, gl.RGBA, gl.UNSIGNED_BYTE, iconCanvas);
 
-    }
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, textureColorPalette);
+    gl.bindTexture(gl.TEXTURE_2D, textures.colorPalette);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, paked.colorTexture.length / 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, paked.colorTexture);
 
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, paked.positions.length / 2);
@@ -368,7 +320,6 @@ export function draw() {
         gl.drawArrays(gl.LINE_LOOP, 0, 4);
     }
     gl.bindVertexArray(null);
-    prevZoom = camera.zoom;
 
 }
 function checkVertexAttributes(gl: WebGL2RenderingContext, program: WebGLProgram) {
@@ -469,8 +420,8 @@ function packElements(elements: Set<LogicElement>): {
             const [r, g, b] = hexToRgb(el.color);
             const colorLuminance = luminance(r, g, b);
             const colorLightness = lightness(r, g, b);
-            isLuminant = colorLuminance >= 0.5 ? 0 : 1;
-            isBright = colorLightness >= 0.5 ? 0 : 1;
+            isLuminant = colorLuminance >= 127 ? 0 : 1;
+            isBright = colorLightness >= 127 ? 0 : 1;
 
             if (!colorMap.has(el.color)) {
                 colorData.push(
@@ -486,7 +437,7 @@ function packElements(elements: Set<LogicElement>): {
             }
         }
 
-        // Упаковка атрибутов в 16 бит
+        // Упаковка атрибутов в 32 бит
         let border = 0;
         if (selectedElements.has(el))
             border = selectedTool === ToolMode.Cursor ? 1 : 5;
@@ -497,8 +448,8 @@ function packElements(elements: Set<LogicElement>): {
         else if (selectedTargets.has(el))
             border = 3;
         let type = (el.type === 'GATE' ? gateModeToType.get((el as LogicGate).gateType) || 'AND' : el.type).toLowerCase()
-        let iconIndex = el.value ? typeToActiveIconIndex.get(type) || iconMap.get(type) || 0 : (iconMap.get(type) || 0)
-        let drawIcon = camera.zoom > 0.65 ? 1 : 0;
+        let iconIndex = (iconMap.get(type) || 0) + Number(hasActiveIcon.has(type) && el.value);
+        
         let iconOverlayIndex = 0;
         if (elementUnderCursor) {
             if (elementUnderCursor.inputs.has(el) && elementUnderCursor === el) {
@@ -511,17 +462,15 @@ function packElements(elements: Set<LogicElement>): {
                 iconOverlayIndex = iconMap.get('out')!;
             }
         }
-
+        const iconOverlayColor = overlayColorIndexes[iconOverlayIndex] || 0;
         attributes[i] =
-            (iconOverlayIndex & 0xFF) << 16 |
-            (iconIndex & 0xFF) << 8 |
-            (drawIcon & 0b1) << 6 |
+            (iconOverlayColor & 0xF) << 20 |
+            (iconOverlayIndex & 0xF) << 16 |
+            (iconIndex & 0xF) << 8 |
             (isLuminant & 0b1) << 5 |
             (isBright & 0b1) << 4 |
             (el.value ? 1 : 0) << 3 |
             (border & 0b111);
-
-
         colorIndices[i] = colorMap.get(el.color)![0];
         ++i;
     }
@@ -533,61 +482,6 @@ function packElements(elements: Set<LogicElement>): {
         colorTexture: new Uint8Array(colorData),
         colorMap
     };
-}
-
-function drawIcons() {
-    if (!programs.icons) return;
-    const count = circuit.elements.size +
-        (elementUnderCursor ? (elementUnderCursor.inputs.size + elementUnderCursor.outputs.size + 1) : 0);
-    let data = new Float32Array(count * 4);
-    let i = 0;
-    for (const el of circuit.elements) {
-        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
-        let type = el.type === 'GATE' ? gateModeToType.get((el as LogicGate).gateType) || 'AND' : el.type
-
-        data[i * 4 + 0] = x;
-        data[i * 4 + 1] = y;
-        data[i * 4 + 2] = el.value ? 1 : 0;
-        data[i * 4 + 3] = iconMap.get(type.toLowerCase()) || 0;
-        ++i;
-    }
-    if (elementUnderCursor) {
-        for (const el of elementUnderCursor.inputs) {
-            if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
-            data[i * 4 + 0] = x;
-            data[i * 4 + 1] = y;
-            data[i * 4 + 2] = 0;
-            data[i * 4 + 3] = iconMap.get('connections') || 0;
-            ++i;
-        }
-        for (const el of elementUnderCursor.outputs) {
-            if (el === elementUnderCursor) continue;
-            const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
-            data[i * 4 + 0] = x;
-            data[i * 4 + 1] = y;
-            data[i * 4 + 2] = 1;
-            data[i * 4 + 3] = iconMap.get('connections') || 0;
-            ++i;
-        }
-        const { x, y } = worldToTranslatedScreen(camera, elementUnderCursor.x, elementUnderCursor.y);
-        data[i * 4 + 0] = x;
-        data[i * 4 + 1] = y;
-        data[i * 4 + 2] = elementUnderCursor.inputs.has(elementUnderCursor) ? 1 : 0;
-        data[i * 4 + 3] = iconMap.get('gate') || 0;
-    }
-
-
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance || null);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, iconCanvas);
-
-    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
-
-
 }
 
 function drawGrid() {
@@ -680,7 +574,6 @@ in uint a_fillColorIdx;
 in vec2 a_texcoord;
 
 uniform mat3 u_matrix;
-uniform vec2 u_textureStep;
 uniform vec2 u_gridSize;
 
 uniform sampler2D u_colorPalette;
@@ -688,28 +581,32 @@ uniform sampler2D u_colorPalette;
 out vec2 v_localPos;
 
 out vec3 v_iconUV;
-out vec3 v_iconOverlayUV;
-flat out vec4 v_fillColor;
-flat out vec4 v_borderColor;
-flat out lowp uint v_isLuminant;
-flat out lowp uint v_drawIcon;
+out vec3 v_overlayUV;
+flat out vec3 v_fillColor;
+flat out vec3 v_borderColor;
+flat out vec3 v_overlayColor;
+flat out lowp float v_isLuminant;
+flat out lowp float v_isActive;
+flat out lowp float v_drawOverlay;
 void main() {
     v_localPos = a_texcoord * u_gridSize;
     
     uint packed = uint(a_instanceAttribs);
-    uint iconOverlayIndex = (packed >> 16) & 0xFFu;
-    uint iconIndex = (packed >> 8) & 0xFFu;
-    v_drawIcon = (packed >> 6) & 0x1u;
-    v_isLuminant = (packed >> 5) & 0x1u;
+    uint iconOverlayColorIndex = (packed >> 20) & 0xFu;
+    uint iconOverlayIndex = (packed >> 16) & 0xFu;
+    uint iconIndex = (packed >> 8) & 0xFu;
+    v_isLuminant = float((packed >> 5) & 0x1u) - .5;
     lowp uint isBright = (packed >> 4) & 0x1u;
     lowp uint isActive = (packed >> 3) & 0x1u;
     lowp uint borderColorIdx = (packed) & 0x7u;
 
-    v_borderColor = texelFetch(u_colorPalette, ivec2(0, borderColorIdx), 0);
-    v_fillColor = texelFetch(u_colorPalette, ivec2(0, a_fillColorIdx + (isActive ^ isBright)), 0);
-
+    v_isActive = float(isActive);
+    v_borderColor = texelFetch(u_colorPalette, ivec2(0, borderColorIdx), 0).rgb;
+    v_fillColor = texelFetch(u_colorPalette, ivec2(0, a_fillColorIdx + (isActive ^ isBright)), 0).rgb;
+    v_overlayColor = texelFetch(u_colorPalette, ivec2(0, iconOverlayColorIndex), 0).rgb;
+    v_drawOverlay = step(0.5, float(iconOverlayIndex));
     v_iconUV = vec3(a_texcoord, iconIndex);
-    v_iconOverlayUV = vec3(a_texcoord, iconOverlayIndex);
+    v_overlayUV = vec3(a_texcoord, iconOverlayIndex-1u);
 
     gl_Position = vec4((u_matrix * vec3(a_instancePos + a_mesh, 1)).xy, 0, 1);
 }
@@ -724,17 +621,27 @@ precision mediump float;
 in vec2 v_localPos;
 
 in vec3 v_iconUV;
-in vec3 v_iconOverlayUV;
-flat in vec4 v_fillColor;
-flat in vec4 v_borderColor;
-
-flat in lowp uint v_isLuminant;
-flat in lowp uint v_drawIcon;
-uniform mediump sampler2DArray u_texture;
+in vec3 v_overlayUV;
+flat in vec3 v_fillColor;
+flat in vec3 v_borderColor;
+flat in vec3 v_overlayColor;
+flat in lowp float v_drawOverlay;
+flat in lowp float v_isLuminant;
+flat in lowp float v_isActive;
+uniform mediump sampler2DArray u_icons;
+uniform mediump sampler2DArray u_overlays;
 uniform float u_borderThickness;
 uniform vec2 u_gridSize;
+uniform float screenPxRange;
+uniform float u_drawIcon;
 
 out vec4 fragColor;
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+vec4 add(vec4 x, vec4 y) { return (x+y)/(x.a+y.a);}
 
 void main() {
     vec2 distFromEdges = min(v_localPos, u_gridSize - v_localPos);
@@ -746,18 +653,34 @@ void main() {
         u_borderThickness + smoothingRange,
         minDistFromEdge
     );
-    vec4 color = mix(v_fillColor, v_borderColor, borderFactor);
-    vec4 icon = texture(u_texture, v_iconUV);
-    if (v_drawIcon == 1u){
-        fragColor = vec4(icon.rgb * (v_isLuminant == 0u ? -1. : 1.) * 0.5 * icon.a + color.rgb, 1);
-    } else {
-        fragColor = color;
-    }
-    if (v_iconOverlayUV.z != 0.) {
-        vec4 iconOverlay = texture(u_texture, v_iconOverlayUV);
-        fragColor = mix(fragColor, iconOverlay, iconOverlay.a);
-    } 
 
+    vec3 bg = mix(v_fillColor, v_borderColor, borderFactor);
+    vec4 icon = vec4(bg, 1);
+    if (u_drawIcon > 0.) {    
+        vec4 msd = texture(u_icons, v_iconUV);
+        float sd = median(msd.r, msd.g, msd.b);
+        float screenPxDistance = screenPxRange*(sd - 0.5);
+        float opacity = smoothstep(0., 1., screenPxDistance + 0.5);
+        float light = smoothstep(1. - 0.6 - 0.4, 1. - 0.6 + 0.4, msd.a);
+
+        float iconColor = opacity * v_isLuminant;
+        icon = vec4(iconColor + bg + v_isActive * v_isLuminant * light, 1);
+
+
+    }
+        
+    if (v_drawOverlay > 0.) {
+        vec4 msdOverlay = texture(u_overlays, v_overlayUV);
+        float sdOverlay = median(msdOverlay.r, msdOverlay.g, msdOverlay.b);
+        float screenPxDistanceOverlay = screenPxRange*(sdOverlay - 0.5);
+        float opacityOverlay = smoothstep(0., 1., screenPxDistanceOverlay + 0.5);
+        float shadow = smoothstep(1. - 0.6 - 0.4, 1. - 0.6 + 0.4, msdOverlay.a);
+
+        vec4 overlay = add(vec4(0,0,0,1) * shadow, icon);
+        fragColor = mix(overlay, vec4(v_overlayColor,1), opacityOverlay);
+    } else {
+        fragColor = icon;
+    }
 }
 `;
 
@@ -810,18 +733,6 @@ const plainFragmentShaderSource = `#version 300 es
     }
 `;
 
-function getPositionsArray(arr: Iterable<LogicElement>, n: number) {
-    let instancesPos = new Float32Array(n * 2);
-    let i = 0;
-    for (const el of arr) {
-        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
-        instancesPos[i * 2 + 0] = x;
-        instancesPos[i * 2 + 1] = y;
-        ++i;
-    }
-    return instancesPos;
-}
-
 function createShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {
     const shader = gl.createShader(type)!;
     gl.shaderSource(shader, source);
@@ -829,74 +740,57 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string): 
     return shader;
 }
 
+const iconMap = new Map<string, number>(Object.entries({
+    // elements
+    and: 0,
+    or: 1,
+    xor: 2,
+    nand: 3,
+    nor: 4,
+    xnor: 5,
+    t_flop: 6,
+    timer: 7,
+    button: 8,
+    switch: 10,
+    output: 12,
 
+    // overlays
+    x: 1,
+    sw: 2,
+    in:3,
+    out: 4,
+    a0: 5,
+    a1: 6,
+    an: 7,
+    b0: 8,
+    b1: 9,
+    bn: 10,
+    r0: 11,
+    r1: 12,
+    rn: 13,
+}));
+const hasActiveIcon: Set<string> = new Set([
+    'button',
+    'switch',
+    'output',
+])
+async function updateIcons() {
 
-let prevZoom = 0;
-const iconCanvas = document.createElement('canvas');
-const iconCtx = iconCanvas.getContext('2d');
-const iconMap = new Map<string, number>();
-function updateIcons() {
-    if (!iconCtx) return;
+    const loadImage = (image: HTMLImageElement, src: string) => new Promise(resolve => {
+        image.addEventListener('load', () => resolve(image));
+        image.src = src;
+    });
 
-
-
-    const cell = gridSize;
-    const h = Math.floor(cell * camera.zoom);
-    const zoom = h / cell;
-    iconCanvas.width = h;
-    iconCanvas.height = h * iconCount; // +1 строка под текст
-
-    iconCtx.setTransform(1, 0, 0, 1, 0, 0);
-    iconCtx.clearRect(0, 0, iconCanvas.width, iconCanvas.height);
-    iconCtx.scale(zoom / 2, zoom / 2);
-
-    const baseX = cell / 2 - 1;
-    const baseY = cell / 2 - 1;
-    const stepY = cell * 2;
-
-    iconCtx.translate(baseX, baseY);
-    let activeIndex;
-    let y = 0;
-    iconCtx.lineWidth = 2;
-    for (const [key, path] of pathMap) {
-        iconCtx.strokeStyle = '#fff';
-        iconCtx.stroke(new Path2D(path));
-
-        if (activeIndex = typeToActiveIconIndex.get(key)) {
-            const shift = (activeIndex - y) * stepY;
-            iconCtx.translate(0, shift);
-            if (key === 'output' || key === 'button' || key === 'switch') {
-                iconCtx.beginPath();
-                iconCtx.arc(cell * 0.5 + 1, cell * 0.5 + 1, cell / 2, 0, Math.PI * 2);
-                iconCtx.fillStyle = key === 'output' ? '#888' : '#aaa';
-                iconCtx.fill();
-                iconCtx.stroke(new Path2D(path));
-            }
-            iconCtx.translate(0, -shift);
-        }
-
-        iconMap.set(key, y++);
-        iconCtx.translate(0, stepY);
-    }
-    y += typeToActiveIconIndex.size;
-    iconCtx.translate(-baseX, -baseY + typeToActiveIconIndex.size * stepY);
-
-    const textBoxCenterY = cell; // центр ячейки (высота cell*2, смещены на cell)
-    const textFontSize = cell * 0.9;
-
-    iconCtx.font = `${textFontSize}px sans-serif`;
-    iconCtx.textAlign = 'center';
-    iconCtx.textBaseline = 'middle';
-    iconCtx.shadowColor = "black";   // цвет тени
-    iconCtx.shadowBlur = 4;          // размытие
-    iconCtx.shadowOffsetX = 0;       // смещение по X
-    iconCtx.shadowOffsetY = 0;  // смещение по Y
-    for (let i = 0; i < texts.length; ++i) {
-        iconMap.set(texts[i].toLocaleLowerCase(), y++);
-
-
-        iconCtx.fillStyle = textColors[i];
-        iconCtx.fillText(texts[i], cell, i * stepY + textBoxCenterY);
-    }
+    const textureImgIcons = new Image();
+    const textureImgOverlay = new Image();
+    await loadImage(textureImgIcons, './icons/texture_icons.png');
+    await loadImage(textureImgOverlay, './icons/texture_overlays.png');
+    
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.icons);
+    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, textureImgIcons.width, textureImgIcons.width, textureImgIcons.height / textureImgIcons.width, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureImgIcons);
+    
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.overlays);
+    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, textureImgOverlay.width, textureImgOverlay.width, textureImgOverlay.height / textureImgOverlay.width, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureImgOverlay);    
 }
-

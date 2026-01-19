@@ -15,13 +15,13 @@ export function rgbToHex(r: number, g: number, b: number): string {
 }
 
 export function luminance(r: number, g: number, b: number): number {
-    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b);
 }
 
 export function lightness(r: number, g: number, b: number) {
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
-    return (max + min) / 510;
+    return (max + min) / 2;
 }
 // === Вспомогательные ===
 
@@ -102,5 +102,5 @@ export function getElementAt(circuit: Circuit, camera: Camera, screenX: number, 
 }
 
 export function clamp(value: number, lower: number, upper: number) {
-  return Math.min(Math.max(value, lower), upper);
+  return Math.min(Math.max(value, lower), Math.max(upper, lower));
 }

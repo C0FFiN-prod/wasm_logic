@@ -68,7 +68,11 @@ window.onload = (() => {
   setupEvent('settings-toggle', "click", () => document.getElementById('settings-menu')?.classList.toggle('hidden'));
   setupEvent('theme-toggle', "click", () => toggleTheme());
   setupEvent('locale-toggle', "click", () => toggleLocale());
-  setupEvent('user-manual-toggle', "click", () => document.getElementById('fm-user-manual')?.classList.toggle('hidden'));
+  setupEvent('user-manual-toggle', "click", () => {
+    const userManual = document.getElementById('fm-user-manual');
+    userManual?.classList.toggle('hidden');
+    (userManual?.querySelector('.floating-menu-container') as HTMLElement).style = '';
+  });
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
   toggleTheme(prefersDarkScheme.matches);
   updateToolButtons(document.querySelector("#tool-move") as HTMLElement);
@@ -165,8 +169,8 @@ window.onload = (() => {
           20 > e.clientY || e.clientY > window.innerHeight - 20) {
           onMouseUp();
         }
-        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX) / window.devicePixelRatio, 20, window.innerWidth - parseInt(getStyleFMH.width) - 55);
-        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY) / window.devicePixelRatio, 20, window.innerHeight - parseInt(getStyleFMH.height) - 55);
+        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX), 20, window.innerWidth - parseInt(getStyleFMH.width) - 55);
+        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY), 20, window.innerHeight - parseInt(getStyleFMH.height) - 55);
         floatingMenu.style.left = `${x}px`;
         floatingMenu.style.top = `${y}px`;
         mouse.x = e.clientX;
@@ -238,8 +242,19 @@ window.onload = (() => {
 });
 
 window.addEventListener('resize', () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight - (document.querySelector('header')?.offsetHeight || 0);
+  const scale = window.devicePixelRatio > 1 ? window.devicePixelRatio : 1;
+  canvas.width = window.innerWidth * scale;
+  canvas.height = window.innerHeight * scale;
+
+  const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
+  for (const floatingMenu of floatingMenus) { 
+    const getStyleFM = window.getComputedStyle(floatingMenu);
+    const x = clamp(floatingMenu.offsetLeft, 20, window.innerWidth - parseInt(getStyleFM.width) - 55);
+    const y = clamp(floatingMenu.offsetTop, 20, window.innerHeight - parseInt(getStyleFM.height) - 55);
+    floatingMenu.style.left = `${x}px`;
+    floatingMenu.style.top = `${y}px`;
+  }
+
   requestAnimationFrame(draw);
 });
 
