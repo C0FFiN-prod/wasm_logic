@@ -7,7 +7,7 @@ import {
     selectionColor
 } from "./main";
 import m3 from './m3';
-import { Pair, type LogicElement, type LogicGate } from "./logic";
+import { type LogicElement, type LogicGate } from "./logic";
 import { borderPalette, colors, gateModeToType, gateTypeToMode, gridSize, overlayColorIndexes, pathMap, ShowWiresMode, textColors, texts, ToolMode, type vec3 } from "./consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "./utils";
 

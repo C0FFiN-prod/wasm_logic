@@ -35,6 +35,7 @@ export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
+let displayRefreshRate = 0;
 
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
@@ -102,7 +103,7 @@ window.onload = (() => {
     if (el) {
       el.onclick = () => {
         circuitIO.addElement(type, {});
-        requestAnimationFrame(draw);
+        drawingTimer.step();
       };
     }
 
@@ -112,7 +113,7 @@ window.onload = (() => {
     selectedTool = toolMode;
     clearSelection();
     updateToolButtons(e.target as HTMLElement);
-    requestAnimationFrame(draw);
+    drawingTimer.step();
   }
   setupEvent('tool-move', 'click', (e) => switchTool(e, ToolMode.Cursor));
   setupEvent('tool-connect', 'click', (e) => switchTool(e, ToolMode.Connect));
@@ -126,6 +127,7 @@ window.onload = (() => {
       const clock = (document.getElementById('speed-sim') as HTMLInputElement);
       const value = parseInt(clock.innerHTML || clock.value || "40");
       simInterval = setInterval(optimizedStep, 1000 / value);
+      drawingTimer.setup();
     }
   });
 
@@ -133,6 +135,7 @@ window.onload = (() => {
     isSimulating = false;
     clearInterval(simInterval);
     optimizedStep();
+    drawingTimer.step();
   });
 
   setupEvent('stop-sim', 'click', () => {
@@ -141,7 +144,6 @@ window.onload = (() => {
   });
   setupEvent('speed-sim', 'change', () => {
     if (isSimulating) {
-
       isSimulating = false;
       clearInterval(simInterval);
       isSimulating = true;
@@ -151,6 +153,7 @@ window.onload = (() => {
       const value = Math.max(min, Math.min(parseInt(clock.innerHTML || clock.value || "40"), max));
       clock.value = value.toString();
       simInterval = setInterval(optimizedStep, 1000 / value);
+      drawingTimer.setup();
     }
   });
 
@@ -225,7 +228,7 @@ window.onload = (() => {
           for (const newEl of newEls) {
             selectedElements.add(newEl);
           }
-          requestAnimationFrame(draw);
+          drawingTimer.step();
         } else {
           console.log(i18n.getValue("logeq-parser","compilation-errors")+":");
           parsed.errors.forEach(err =>
@@ -262,7 +265,7 @@ window.onload = (() => {
     e.preventDefault();
   });
 
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 });
 
 window.addEventListener('resize', () => {
@@ -279,7 +282,7 @@ window.addEventListener('resize', () => {
     floatingMenu.style.top = `${y}px`;
   }
 
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 });
 
 function resizeFMs() {
@@ -320,13 +323,12 @@ function toggleTheme(force?: boolean) {
     colors.grid = [0.8, 0.8, 0.8, 1];
     colors.background = [0.9, 0.9, 0.9, 1];
   }
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 }
 
 // Оптимизация симуляции
 function optimizedStep() {
   circuit.step();
-  requestAnimationFrame(draw);
 }
 
 function clearCanvas() {
@@ -334,7 +336,10 @@ function clearCanvas() {
     circuit.clear();
     fileIO.clearFileHandle();
     clearSelection();
-    requestAnimationFrame(draw);
+    clearInterval(simInterval);
+    isSimulating = false;
+    drawingTimer.stop();
+    drawingTimer.step();
   }
 }
 
@@ -415,7 +420,7 @@ function cycleCopyWiresMode() {
 function cycleShowWiresMode() {
   showWiresMode = (showWiresMode + 1) % 4;
   updateShowWiresButtonText();
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 }
 
 
@@ -464,6 +469,7 @@ canvas.addEventListener('mousedown', e => {
         prevMousePos.y = mouseY;
         prevMouseWorld = screenToWorld(camera, mouseX, mouseY);
         isDragging = true;
+        drawingTimer.setup();
       }
       else if (e.button === 2) {
         if (el === null) {
@@ -491,7 +497,7 @@ canvas.addEventListener('mousedown', e => {
               if (elI instanceof LogicGates.LogicGate)
                 elI.gateType = newMode;
             }
-            requestAnimationFrame(draw);
+            drawingTimer.step();
           }
         }
       }
@@ -518,19 +524,17 @@ canvas.addEventListener('mousedown', e => {
     } else {
       isSelecting = false;
     }
+    if (isSelecting) drawingTimer.setup();
   }
   if (e.button === 1) {
-    if (selectedTool === ToolMode.Connect && el) {
-      elementUnderCursor = el;
-    } else {
       prevMousePos.x = mouseX;
       prevMousePos.y = mouseY;
       isHandMoving = true;
-    }
+      drawingTimer.setup();
   }
 
 
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 });
 
 canvas.addEventListener('mousemove', e => {
@@ -542,8 +546,6 @@ canvas.addEventListener('mousemove', e => {
   if (isHandMoving) {
     camera.x -= (e.offsetX - prevMousePos.x);
     camera.y -= (e.offsetY - prevMousePos.y);
-
-    requestAnimationFrame(draw);
   } else if (isDragging && selectedElements.size > 0) {
     const deltaWorld = {
       x: Math.round(mouseWorld.x) - Math.round(prevMouseWorld.x),
@@ -556,7 +558,6 @@ canvas.addEventListener('mousemove', e => {
 
     prevMouseWorld.x = mouseWorld.x;
     prevMouseWorld.y = mouseWorld.y;
-    requestAnimationFrame(draw);
   }
   else if (isSelecting) {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -570,7 +571,6 @@ canvas.addEventListener('mousemove', e => {
       getElementsInRect(circuit, rect).forEach(el => selectionSet.add(el));
 
     }
-    requestAnimationFrame(draw);
   }
   prevMousePos.x = e.offsetX;
   prevMousePos.y = e.offsetY;
@@ -580,13 +580,16 @@ window.addEventListener('mouseup', _ => {
   if (isSelecting || isDragging) {
     isSelecting = false;
     isDragging = false;
-    requestAnimationFrame(draw);
+    drawingTimer.stop();
+    drawingTimer.step();
   }
 })
 canvas.addEventListener('mouseout', _ => {
   isHandMoving = false;
   isSelecting = false;
   isDragging = false;
+  drawingTimer.stop();
+  drawingTimer.step();
 });
 
 function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
@@ -605,18 +608,20 @@ function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   zoomCanvas(e.deltaY < 0, e.offsetX, e.offsetY);
-  requestAnimationFrame(draw);
+  drawingTimer.step();
 }, { passive: false });
 
 canvas.addEventListener('mouseup', e => {
   if (isHandMoving && e.button === 1) {
     isHandMoving = false;
+    drawingTimer.stop();
   }
   else {
     if (isSelecting || isDragging) {
       isSelecting = false;
       isDragging = false;
-      requestAnimationFrame(draw);
+      drawingTimer.stop();
+      drawingTimer.step();
     }
     e.stopPropagation();
   }
@@ -699,6 +704,7 @@ document.addEventListener('keydown', e => {
             const newElements = circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY));
             selectedElements.clear();
             newElements.forEach(el => selectedElements.add(el));
+            drawingTimer.step();
           } catch (err) {
             console.log(err);
           }
@@ -730,12 +736,12 @@ document.addEventListener('keydown', e => {
               color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2]; 
             }
             circuitIO.paintSelected(selectedElements, color);
-            requestAnimationFrame(draw);
+            drawingTimer.step();
           }
         })
       }
     }
-    requestAnimationFrame(draw);
+    drawingTimer.step();
   }
 
 
@@ -749,6 +755,55 @@ function updateToolButtons(pressedBtn?: HTMLElement) {
   pressedBtn?.setAttribute('active', 'true');
 }
 
+const drawingTimer = {
+  interval: 0,
+  active: false,
+  setup() {
+    if (drawingTimer.active) return;
+    drawingTimer.active = true;
+    drawingTimer.interval = setInterval(() =>
+      requestAnimationFrame(draw), 1000/(displayRefreshRate||60));
+  },
+  stop() {
+    if (isSimulating) return;
+    clearInterval(drawingTimer.interval);
+    drawingTimer.active = false;
+  },
+  step() {
+    if(!drawingTimer.active)requestAnimationFrame(draw);
+  }
+};
+
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
 });
+
+function estimateDisplayHz() {
+  const duration = 500;
+  let frameCount = 0;
+  let startTime: number | null = null;
+  let rafId: number;
+
+  function loop(timestamp: number) {
+    if (!startTime) {
+      startTime = timestamp;
+    }
+
+    frameCount++;
+    const elapsed = timestamp - startTime;
+
+    if (elapsed < duration) {
+      rafId = requestAnimationFrame(loop);
+    } else {
+      cancelAnimationFrame(rafId);
+      const hz = (frameCount / elapsed) * 1000;
+      displayRefreshRate = hz;
+      console.log(`Estimated display refresh rate: ${hz.toFixed(1)} Hz`);
+    }
+  }
+
+  rafId = requestAnimationFrame(loop);
+}
+
+setTimeout(estimateDisplayHz, 500);
+
