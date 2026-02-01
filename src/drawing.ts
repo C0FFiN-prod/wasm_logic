@@ -1,13 +1,14 @@
-import { gateModeToType, gateTypeToMode, gridSize, pathMap, ShowWiresMode, ToolMode, type Point } from "./consts";
+import { chunkSize, gateModeToType, gateTypeToMode, gridSize, pathMap, ShowWiresMode, ToolMode, type Point } from "./consts";
 import { LogicElement, LogicGate, isInputElement, isOutputElement } from "./logic";
 import {
     camera, canvas,
     isSelecting, selectionEnd, selectionStart,
-    selectedElements, selectedSources, selectedTargets,
+    selectedElements,
     selectedTool, circuit, elementUnderCursor,
     showWiresMode
 } from "./main";
-import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen } from "./utils";
+import { connectTool } from "./utils/connectionTool";
+import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld } from "./utils/utils";
 
 let ctx: CanvasRenderingContext2D;
 
@@ -53,19 +54,40 @@ export function draw() {
 
     drawWires();
 
+    const h = camera.zoom * gridSize;
+    const cameraWorldX = camera.x / h - 1;
+    const cameraWorldY = camera.y / h - 1;
+    const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
+
+    const x0 = Math.floor(cameraWorldX / chunkSize);
+    const y0 = Math.floor(cameraWorldY / chunkSize);
+    const x1 = Math.floor(wx / chunkSize);
+    const y1 = Math.floor(wy / chunkSize);
+    const visibleChunks = [];
+
+    for (let x = x0; x <= x1; ++x) {
+        for (let y = y0; y <= y1; ++y) {
+            const chunk = circuit.chunks.get(`${x}|${y}`);
+            if (chunk && chunk.size > 0)
+                visibleChunks.push(chunk);
+        }
+    }
+
     // Draw elements
-    for (const el of circuit.elements) {
-        drawElement(el);
-        let borderColor = "#555";
-        if (selectedSources.has(el) && selectedTargets.has(el))
-            borderColor = '#ff0';
-        else if (selectedSources.has(el))
-            borderColor = '#0f0';
-        else if (selectedTargets.has(el))
-            borderColor = '#f00';
-        else if (selectedElements.has(el))
-            borderColor = '#19f';
-        drawBorder(el, borderColor);
+    for (const chunk of visibleChunks) {
+        for (const el of chunk) {
+            drawElement(el);
+            let borderColor = "#555";
+            if (connectTool.sources[0].has(el) && connectTool.sources[1].has(el))
+                borderColor = '#ff0';
+            else if (connectTool.sources[0].has(el))
+                borderColor = '#0f0';
+            else if (connectTool.sources[1].has(el))
+                borderColor = '#f00';
+            else if (selectedElements.has(el))
+                borderColor = '#19f';
+            drawBorder(el, borderColor);
+        }
     }
 
     if (elementUnderCursor) {
@@ -129,12 +151,12 @@ function drawWires() {
             (showWiresMode === ShowWiresMode.Connect ||
                 showWiresMode === ShowWiresMode.Temporary) && selectedTool === ToolMode.Connect
         ) &&
-        selectedSources.size > 0 && selectedTargets.size > 0) {
+        connectTool.sources[0].size > 0 && connectTool.sources[1].size > 0) {
         ctx.strokeStyle = '#fa0';
         ctx.lineWidth = 1 / camera.zoom;
         ctx.beginPath();
-        for (const source of selectedSources) {
-            for (const target of selectedTargets) {
+        for (const source of connectTool.sources[0]) {
+            for (const target of connectTool.sources[1]) {
                 let start = worldToTranslatedScreen(camera, source.x, source.y);
                 let end = worldToTranslatedScreen(camera, target.x, target.y);
                 ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
@@ -147,7 +169,7 @@ function drawWires() {
 
 function drawBorder(el: LogicElement, color: string | CanvasGradient | CanvasPattern) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1/camera.zoom;
+    ctx.lineWidth = 1 / camera.zoom;
     ctx.strokeRect(
         el.x * gridSize,
         el.y * gridSize,
@@ -166,8 +188,8 @@ function drawElement(el: LogicElement) {
     //     (0 < end_y && end_y < canvas.height)
     // ) {
     const wx = el.x * gridSize;
-    const wy = el.y * gridSize; 
-    
+    const wy = el.y * gridSize;
+
     const [r, g, b] = hexToRgb(el.color);
     let isLuminant = luminance(r, g, b) >= 127;
     let isBright = lightness(r, g, b) >= 127;

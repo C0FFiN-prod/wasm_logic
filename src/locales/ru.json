@@ -41,7 +41,13 @@
     "inner": "Внутренние",
     "connect": "Соединение",
     "copy-wires-mode": "Копировать соед.",
-    "show-wires-mode": "Отображать соед."
+    "show-wires-mode": "Отображать соед.",
+    "connect-mode": "Соединять",
+    "nton": "Все со всеми",
+    "sequence": "Последовательно",
+    "parallel": "Параллельно",
+    "tensor": "Тензор",
+    "decoder": "Декодер"
   },
   "floating-menu-tools": {
     "header": "Инструменты",

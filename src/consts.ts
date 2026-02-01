@@ -33,7 +33,7 @@ export const pathMap = new Map<string, string>(Object.entries(
 ));
 
 export const colors: Record<string, vec4> = {
-  background: [0,0,0,1],
+  background: [0, 0, 0, 1],
   grid: [0, 0, 0, 1],
   on: [0.066, 0.332, 0.797, 1],
   off: [0.2, 0.2, 0.2, 1],
@@ -52,10 +52,10 @@ export const borderPalette = [
   255, 0, 0, 255, //target | OUT
   255, 255, 0, 255, //self-wired | SW
   255, 0, 255, 255, //paint
-  0, 255, 255, // X
-  204, 68, 68, // A0 | A1 | An
-  68, 68, 204, // B0 | B1 | Bn
-  68, 204, 68, // R0 | R1 | Rn
+  0, 255, 255, 255, // X
+  204, 68, 68, 255, // A0 | A1 | An
+  68, 68, 204, 255, // B0 | B1 | Bn
+  68, 204, 68, 255, // R0 | R1 | Rn
 ]
 export const overlayColorIndexes = [0, 6, 4, 2, 3, 7, 7, 7, 8, 8, 8, 9, 9, 9];
 export const textColors = ['#0F0', '#F00', '#0FF', '#FF0', '#C44', '#C44', '#44C', '#44C', '#4C4', '#4C4'];
@@ -78,6 +78,12 @@ export const ToolMode = {
   Connect: 1,
   Paint: 2
 } as const;
+export const ConnectMode = {
+  NtoN: 0,
+  Sequence: 1,
+  Parallel: 2,
+  Decoder: 3,
+} as const;
 export const CopyWiresMode = {
   None: 0,
   Inner: 1,
@@ -96,11 +102,19 @@ export const locales = {
 }
 export type LocaleNames = keyof typeof locales
 
+export type ConnectMode = typeof ConnectMode[keyof typeof ConnectMode];
 export type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];
 export type ShowWiresMode = typeof ShowWiresMode[keyof typeof ShowWiresMode];
 export type ToolMode = typeof ToolMode[keyof typeof ToolMode];
 export type Camera = { x: number, y: number, zoom: number };
 export type Point = { x: number, y: number };
+export type Vector = { x: number, y: number, length: number};
+export type Rect = { x0: number, y0: number, x1: number, y1: number };
+export type ElementPDO = { x: number, y: number, color: string, icon: string, overlay: string, overlayColor: number, borderColor: number, value: boolean };
 export const gridSize = 20;
+export const chunkSize = 16;
+export const chunkMargin = 2;
+export const minZoom = 0.35;
+export const maxZoom = 25;
 export type vec3 = [number, number, number];
 export type vec4 = [number, number, number, number];

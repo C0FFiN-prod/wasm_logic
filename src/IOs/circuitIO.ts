@@ -1,6 +1,6 @@
-import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode, type Point } from "./consts";
-import * as LogicGates from "./logic";
-import { screenToWorld } from "./utils";
+import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode, type Point, gridSize, minZoom, chunkMargin } from "../consts";
+import * as LogicGates from "../logic";
+import { getPointDelta, getPointFromChunkKey, screenToWorld } from "../utils/utils";
 export type Element = { id: string, type: string, inputs: string[], layer: number };
 type Rect = { x0: number, y0: number, x1: number, y1: number };
 // Сериализация схемы в JSON
@@ -23,6 +23,34 @@ export class CircuitIO {
     }
     clearCircuit() {
         this.circuit.clear();
+    }
+
+    clearUnusedChunks() {
+        const h1 = this.camera.zoom * gridSize;
+        const h2 = minZoom * gridSize * 2;
+        const center: Point = {
+            x: (this.camera.x + this.canvas.width / 2) / h1,
+            y: (this.camera.y + this.canvas.height / 2) / h1
+        };
+        const maxDist: Point = {
+            x: chunkMargin + this.canvas.width / h2,
+            y: chunkMargin + this.canvas.height / h2
+        }
+        const keysToDelete = [];
+        for (const key of this.circuit.lruChunkCache.values()) {
+            const chunk = this.circuit.chunks.get(key);
+            if (chunk === undefined) {
+                keysToDelete.push(key);
+                continue;
+            }
+            const point = getPointFromChunkKey(key);
+            const delta = getPointDelta(point, center);
+            const isFarAway = (Math.abs(delta.x) > maxDist.x || Math.abs(delta.y) > maxDist.y);
+            if (!isFarAway) break;
+            if (chunk.size === 0)
+                this.circuit.chunks.delete(key);
+            keysToDelete.push(key);
+        }
     }
 
     fromLayers(layers: Element[][], inputElementType: string) {
@@ -64,7 +92,7 @@ export class CircuitIO {
         const data = {
             bodies: [
                 {
-                    childs: [...this.unuseBlueprintObjects, ...Array.from(this.circuit.elements).map(el => ({
+                    childs: [...this.unuseBlueprintObjects, ...Array.from(this.circuit.chunks.values()).flatMap(chunk => Array.from(chunk)).map(el => ({
                         color: el.color,
                         id: el.id,
                         controller: el.getController(),
@@ -134,12 +162,12 @@ export class CircuitIO {
                     }
                 }
             }
-            this.circuit.elements.forEach(el => {
+            this.circuit.chunks.forEach(chunk => chunk.forEach(el => {
                 if (!idMap.has(el.id)) {
                     if (srcIds.has(el.id)) srcIdMap.set(el.id, el);
                     if (dstIds.has(el.id)) dstIdMap.set(el.id, el);
                 }
-            });
+            }));
             console.log(idMap, srcIdMap, dstIdMap);
         }
 
@@ -245,8 +273,10 @@ export class CircuitIO {
         selectedElements.forEach(el => {
             const elX = el.x;
             const elY = el.y;
-            el.x = cX - (elY - cY) * sinF - compensateX;
-            el.y = cY + (elX - cX) * sinF - compensateY;
+            this.circuit.moveElementTo(el, {
+                x: cX - (elY - cY) * sinF - compensateX,
+                y: cY + (elX - cX) * sinF - compensateY
+            });
         });
 
     }
@@ -256,9 +286,9 @@ export class CircuitIO {
         const cX = Math.round((blueprintRect.x1 + blueprintRect.x0) / 2);
         const cY = Math.round((blueprintRect.y1 + blueprintRect.y0) / 2);
         if (vertical)
-            selectedElements.forEach(el => el.y += (cY - el.y) * 2);
+            selectedElements.forEach(el => this.circuit.moveElementBy(el, { x: 0, y: (cY - el.y) * 2 }));
         else
-            selectedElements.forEach(el => el.x += (cX - el.x) * 2);
+            selectedElements.forEach(el => this.circuit.moveElementBy(el, { x: (cX - el.x) * 2, y: 0 }));
     }
 
     private _getBlueprintRect(iterable: any): Rect {
@@ -310,8 +340,7 @@ export class CircuitIO {
         for (const child of iterable) {
             if ((type = shapeIdToType.get(child.shapeId))) {
                 const src = idMap.get(child.id)!;
-                src.x += blueprintDelta.x;
-                src.y += blueprintDelta.y;
+                this.circuit.moveElementBy(src, blueprintDelta);
                 if (child.controller.controllers) {
                     for (const controlled of child.controller.controllers) {
                         const dst = idMap.get(controlled.id);

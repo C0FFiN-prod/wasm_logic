@@ -41,7 +41,13 @@
     "inner": "Inner",
     "connect": "Connect",
     "copy-wires-mode": "Copy wires",
-    "show-wires-mode": "Show wires"
+    "show-wires-mode": "Show wires",
+    "connect-mode": "Connect",
+    "nton": "N to N",
+    "sequence": "Sequence",
+    "parallel": "Parallel",
+    "tensor": "Tensor",
+    "decoder": "Decoder"
   },
   "floating-menu-tools": {
     "header": "Tools",

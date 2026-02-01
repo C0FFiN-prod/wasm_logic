@@ -1,4 +1,6 @@
-import { BitArray, Pair, Queue } from "./dataStructs";
+import { chunkSize, type Point } from "./consts";
+import { BitArray, LRU, Pair, Queue } from "./dataStructs";
+import { getChunkKey } from "./utils/utils";
 
 // logic.js
 export type ComparatorFunc<T> = (params: T) => boolean;
@@ -285,12 +287,14 @@ export class Wire {
 }
 
 export class Circuit {
-    elements: Set<LogicElement>;
+    chunks: Map<string, Set<LogicElement>>;
+    lruChunkCache: LRU<string>;
     pendingElements: Queue<LogicElement>;
     affectedElements: Set<LogicElement>;
     wires: Map<string, Wire>;
     constructor() {
-        this.elements = new Set();
+        this.chunks = new Map();
+        this.lruChunkCache = new LRU();
         this.pendingElements = new Queue();
         this.affectedElements = new Set();
         this.wires = new Map();
@@ -321,8 +325,23 @@ export class Circuit {
                 return null;
         }
 
-        this.elements.add(el);
+        this._getChunk(el).add(el);
         return el;
+    }
+
+    private _getChunk(element: Point) {
+        const key = getChunkKey(element, true);
+        if (!this.chunks.has(key))
+            this.chunks.set(key, new Set());
+        this.lruChunkCache.access(key);
+        return this.chunks.get(key)!;
+    }
+
+    getChunk(point: Point, doDivide: boolean) {
+        const key = getChunkKey(point, doDivide);
+        const chunk = this.chunks.get(key);
+        if (chunk) this.lruChunkCache.access(key);
+        return chunk;
     }
 
     addWire(src: LogicElement, dst: LogicElement) {
@@ -359,9 +378,11 @@ export class Circuit {
         // Сначала находим все провода для удаления
         const elID = element.id;
         let wire, key: string;
-        for (const el of this.elements) {
-            if ((wire = this.wires.get(key = `${elID}-${el.id}`)) !== undefined)
-                wiresToRemove.push(new Pair(wire, key));
+        for (const chunk of this.chunks.values()) {
+            for (const el of chunk) {
+                if ((wire = this.wires.get(key = `${elID}-${el.id}`)) !== undefined)
+                    wiresToRemove.push(new Pair(wire, key));
+            }
         }
 
         for (const el of element.inputs) {
@@ -379,9 +400,11 @@ export class Circuit {
 
     step() {
         // Фаза 1: вычисление новых состояний
-        for (const el of this.elements) {
-            el.eval();
-            if (el.nextValue !== el.value) this.pendingElements.push(el);
+        for (const chunk of this.chunks.values()) {
+            for (const el of chunk) {
+                el.eval();
+                if (el.nextValue !== el.value) this.pendingElements.push(el);
+            }
         }
 
         // Фаза 2: применение новых состояний
@@ -398,17 +421,44 @@ export class Circuit {
     }
 
     reset() {
-        for (const el of this.elements) {
-            el.value = false;
-            el.nextValue = false;
+        for (const chunk of this.chunks.values()) {
+            for (const el of chunk) {
+                el.value = false;
+                el.nextValue = false;
+            }
         }
     }
     clear() {
         this.pendingElements.resize(16);
         this.affectedElements.clear();
-        this.elements.clear();
         this.wires.clear();
+        this.chunks.clear();
+        this.lruChunkCache.clear();
         nextId = 0;
+    }
+    moveElementTo(el: LogicElement, point: Point) {
+        const { x, y } = el;
+        el.x = point.x;
+        el.y = point.y;
+        if (Math.floor(x / chunkSize) !== Math.floor(el.x / chunkSize) ||
+            Math.floor(y / chunkSize) !== Math.floor(el.y / chunkSize)) {
+            this.getChunk({ x, y }, true)?.delete(el);
+            this._getChunk(el).add(el);
+        }
+    }
+    moveElementBy(el: LogicElement, delta: Point) {
+        const { x, y } = el;
+        el.x += delta.x;
+        el.y += delta.y;
+        if (Math.floor(x / chunkSize) !== Math.floor(el.x / chunkSize) ||
+            Math.floor(y / chunkSize) !== Math.floor(el.y / chunkSize)) {
+            this.getChunk({ x, y }, true)?.delete(el);
+            this._getChunk(el).add(el);
+        }
+    }
+
+    deleteElement(el: LogicElement) {
+        this.getChunk(el, true)?.delete(el);
     }
 }
 

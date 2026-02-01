@@ -1,7 +1,7 @@
-import type { CircuitIO } from "./circuitIO";
-import type { LocaleNames } from "./consts";
-import { draw } from "./drawingWGL";
-import type { I18n, I18nLocale, I18nLocales } from "./i18n";
+import type { CircuitIO } from "../IOs/circuitIO";
+import type { LocaleNames } from "../consts";
+import { draw } from "../drawingWGL";
+import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 
 export class FileIO {
     currentFileHandle: FileSystemFileHandle | null = null;
