@@ -886,7 +886,7 @@ canvas.addEventListener('mouseup', e => {
 // Обработка клавиш
 document.addEventListener('keydown', e => {
   if (document.activeElement === document.body) {
-    if (e.key === 'Delete' && selectedElements.size > 0) {
+    if (e.code === 'Delete' && selectedElements.size > 0) {
       // Удаление выбранных элементов
       for (const element of selectedElements) {
         circuit.removeWiresForElement(element);
@@ -895,23 +895,23 @@ document.addEventListener('keydown', e => {
         elementUnderCursor = null;
       selectedElements.forEach(el => circuit.deleteElement(el));
       clearSelection();
-    } else if (e.key === '-' || e.key === '+') {
-      zoomCanvas(e.key === '+', canvas.width / 2, canvas.height / 2);
-    } else if (e.key === 'Escape') {
+    } else if (e.code === '-' || e.code === '+') {
+      zoomCanvas(e.code === '+', canvas.width / 2, canvas.height / 2);
+    } else if (e.code === 'Escape') {
       clearSelection();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'c') {
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
       document.getElementById('tool-connect')?.click();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'v') {
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyV') {
       document.getElementById('tool-move')?.click();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.key === 'p') {
+    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyP') {
       document.getElementById('tool-paint')?.click();
-    } else if (e.altKey && e.key.toLowerCase() === "w") {
+    } else if (e.altKey && e.code === 'KeyW') {
       cycleCopyWiresMode();
-    } else if (e.shiftKey && e.key.toLowerCase() === "w") {
+    } else if (e.shiftKey && e.code === 'KeyW') {
       cycleShowWiresMode();
-    } else if (e.key.toLowerCase() === "r") {
+    } else if (e.code === 'KeyR') {
       circuitIO.rotateSelected(selectedElements, e.shiftKey);
-    } else if (e.key.toLowerCase() === "f") {
+    } else if (e.code === 'KeyF') {
       circuitIO.flipSelected(selectedElements, e.shiftKey);
     } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
       const mul = (e.shiftKey ? 5 : 1) * gridSize;
@@ -939,16 +939,16 @@ document.addEventListener('keydown', e => {
       for (const el of selectedElements)
         circuit.moveElementBy(el, deltaWorld);
     } else if (selectedTool === ToolMode.Cursor) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
         e.preventDefault();
 
         navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectedElements)).catch((err) => { console.log(err) });
-      } else if (e.shiftKey && e.key.toLowerCase() === "v") {
+      } else if (e.shiftKey && e.code === 'KeyV') {
         e.preventDefault();
         const cursorX = prevMousePos.x;
         const cursorY = prevMousePos.y;
         circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
         e.preventDefault();
         const cursorX = prevMousePos.x;
         const cursorY = prevMousePos.y;
@@ -964,22 +964,22 @@ document.addEventListener('keydown', e => {
         }).catch(err => console.log(err));
       }
     } else if (selectedTool === ToolMode.Connect) {
-      if (e.key === 'Enter') {
+      if (e.code === 'Enter') {
         connectSelected();
       }
-      else if (e.key === 'Backspace') {
+      else if (e.code === 'Backspace') {
         disconnectSelected();
       }
     } else if (selectedTool === ToolMode.Paint) {
-      if (e.key === 'Enter')
+      if (e.code === 'Enter')
         circuitIO.paintSelected(selectedElements, null);
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
         const el = getElementAt(circuit, camera, prevMousePos, true);
         if (el) {
           navigator.clipboard.writeText(el.color).catch((err) => { console.log(err) });
         }
       }
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
         navigator.clipboard.readText().then((color) => {
           color = color.trim().replace('#', '');
           if (color.match('[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}')) {
