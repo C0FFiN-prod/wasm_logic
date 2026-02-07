@@ -14,29 +14,62 @@
 
 <body>
     <div class="tip" id="tip"></div>
-    <button class="setting-btn" id="settings-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="var(--text)"
+    <button class="setting-btn" id="dots-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="var(--text)"
             stroke="none" viewBox="-1 -1 18 6" fill-rule="evenodd" clip-rule="evenodd">
             <path
                 d="M4 2C4 3.10457 3.10457 4 2 4C0.89543 4 0 3.10457 0 2C0 0.89543 0.89543 0 2 0C3.10457 0 4 0.89543 4 2Z M10 2C10 3.10457 9.10457 4 8 4C6.89543 4 6 3.10457 6 2C6 0.89543 6.89543 0 8 0C9.10457 0 10 0.89543 10 2Z M16 2C16 3.10457 15.1046 4 14 4C12.8954 4 12 3.10457 12 2C12 0.89543 12.8954 0 14 0C15.1046 0 16 0.89543 16 2Z" />
         </svg></button>
-    <div id="settings-menu" class="hidden">
-        <button class="setting-btn" id="theme-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
-                stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd"></svg></button>
-        <button class="setting-btn" id="locale-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
-                stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
-                <path d="M0.5 1.71905H6.75778M6.75778 1.71905V0.5M6.75778 1.71905H10.74M1.63778 13.719C6.18889 9.14762 10.74 4.76667 10.74 1.71905M10.74 1.71905H12.5178M9.10445 16.5L10.2991 13.0714M16.5 16.5L15.476 13.0714M10.2991 13.0714H15.476M10.2991 13.0714L12.8928 5.62784C12.9195 5.55129 12.9917 5.5 13.0727 5.5C13.157 5.5 13.2312 5.5553 13.2553 5.63601L15.476 13.0714M2.65445 3.7C3.65389 6.1391 6.22025 9.10092 9.27189 12.2333"
-                    stroke-linecap="round" />
-        </svg></button>
-        <button class="setting-btn" id="user-manual-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
-                stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
-                <path
-                    d="M8.49997 11.125C8.49997 7.99994 9.5 9 10.5 7.5C12 5.5 10.5 3.50004 8.49999 3.5C6.49999 3.49996 4.99998 5.5 6.5 7.5M16.5 8.5C16.5 12.9183 12.9183 16.5 8.5 16.5C4.08172 16.5 0.5 12.9183 0.5 8.5C0.5 4.08172 4.08172 0.5 8.5 0.5C12.9183 0.5 16.5 4.08172 16.5 8.5ZM9 13.5C9 13.7761 8.77614 14 8.5 14C8.22386 14 8 13.7761 8 13.5C8 13.2239 8.22386 13 8.5 13C8.77614 13 9 13.2239 9 13.5Z"
-                    stroke-linecap="round" />
-            </svg></button>
+    <div id="dots-menu" class="hidden">
+
+        <div class="dots-menu-block">
+            <button class="setting-btn" id="file-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
+                    stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
+                    <path
+                        d="M9.25892 0.53125L3.42856 0.53125C2.87627 0.53125 2.42856 0.978965 2.42856 1.53125V15.4688C2.42856 16.021 2.87627 16.4688 3.42856 16.4688H13.5714C14.1237 16.4688 14.5714 16.021 14.5714 15.4688V5.84375M9.25892 0.53125V4.84375C9.25892 5.39603 9.70663 5.84375 10.2589 5.84375H14.5714M9.25892 0.53125L14.5714 5.84375"
+                        stroke-linecap="round" />
+                </svg></button>
+            <button class="setting-btn" id="simulation-toggle"><svg xmlns="http://www.w3.org/2000/svg"
+                    fill="transparent" stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd"
+                    clip-rule="evenodd">
+                    <path
+                        d="M4.31913 11.5789L3.33862 15.2382C3.16777 15.8758 3.64823 16.502 4.30834 16.502H12.2447C12.9048 16.502 13.3853 15.8758 13.2144 15.2382L12.2339 11.5789M4.31913 11.5789H8.27652M4.31913 11.5789L7.08779 1.24604C7.20539 0.807143 7.60312 0.501953 8.0575 0.501953H8.49553C8.94991 0.501953 9.34764 0.807143 9.46524 1.24604L10.9795 6.89723M12.2339 11.5789H8.27652M12.2339 11.5789L10.9795 6.89723M8.27652 11.5789L10.9795 6.89723M10.9795 6.89723L12.3979 4.44041M12.3979 4.44041C13.1591 4.87986 14.1323 4.6191 14.5718 3.85795C15.0112 3.09681 14.7504 2.12354 13.9893 1.68409M12.3979 4.44041C11.6368 4.00097 11.376 3.02772 11.8154 2.26657C12.2549 1.50543 13.2281 1.24464 13.9893 1.68409M13.9893 1.68409L14.347 1.06459"
+                        stroke-linecap="round" />
+                </svg></button>
+            <button class="setting-btn" id="tools-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
+                    stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
+                    <path
+                        d="M14.2511 14.251L13.1009 13.1008M15.8085 12.514C16.7182 13.4237 16.7182 14.8987 15.8085 15.8084C14.8988 16.7182 13.4238 16.7182 12.5141 15.8084L6.83579 9.41252C6.59539 9.14174 6.22366 9.01483 5.88665 9.14723C4.83352 9.56096 4.15163 10.2698 3.22322 9.34135C2.4687 8.58684 1.30678 6.50642 0.774621 4.84283C0.533825 4.09008 1.25674 3.78427 1.81558 4.34311L3.98266 6.51019C4.22297 6.75051 4.56889 6.85232 4.90107 6.78051L5.81654 6.58261C6.20012 6.49968 6.49974 6.20006 6.58267 5.81648L6.78057 4.901C6.85238 4.56883 6.75057 4.22291 6.51026 3.9826L4.34318 1.81552C3.78433 1.25668 4.09014 0.533764 4.84289 0.77456C6.50648 1.30672 8.5869 2.46864 9.34141 3.22315C10.2698 4.15157 9.56102 4.83346 9.14729 5.88659C9.01489 6.2236 9.14181 6.59533 9.41258 6.83573L15.8085 12.514Z"
+                        stroke-linecap="round" />
+                </svg></button>
+
+            <button class="setting-btn" id="palette-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
+                    stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
+                    <path
+                        d="M7.89551 0.503058C12.6459 0.373873 16.5 4.35541 16.5 9.10753C16.5 11.4626 14.9391 14.0827 12.4027 15.6436C9.21431 17.6058 5.48205 15.8502 7.13466 12.9121C10.6465 6.6685 -0.669956 10.5707 0.599941 5.18925C1.26104 2.38768 4.51053 0.595112 7.89551 0.503058ZM9.38218 12.2185C9.67877 11.9219 10.0885 11.7384 10.5411 11.7384C11.4463 11.7384 12.18 12.4722 12.18 13.3774C12.18 13.83 11.9966 14.2397 11.7 14.5363C11.4034 14.8329 10.9937 15.0163 10.5411 15.0163C9.63592 15.0163 8.90214 14.2825 8.90214 13.3774C8.90214 12.9248 9.08559 12.5151 9.38218 12.2185ZM13.491 8.16755C12.5858 8.16755 11.852 8.90133 11.852 9.80649C11.852 10.7117 12.5858 11.4454 13.491 11.4454C14.3961 11.4454 15.1299 10.7117 15.1299 9.8065C15.1299 8.90133 14.3961 8.16755 13.491 8.16755ZM10.6838 5.40463C10.6838 4.49947 11.4176 3.76569 12.3227 3.76569C12.7753 3.76569 13.185 3.94913 13.4816 4.24571C13.7782 4.5423 13.9617 4.95204 13.9617 5.40463C13.9617 6.3098 13.2279 7.04358 12.3227 7.04358C11.8701 7.04358 11.4604 6.86013 11.1638 6.56353C10.8672 6.26694 10.6838 5.85721 10.6838 5.40463ZM6.54997 3.40937C6.54997 2.50421 7.28375 1.77043 8.18891 1.77042C9.09407 1.77042 9.82787 2.50421 9.82787 3.40937C9.82787 4.31454 9.09407 5.04832 8.1889 5.04832C7.28374 5.04831 6.54997 4.31453 6.54997 3.40937ZM3.90147 3.40937C3.44889 3.40937 3.03916 3.59281 2.74257 3.8894C2.44597 4.18599 2.26252 4.59573 2.26252 5.04832C2.26252 5.95348 2.9963 6.68727 3.90147 6.68727C4.35406 6.68727 4.7638 6.50382 5.06039 6.20722C5.35697 5.91063 5.54042 5.5009 5.54042 5.04832C5.54042 4.14315 4.80663 3.40937 3.90147 3.40937Z M10.5411 11.7384C10.0885 11.7384 9.67877 11.9219 9.38218 12.2185C9.08559 12.5151 8.90214 12.9248 8.90214 13.3774C8.90214 14.2825 9.63592 15.0163 10.5411 15.0163C10.9937 15.0163 11.4034 14.8329 11.7 14.5363C11.9966 14.2397 12.18 13.83 12.18 13.3774C12.18 12.4722 11.4463 11.7384 10.5411 11.7384Z M11.852 9.80649C11.852 8.90133 12.5858 8.16755 13.491 8.16755C14.3961 8.16755 15.1299 8.90133 15.1299 9.8065C15.1299 10.7117 14.3961 11.4454 13.491 11.4454C12.5858 11.4454 11.852 10.7117 11.852 9.80649Z M12.3227 3.76569C11.4176 3.76569 10.6838 4.49947 10.6838 5.40463C10.6838 5.85721 10.8672 6.26694 11.1638 6.56353C11.4604 6.86013 11.8701 7.04358 12.3227 7.04358C13.2279 7.04358 13.9617 6.3098 13.9617 5.40463C13.9617 4.95204 13.7782 4.5423 13.4816 4.24571C13.185 3.94913 12.7753 3.76569 12.3227 3.76569Z M8.18891 1.77042C7.28375 1.77043 6.54997 2.50421 6.54997 3.40937C6.54997 4.31453 7.28374 5.04831 8.1889 5.04832C9.09407 5.04832 9.82787 4.31454 9.82787 3.40937C9.82787 2.50421 9.09407 1.77042 8.18891 1.77042Z M2.74257 3.8894C3.03916 3.59281 3.44889 3.40937 3.90147 3.40937C4.80663 3.40937 5.54042 4.14315 5.54042 5.04832C5.54042 5.5009 5.35697 5.91063 5.06039 6.20722C4.7638 6.50382 4.35406 6.68727 3.90147 6.68727C2.9963 6.68727 2.26252 5.95348 2.26252 5.04832C2.26252 4.59573 2.44597 4.18599 2.74257 3.8894Z"
+                        stroke-linecap="round" />
+                </svg></button>
+
+            <button class="setting-btn" id="user-manual-toggle"><svg xmlns="http://www.w3.org/2000/svg"
+                    fill="transparent" stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd"
+                    clip-rule="evenodd">
+                    <path
+                        d="M8.49997 11.125C8.49997 7.99994 9.5 9 10.5 7.5C12 5.5 10.5 3.50004 8.49999 3.5C6.49999 3.49996 4.99998 5.5 6.5 7.5M16.5 8.5C16.5 12.9183 12.9183 16.5 8.5 16.5C4.08172 16.5 0.5 12.9183 0.5 8.5C0.5 4.08172 4.08172 0.5 8.5 0.5C12.9183 0.5 16.5 4.08172 16.5 8.5ZM9 13.5C9 13.7761 8.77614 14 8.5 14C8.22386 14 8 13.7761 8 13.5C8 13.2239 8.22386 13 8.5 13C8.77614 13 9 13.2239 9 13.5Z"
+                        stroke-linecap="round" />
+                </svg></button>
+        </div>
+        <div class="dots-menu-block">
+            <button class="setting-btn" id="settings-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="transparent"
+                    stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd" clip-rule="evenodd">
+                    <path
+                        d="M8.49997 5.98141C7.10904 5.98142 5.98147 7.10899 5.98147 8.49992C5.98147 9.89084 7.10904 11.0184 8.49997 11.0184C9.8909 11.0184 11.0185 9.89084 11.0185 8.49992C11.0185 7.10899 9.8909 5.98141 8.49997 5.98141Z M1.9865 10.0728C2.38134 10.126 2.69994 10.4116 2.8492 10.7809C2.86291 10.8149 2.87692 10.8487 2.89123 10.8823C3.04721 11.2491 3.02392 11.6764 2.78225 11.9933L2.40275 12.491C2.09914 12.8891 2.13678 13.4504 2.49082 13.8045L3.19545 14.5091C3.54949 14.8631 4.1108 14.9008 4.50894 14.5972L5.0066 14.2177C5.32351 13.976 5.75088 13.9527 6.11763 14.1087C6.15127 14.123 6.18507 14.137 6.21902 14.1507C6.58843 14.3 6.874 14.6186 6.92719 15.0134L7.01071 15.6335C7.07755 16.1297 7.50107 16.5 8.00176 16.5H8.99825C9.49894 16.5 9.92246 16.1297 9.9893 15.6335L10.0728 15.0134C10.126 14.6186 10.4116 14.2999 10.781 14.1507C10.8149 14.137 10.8487 14.123 10.8823 14.1087C11.2491 13.9527 11.6765 13.976 11.9934 14.2176L12.491 14.5972C12.8892 14.9008 13.4505 14.8631 13.8045 14.5091L14.5092 13.8045C14.8632 13.4504 14.9008 12.8891 14.5972 12.491L14.2177 11.9933C13.976 11.6764 13.9527 11.249 14.1087 10.8823C14.123 10.8487 14.137 10.8149 14.1507 10.781C14.3 10.4116 14.6186 10.126 15.0134 10.0728L15.6335 9.9893C16.1297 9.92246 16.5 9.49894 16.5 8.99825V8.00174C16.5 7.50105 16.1297 7.07753 15.6335 7.01069L15.0135 6.92718C14.6186 6.87399 14.3 6.58841 14.1508 6.21901C14.1371 6.18505 14.123 6.15124 14.1087 6.11758C13.9528 5.75083 13.9761 5.32346 14.2177 5.00656L14.5972 4.5089C14.9008 4.11076 14.8632 3.54945 14.5092 3.1954L13.8045 2.49076C13.4505 2.13672 12.8892 2.09909 12.491 2.4027L11.9934 2.78219C11.6765 3.02386 11.2491 3.04715 10.8824 2.89117C10.8487 2.87686 10.8149 2.86285 10.781 2.84913C10.4116 2.69988 10.126 2.38127 10.0728 1.98643L9.98931 1.36651C9.92247 0.870296 9.49895 0.5 8.99826 0.5H8.00175C7.50106 0.5 7.07754 0.870296 7.0107 1.36651L6.9272 1.9864C6.87402 2.38125 6.58844 2.69985 6.21904 2.8491C6.18507 2.86283 6.15126 2.87685 6.11761 2.89116C5.75085 3.04714 5.32348 3.02385 5.00657 2.78218L4.50895 2.4027C4.11081 2.09909 3.5495 2.13672 3.19546 2.49077L2.49082 3.19541C2.13678 3.54945 2.09914 4.11076 2.40275 4.5089L2.78223 5.00652C3.0239 5.32343 3.04719 5.7508 2.89121 6.11755C2.87689 6.15122 2.86287 6.18505 2.84914 6.21902C2.69989 6.58843 2.38128 6.87401 1.98643 6.92719L1.36651 7.0107C0.870295 7.07754 0.5 7.50106 0.5 8.00175V8.99824C0.5 9.49893 0.870295 9.92245 1.36651 9.98929L1.9865 10.0728ZM8.49997 5.98141C9.8909 5.98141 11.0185 7.10899 11.0185 8.49992C11.0185 9.89084 9.8909 11.0184 8.49997 11.0184C7.10904 11.0184 5.98147 9.89084 5.98147 8.49992C5.98147 7.10899 7.10904 5.98142 8.49997 5.98141Z"
+                        stroke-linecap="round" />
+                </svg></button>
+        </div>
     </div>
 
 
-    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;" data-locale-section="floating-menu-logeq-editor">
+    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;"
+        data-locale-section="floating-menu-logeq-editor">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
             <button class="hide"></button>
@@ -63,7 +96,7 @@ L0 = A ^ B;"></textarea>
             </div>
         </div>
     </div>
-    <div class="floating-menu" style="left: 20px; top: 20px;" data-locale-section="floating-menu-tools">
+    <div class="floating-menu" id="fm-tools" style="left: 20px; top: 20px;" data-locale-section="floating-menu-tools">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
             <input type="checkbox">
@@ -84,7 +117,8 @@ L0 = A ^ B;"></textarea>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 20px; top: 420px;" data-locale-section="floating-menu-elements">
+    <div class="floating-menu" id="fm-palette" style="left: 20px; top: 420px;"
+        data-locale-section="floating-menu-elements">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
             <input type="checkbox">
@@ -104,13 +138,14 @@ L0 = A ^ B;"></textarea>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 50%; top: 20px;" data-locale-section="floating-menu-file">
+    <div class="floating-menu" id="fm-file" style="left: 50%; top: 20px;" data-locale-section="floating-menu-file">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col gap-3">
-            <div class="flex gap-1"><span data-locale="file"></span>&nbsp;<span id="filename-display">Unnamed</span></div>
+            <div class="flex gap-1"><span data-locale="file"></span>&nbsp;<span id="filename-display">Unnamed</span>
+            </div>
             <div class="flex gap-1">
                 <button id="save-scheme" class="flex-1" data-locale="save"></button>
                 <button id="load-scheme" class="flex-1" data-locale="load"></button>
@@ -120,7 +155,8 @@ L0 = A ^ B;"></textarea>
         </div>
     </div>
 
-    <div class="floating-menu" style="left: 50%; top: 85%;" data-locale-section="floating-menu-simulation">
+    <div class="floating-menu" id="fm-simulation" style="left: 50%; top: 85%;"
+        data-locale-section="floating-menu-simulation">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
             <input type="checkbox">
@@ -139,12 +175,52 @@ L0 = A ^ B;"></textarea>
         <div class="floating-menu-container col resizeable" data-locale="md-user-manual"></div>
     </div>
 
-    <canvas id="circuit-canvas"></canvas>
+    <div class="floating-menu hidden" id="fm-settings" data-locale-section="floating-menu-settings">
+        <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
+        <div class="floating-menu-container col">
+            <div class="settings-block">
+                <label for="locale-select" data-locale="language"></label>
+                <select id="locale-select">
+                    <option value="en">English</option>
+                    <option value="ru">Русский</option>
+                    <option value="pl">Polska</option>
+                </select>
+            </div>
+            <div class="settings-block">
+                <label for="drawing-select" data-locale="drawing"></label>
+                <select id="drawing-select">
+                    <option value="webgl">WebGL</option>
+                    <option value="canvas">Canvas</option>
+                </select>
+            </div>
+            <div class="settings-block">
+                <label for="theme-select" data-locale="theme"></label>
+                <select id="theme-select">
+                    <option value="system" data-locale="theme-system"></option>
+                    <option value="dark" data-locale="theme-dark"></option>
+                    <option value="light" data-locale="theme-light"></option>
+                </select>
+            </div>
+          
+            <div class="settings-block">
+                <label for="max-fps-range" data-locale="max-fps"></label>
+                <span>
+                    <input type="range" id="max-fps-range" min="30" max="240" step="5" value="60">
+                    <span id="max-fps-value" style="min-width: 40px; display: inline-block;"></span>
+                </span>
+            </div>
+            <div class="settings-block">
+                <span>
+                    <label for="draw-icons-check" data-locale="draw-icons"></label>
+                    <input type="checkbox" id="draw-icons-check" checked>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <canvas class="circuit-canvas" id="canvas-canvas"></canvas>
+    <canvas class="circuit-canvas" id="webgl-canvas"></canvas>
     <input type="file" id="file-input" style="display:none" />
-    <script type="module" src="src/consts.ts"></script>
-    <script type="module" src="src/logic.ts"></script>
-    <script type="module" src="src/drawing.ts"></script>
-    <script type="module" src="src/drawingWGL.ts"></script>
     <script type="module" src="src/main.ts"></script>
 
 </body>

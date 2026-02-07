@@ -1,5 +1,5 @@
 import {
-    camera, canvas,
+    camera,
     isSelecting, selectionEnd, selectionStart,
     selectedElements,
     selectedTool, showWiresMode, circuit,
@@ -7,12 +7,13 @@ import {
     selectionColor,
     ghostElements,
     customOverlays,
-} from "./main";
-import m3 from './utils/m3';
-import { type LogicGate } from "./logic";
-import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type vec3 } from "./consts";
-import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "./utils/utils";
-import { connectTool } from "./utils/connectionTool";
+    settings,
+} from "../main";
+import m3 from '../utils/m3';
+import { type LogicGate } from "../logic";
+import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type vec3 } from "../consts";
+import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "../utils/utils";
+import { connectTool } from "../utils/connectionTool";
 
 
 
@@ -44,10 +45,9 @@ function createProgram(gl: WebGLRenderingContext, vertexShader: WebGLShader, fra
     return null;
 }
 
-
-export function initContext() {
-    // iconCanvas.style = "position: absolute; bottom: 0; left:0;";
-    // document.querySelector('body')?.appendChild(iconCanvas);
+let canvas: HTMLCanvasElement;
+export function initContext(_canvas: HTMLCanvasElement) {
+    canvas = _canvas;
 
     let t = canvas.getContext('webgl2');
     if (!t) {
@@ -209,7 +209,7 @@ function initAllInOne() {
     gl.enableVertexAttribArray(program.attributes.texcoord);
 
     // gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-    // gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
     // активируем и биндим текстуру 0
     gl.activeTexture(gl.TEXTURE0);
@@ -255,8 +255,13 @@ function initAllInOne() {
     gl.bindVertexArray(null);
     return vao;
 }
-
+let frameCnt = 0;
 export function draw() {
+    if (++frameCnt === 10000) {
+        colorMap.clear();
+        colorData = [ ...borderPalette ];
+        frameCnt = 0;
+    }
     let matrix = m3.projection(canvas.clientWidth, canvas.clientHeight);
     const matrixProjection = matrix;
     matrix = m3.translate(matrix, Math.round(-camera.x), Math.round(-camera.y));
@@ -284,22 +289,24 @@ export function draw() {
 
     gl.uniform1f(program.uniforms.borderThickness, 1);
     gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
-    gl.uniform1f(program.uniforms.drawIcons, camera.zoom > 0.35 ? 1 : 0);
+    gl.uniform1f(program.uniforms.drawIcons, settings.drawIcons ? 1 : 0);
     gl.uniform2f(program.uniforms.gridSize, h, h);
     gl.uniform1f(program.uniforms.screenPxRange, Math.max(gridSize * camera.zoom / 24 * 1, 1));
-
+    isColorMapUpdated = false;
     const paked = packElements();
-
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance);
     gl.bufferData(gl.ARRAY_BUFFER, paked.positions, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceAttribs);
     gl.bufferData(gl.ARRAY_BUFFER, paked.attributes, gl.DYNAMIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
     gl.bufferData(gl.ARRAY_BUFFER, paked.colorIndices, gl.DYNAMIC_DRAW);
-
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, textures.colorPalette);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, paked.colorTexture.length / 4, 0, gl.RGBA, gl.UNSIGNED_BYTE, paked.colorTexture);
+    
+    if (isColorMapUpdated) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, textures.colorPalette);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, paked.colorTexture.length / 3, 0, gl.RGB, gl.UNSIGNED_BYTE, paked.colorTexture);
+    }
 
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, paked.positions.length / 2);
 
@@ -318,7 +325,7 @@ export function draw() {
             selectionStart.x, selectionEnd.y,
             selectionEnd.x, selectionEnd.y,
             selectionEnd.x, selectionStart.y,
-        ]), gl.STATIC_DRAW);
+        ]), gl.DYNAMIC_DRAW);
 
         gl.drawArrays(gl.LINE_LOOP, 0, 4);
     }
@@ -381,19 +388,16 @@ function glCheckError(gl: WebGL2RenderingContext, location: string = '') {
     }
     return gl.NO_ERROR;
 }
+const colorMap = new Map<string, vec3>();
+let colorData: number[] = [ ...borderPalette ];
+let isColorMapUpdated = true;
+
 function packElements(): {
     positions: Float32Array;
     attributes: Uint32Array;
     colorIndices: Uint32Array;
     colorTexture: Uint8Array;
-    colorMap: Map<string, vec3>;
 } {
-    const colorMap = new Map<string, vec3>();
-    const colorData: number[] = [
-        ...borderPalette
-    ];
-
-
     const h = camera.zoom * gridSize;
     const cameraWorldX = camera.x / h - 1;
     const cameraWorldY = camera.y / h - 1;
@@ -419,7 +423,7 @@ function packElements(): {
     const attributes = new Uint32Array(visibleCount);
     const colorIndices = new Uint32Array(visibleCount);
 
-    let nextColorIndex = borderPalette.length / 4;
+    let nextColorIndex = colorData.length / 3;
     let i = 0;
 
     for (const el of ghostElements) {
@@ -428,7 +432,7 @@ function packElements(): {
         positions[i * 2 + 1] = y;
         let isLuminant: number;
         let isBright: number;
-        ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(colorMap, el, colorData, nextColorIndex));
+        ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(el, nextColorIndex));
         const border = el.borderColor;
         const iconIndex = iconMap.get(el.icon)!;
         const iconOverlayIndex = iconMap.get(el.overlay)!;
@@ -452,13 +456,13 @@ function packElements(): {
             positions[i * 2 + 1] = y;
             let isLuminant: number;
             let isBright: number;
-            ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(colorMap, el, colorData, nextColorIndex));
+            ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(el, nextColorIndex));
 
             // Упаковка атрибутов в 32 бит
             let border = 0;
             if (connectTool.sources[2].has(el) || selectedElements.has(el))
                 border = selectedTool === ToolMode.Cursor ? 1 : 5;
-            else if ( connectTool.sources[1].has(el) && connectTool.sources[0].has(el))
+            else if (connectTool.sources[1].has(el) && connectTool.sources[0].has(el))
                 border = 4;
             else if (connectTool.sources[0].has(el))
                 border = 2;
@@ -503,12 +507,11 @@ function packElements(): {
         positions,
         attributes,
         colorIndices,
-        colorTexture: new Uint8Array(colorData),
-        colorMap
+        colorTexture: new Uint8Array(colorData)
     };
 }
 
-function addElementToColorMap(colorMap: Map<string, vec3>, el: { color: string }, colorData: number[], nextColorIndex: number) {
+function addElementToColorMap(el: { color: string }, nextColorIndex: number) {
     let isBright, isLuminant, color;
     if (color = colorMap.get(el.color)) {
         isLuminant = color[1];
@@ -519,19 +522,16 @@ function addElementToColorMap(colorMap: Map<string, vec3>, el: { color: string }
         const colorLightness = lightness(r, g, b);
         isLuminant = colorLuminance >= 127 ? 0 : 1;
         isBright = colorLightness >= 127 ? 0 : 1;
-
-        if (!colorMap.has(el.color)) {
-            colorData.push(
-                Math.floor(r * 0.5 + 63.75),
-                Math.floor(g * 0.5 + 63.75),
-                Math.floor(b * 0.5 + 63.75),
-                255
-            );
-            // Оригинальный цвет (R, G, B, A=255)
-            colorData.push(r, g, b, 255);
-            colorMap.set(el.color, [nextColorIndex, isLuminant, isBright]);
-            nextColorIndex += 2;
-        }
+        colorData.push(
+            Math.floor(r * 0.5 + 63.75),
+            Math.floor(g * 0.5 + 63.75),
+            Math.floor(b * 0.5 + 63.75)
+        );
+        // Оригинальный цвет (R, G, B, A=255)
+        colorData.push(r, g, b);
+        colorMap.set(el.color, [nextColorIndex, isLuminant, isBright]);
+        nextColorIndex += 2;
+        isColorMapUpdated = true;
     }
     return { isLuminant, isBright, nextColorIndex };
 }
@@ -564,7 +564,7 @@ function drawGrid() {
         lines[i * 4 + 2] = right;
         lines[i * 4 + 3] = y;
     }
-    gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, lines, gl.DYNAMIC_DRAW);
     gl.drawArrays(gl.LINES, 0, lines.length / 2);
 }
 
@@ -682,7 +682,7 @@ function drawWires() {
                 k <<= 1;
             }
         } else return;
-        gl.bufferData(gl.ARRAY_BUFFER, lines, gl.STATIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, lines, gl.DYNAMIC_DRAW);
         gl.drawArrays(gl.LINES, 0, lines.length / 2);
     }
 }
@@ -777,8 +777,8 @@ void main() {
         minDistFromEdge
     );
 
-    vec3 bg = mix(v_fillColor, v_borderColor, borderFactor);
-    vec4 icon = vec4(bg, 1);
+    
+    vec3 icon;
     if (u_drawIcon > 0.) {    
         vec4 msd = texture(u_icons, v_iconUV);
         float sd = median(msd.r, msd.g, msd.b);
@@ -787,9 +787,9 @@ void main() {
         float light = smoothstep(1. - 0.6 - 0.4, 1. - 0.6 + 0.4, msd.a);
 
         float iconColor = opacity * v_isLuminant;
-        icon = vec4(iconColor + bg + v_isActive * v_isLuminant * light, 1);
-
-
+        icon = iconColor + v_fillColor + v_isActive * v_isLuminant * light;
+    } else {
+        icon = v_fillColor + v_isActive * v_isLuminant;
     }
         
     if (v_drawOverlay > 0.) {
@@ -799,11 +799,10 @@ void main() {
         float opacityOverlay = smoothstep(0., 1., screenPxDistanceOverlay + 0.5);
         float shadow = smoothstep(1. - 0.6 - 0.4, 1. - 0.6 + 0.4, msdOverlay.a);
 
-        vec4 overlay = add(vec4(0,0,0,1) * shadow, icon);
-        fragColor = mix(overlay, vec4(v_overlayColor,1), opacityOverlay);
-    } else {
-        fragColor = icon;
+        vec3 overlay = add(vec4(0,0,0,1) * shadow, vec4(icon,1)).rgb;
+        icon = mix(overlay, v_overlayColor, opacityOverlay);
     }
+    fragColor = vec4(mix(icon, v_borderColor, borderFactor),1);
 }
 `;
 

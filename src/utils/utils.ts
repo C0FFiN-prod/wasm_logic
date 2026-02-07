@@ -18,7 +18,10 @@ export function hexToRgb(hex: string): [number, number, number] {
 }
 
 export function rgbToHex(r: number, g: number, b: number): string {
-  return "#" + r.toString(16) + g.toString(16) + b.toString(16);
+  return "#" +
+    clamp(Math.round(r), 0, 255).toString(16).padStart(2, '0') +
+    clamp(Math.round(g), 0, 255).toString(16).padStart(2, '0') +
+    clamp(Math.round(b), 0, 255).toString(16).padStart(2, '0');
 }
 
 export function luminance(r: number, g: number, b: number): number {
@@ -170,4 +173,8 @@ export function getPointFromChunkKey(key: string): Point {
 
 export function getPointDelta(point1: Point, point2: Point): Point {
   return { x: point1.x - point2.x, y: point1.y - point2.y };
+}
+
+export function getScale() {
+  return window.devicePixelRatio > 1 ? window.devicePixelRatio : 1;
 }

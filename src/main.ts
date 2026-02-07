@@ -1,20 +1,18 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, ConnectMode, CopyWiresMode, gridSize, locales, maxZoom, pathMap, ShowWiresMode, ToolMode, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
-import { draw, initContext } from './drawingWGL';
+import { colors, ConnectMode, CopyWiresMode, Drawings, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
 import { LogEqLangCompiler, LexerError, BuildError } from './logeqCompiler';
-import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements } from './utils/utils';
+import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale } from './utils/utils';
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
-
-
-export const canvas = document.getElementById('circuit-canvas') as HTMLCanvasElement
+import { drawingTimer } from './drawings';
+let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
 export let elementUnderCursor: LogicGates.LogicElement | null;
-let isSimulating = false;
+export let isSimulating = false;
 let simInterval: number;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
@@ -26,7 +24,7 @@ export let isSelecting = false;
 let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
 export let selectionEnd: Point = { x: 0, y: 0 };
-export let selectionColor: vec4;
+export let selectionColor: vec4 = colors.selection;
 export let selectedElements = new Set<LogicGates.LogicElement>();
 let selectionSet: Set<LogicGates.LogicElement>;
 export const customOverlays: Map<LogicGates.LogicElement, { icon: string, color: number }> = new Map();
@@ -36,61 +34,178 @@ export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
-let displayRefreshRate = 0;
-
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
 let logEqParser: LogEqLangCompiler = new LogEqLangCompiler();
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js')
-    .then(() => navigator.serviceWorker.ready.then((worker) => {
-      (worker as any).sync.register('syncdata');
-    }))
-    .catch((err) => console.log(err));
-}
+// if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+//   navigator.serviceWorker.register('/sw.js')
+//     .then(() => navigator.serviceWorker.ready.then((worker) => {
+//       (worker as any).sync.register('syncdata');
+//     }))
+//     .catch((err) => console.log(err));
+// }
 
-const i18n = new I18n(locales, 'ru')
+const i18n = new I18n(locales, 'en')
 
 const toggleLocale = () => {
-  const localesToggleMap = {
-    'ru': 'en',
-    'en': 'ru',
-  } satisfies Record<LocaleNames, LocaleNames>
-
-  i18n.setLocale(localesToggleMap[i18n.localeName] as typeof i18n['localeName'])
+  i18n.setLocale(settings.locale as typeof i18n['localeName'])
   updateCopyWiresButtonText()
   updateShowWiresButtonText()
   updateConnectModeButtonText()
   fileIO.updateFilenameDisplay()
   resizeFMs()
 }
+function toggleFM(id: string, resetPos: boolean) {
+  const floatingMenu = document.getElementById(id);
+  if (floatingMenu) {
+    floatingMenu?.classList.toggle('hidden');
+    if (resetPos) (floatingMenu?.querySelector('.floating-menu-container') as HTMLElement).style = '';
+    clampFMCoords(floatingMenu);
+  }
+}
+
+export const settings = {
+  theme: 'system' as Themes,
+  locale: 'en' as LocaleNames,
+  drawing: 'webgl' as Drawings,
+  maxFPS: 60,
+  drawIcons: true
+}
+
+function getSettingsFromLS() {
+  const lsKey = 'settings';
+  const newSettings = JSON.parse(localStorage.getItem(lsKey) || '{}');
+  settings.theme = newSettings.theme ?? settings.theme;
+  settings.locale = newSettings.locale ?? settings.locale;
+  settings.drawing = newSettings.drawing ?? settings.drawing;
+  settings.maxFPS = newSettings.maxFPS ?? settings.maxFPS;
+  settings.drawIcons = newSettings.drawIcons ?? settings.drawIcons;
+
+  let setting;
+  if (setting = document.getElementById('theme-select'))
+    (<HTMLInputElement>setting).value = settings.theme;
+  if (setting = document.getElementById('locale-select'))
+    (<HTMLInputElement>setting).value = settings.locale;
+  if (setting = document.getElementById('drawing-select'))
+    (<HTMLInputElement>setting).value = settings.drawing;
+  if (setting = document.getElementById('max-fps-range')) {
+    (<HTMLInputElement>setting).value = settings.maxFPS.toString();
+    const maxFpsValueDisplay = document.getElementById('max-fps-value');
+    if (maxFpsValueDisplay !== null)
+      (maxFpsValueDisplay).innerText = (<HTMLInputElement>setting).value;
+  }
+  if (setting = document.getElementById('draw-icons-check'))
+    (<HTMLInputElement>setting).checked = settings.drawIcons;
+
+  pushSettingsToLS();
+}
+
+function pushSettingsToLS() {
+  const lsKey = 'settings';
+  localStorage.setItem(lsKey, JSON.stringify(settings));
+}
 
 window.onload = (() => {
   // Инициализация
-  setupEvent('settings-toggle', "click", () => document.getElementById('settings-menu')?.classList.toggle('hidden'));
-  setupEvent('theme-toggle', "click", () => toggleTheme());
-  setupEvent('locale-toggle', "click", () => toggleLocale());
-  setupEvent('user-manual-toggle', "click", () => {
-    const userManual = document.getElementById('fm-user-manual');
-    userManual?.classList.toggle('hidden');
-    (userManual?.querySelector('.floating-menu-container') as HTMLElement).style = '';
-  });
+  getSettingsFromLS();
+  setupEvent('dots-toggle', "click", () => document.getElementById('dots-menu')?.classList.toggle('hidden'));
+  setupEvent('user-manual-toggle', "click", () => toggleFM('fm-user-manual', true));
+  setupEvent('settings-toggle', "click", () => toggleFM('fm-settings', true));
+  setupEvent('simulation-toggle', "click", () => toggleFM('fm-simulation', false));
+  setupEvent('file-toggle', "click", () => toggleFM('fm-file', false));
+  setupEvent('tools-toggle', "click", () => toggleFM('fm-tools', false));
+  setupEvent('palette-toggle', "click", () => toggleFM('fm-palette', false));
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
-  toggleTheme(prefersDarkScheme.matches);
+  const toggleThemeOnChange = () => {
+    switch (settings.theme) {
+      case 'light': toggleTheme(false); break;
+      case 'dark': toggleTheme(true); break;
+      case 'system': toggleTheme(prefersDarkScheme.matches); break;
+    }
+  };
+  prefersDarkScheme.addEventListener('change', toggleThemeOnChange);
+  setupEvent('theme-select', "change", (e) => {
+    const theme = (<HTMLInputElement>e.target).value;
+    if (Themes.includes(<Themes>theme)) {
+      settings.theme = <Themes>theme;
+      pushSettingsToLS();
+      toggleThemeOnChange();
+    }
+  });
+  setupEvent('locale-select', "change", (e) => {
+    const locale = (<HTMLInputElement>e.target).value;
+    if (Object.keys(locales).includes(<LocaleNames>locale)) {
+      settings.locale = <LocaleNames>locale;
+      pushSettingsToLS();
+      toggleLocale();
+    }
+  });
+  setupEvent('draw-icons-check', "change", (e) => {
+    const drawIcons = (<HTMLInputElement>e.target).checked;
+    settings.drawIcons = drawIcons;
+    pushSettingsToLS();
+    drawingTimer.step();
+  });
+  setupEvent('drawing-select', "change", (e) => {
+    const drawing = (<HTMLInputElement>e.target).value;
+    if (Drawings.includes(<Drawings>drawing)) {
+      settings.drawing = <Drawings>drawing;
+      pushSettingsToLS();
+      drawingTimer.changeDrawing();
+      for (const [k, v] of Object.entries(canvases)) {
+        if (v === null) continue;
+        if (k === settings.drawing) addCanvasEventListeners(v);
+        else removeCanvasEventListeners(v);
+        v.classList.toggle('hidden', k !== settings.drawing);
+      }
+    }
+  });
+  const maxFpsValueDisplay = document.getElementById('max-fps-value');
+  setupEvent('max-fps-range', 'change', (e) => {
+    const maxFPS = parseInt((<HTMLInputElement>e.target).value);
+    if (Number.isInteger(maxFPS)) {
+      settings.maxFPS = maxFPS;
+      pushSettingsToLS();
+      drawingTimer.changeMaxFPS();
+    }
+  })
+  setupEvent('max-fps-range', 'input', (e) => {
+    if (maxFpsValueDisplay !== null)
+      (maxFpsValueDisplay).innerText = (<HTMLInputElement>e.target).value;
+  })
+
   updateToolButtons(document.querySelector("#tool-move") as HTMLElement);
-  initContext();
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
-  circuitIO = new CircuitIO(circuit, colorPicker, camera, canvas);
+  circuitIO = new CircuitIO(circuit, colorPicker, camera);
   fileIO = new FileIO(i18n, circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
 
+  canvases = {
+    'canvas': document.getElementById('canvas-canvas') as HTMLCanvasElement,
+    'webgl': document.getElementById('webgl-canvas') as HTMLCanvasElement
+  }
+  drawingTimer.setCanvases(canvases);
+  const scale = getScale();
+  for (const [k, canvas] of Object.entries(canvases)) {
+    if (canvas === null) continue;
+    canvas.width = window.innerWidth * scale;
+    canvas.height = window.innerHeight * scale;
+    canvas.classList.toggle('hidden', k !== settings.drawing);
+    canvas.addEventListener('contextmenu', e => {
+      e.preventDefault();
+    });
+  }
+  if (canvases[settings.drawing] !== null)
+    addCanvasEventListeners(canvases[settings.drawing]!);
 
   updateCopyWiresButtonText();
   updateShowWiresButtonText();
   updateConnectModeButtonText();
-  fileIO.updateFilenameDisplay();
+  drawingTimer.changeMaxFPS();
+  drawingTimer.changeDrawing();
+  toggleThemeOnChange();
+  toggleLocale();
 
   // Привязка кнопок
   setupEvent('save-scheme', 'click', fileIO.save);
@@ -140,18 +255,18 @@ window.onload = (() => {
     isSimulating = false;
     clearInterval(simInterval);
     optimizedStep();
+    drawingTimer.stop();
     drawingTimer.step();
   });
 
   setupEvent('stop-sim', 'click', () => {
     isSimulating = false;
     clearInterval(simInterval);
+    drawingTimer.stop();
   });
   setupEvent('speed-sim', 'change', () => {
     if (isSimulating) {
-      isSimulating = false;
       clearInterval(simInterval);
-      isSimulating = true;
       const clock = (document.getElementById('speed-sim') as HTMLInputElement);
       const min = parseInt(clock.getAttribute('min') || "1");
       const max = parseInt(clock.getAttribute('max') || "1000");
@@ -266,31 +381,49 @@ window.onload = (() => {
       fileIO.save();
     }
   });
-  canvas.addEventListener('contextmenu', e => {
-    e.preventDefault();
-  });
 
   drawingTimer.step();
   setInterval(() => circuitIO.clearUnusedChunks(), 5000);
-  setTimeout(estimateDisplayHz, 500);
 });
 
+function removeCanvasEventListeners(_canvas: HTMLCanvasElement) {
+  _canvas.removeEventListener('wheel', onCanvasWheel);
+  _canvas.removeEventListener('mouseup', onCanvasMouseUp);
+  _canvas.removeEventListener('mouseout', onCanvasMouseOut);
+  _canvas.removeEventListener('mousemove', onCanvasMouseMove);
+  _canvas.removeEventListener('mousedown', onCanvasMouseDown);
+}
+
+function addCanvasEventListeners(_canvas: HTMLCanvasElement) {
+  _canvas.addEventListener('wheel', onCanvasWheel);
+  _canvas.addEventListener('mouseup', onCanvasMouseUp);
+  _canvas.addEventListener('mouseout', onCanvasMouseOut);
+  _canvas.addEventListener('mousemove', onCanvasMouseMove);
+  _canvas.addEventListener('mousedown', onCanvasMouseDown);
+}
+
+
 window.addEventListener('resize', () => {
-  const scale = window.devicePixelRatio > 1 ? window.devicePixelRatio : 1;
+  const scale = getScale();
+  const canvas = drawingTimer.currentCanvas();
   canvas.width = window.innerWidth * scale;
   canvas.height = window.innerHeight * scale;
 
   const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
   for (const floatingMenu of floatingMenus) {
-    const getStyleFM = window.getComputedStyle(floatingMenu);
-    const x = clamp(floatingMenu.offsetLeft, 20, window.innerWidth - parseInt(getStyleFM.width) - 55);
-    const y = clamp(floatingMenu.offsetTop, 20, window.innerHeight - parseInt(getStyleFM.height) - 55);
-    floatingMenu.style.left = `${x}px`;
-    floatingMenu.style.top = `${y}px`;
+    clampFMCoords(floatingMenu);
   }
 
   drawingTimer.step();
 });
+
+function clampFMCoords(floatingMenu: HTMLElement) {
+  const getStyleFM = window.getComputedStyle(floatingMenu);
+  const x = clamp(parseInt(getStyleFM.left), 20, window.innerWidth - parseInt(getStyleFM.width) - 55);
+  const y = clamp(parseInt(getStyleFM.top), 20, window.innerHeight - parseInt(getStyleFM.height) - 55);
+  floatingMenu.style.left = `${x}px`;
+  floatingMenu.style.top = `${y}px`;
+}
 
 function resizeFMs() {
   const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
@@ -301,29 +434,15 @@ function resizeFMs() {
   }
 }
 
-function toggleTheme(force?: boolean) {
+function toggleTheme(setDark?: boolean) {
   const htmlElement = document.documentElement;
-  const toggleThemeBtnIcon = document.querySelector("#theme-toggle svg");
-  let isDark: boolean;
-  if (force !== undefined) {
-    if (force) {
-      htmlElement.setAttribute('data-theme', 'dark');
-    } else {
-      htmlElement.removeAttribute('data-theme');
-    }
-    isDark = force;
-  } else {
-    if (htmlElement.getAttribute('data-theme') === 'dark') {
-      htmlElement.removeAttribute('data-theme');
-      isDark = false;
-    } else {
-      htmlElement.setAttribute('data-theme', 'dark');
-      isDark = true;
-    }
-  }
-  if (toggleThemeBtnIcon)
-    toggleThemeBtnIcon.innerHTML = `<path d="${(isDark ? pathMap.get('moon') : pathMap.get('sun'))}"/>`;
-  if (isDark) {
+
+  setDark = setDark ?? (htmlElement.getAttribute('data-theme') !== 'dark');
+
+  if (setDark) htmlElement.setAttribute('data-theme', 'dark');
+  else htmlElement.removeAttribute('data-theme');
+
+  if (setDark) {
     colors.grid = [0, 0, 0, 1];
     colors.background = [0.1, 0.1, 0.1, 1];
   } else {
@@ -422,7 +541,7 @@ function cycleConnectMode(e: Event) {
 
 
 
-canvas.addEventListener('mousedown', e => {
+function onCanvasMouseDown(e: MouseEvent) {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
 
@@ -567,6 +686,9 @@ canvas.addEventListener('mousedown', e => {
 
           if (elIndex < 3) {
             connectTool.vectors[0] = { x: 0, y: 0, length: 0 };
+            connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
+            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
+            connectTool.targets[5] = null;
           } else if (elIndex < 5) {
             connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
             if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
@@ -585,8 +707,6 @@ canvas.addEventListener('mousedown', e => {
         }
         fillCTSources(rows, check);
       } else if (connectTool.mode === ConnectMode.Decoder) {
-        if (connectTool.targets === null) connectTool.targets = [null, null, null, null, null, null, null, null, null];
-        if (connectTool.vectors.length !== 2) connectTool.vectors.length = 3;
         let elIndex = connectTool.targets.indexOf(el);
 
         clearSelection();
@@ -745,10 +865,19 @@ canvas.addEventListener('mousedown', e => {
           const mode = prompt(`Set gate mode (now ${el.gateType}):`)?.trim();
           const newMode = Math.round(Number(mode));
           if (mode !== null && mode !== '' && !Number.isNaN(newMode) && (0 <= newMode && newMode <= 6)) {
+            if (newMode === gateTypeToMode.get('T_FLOP'))
+              circuit.addWire(el, el);
+            else
+              circuit.removeWire(el, el);
             el.gateType = newMode;
             for (const elI of selectedElements) {
-              if (elI instanceof LogicGates.LogicGate)
+              if (elI instanceof LogicGates.LogicGate) {
+                if (newMode === gateTypeToMode.get('T_FLOP'))
+                  circuit.addWire(elI, elI);
+                else
+                  circuit.removeWire(elI, elI);
                 elI.gateType = newMode;
+              }
             }
             drawingTimer.step();
           }
@@ -790,9 +919,9 @@ canvas.addEventListener('mousedown', e => {
 
 
   drawingTimer.step();
-});
+}
 
-canvas.addEventListener('mousemove', e => {
+function onCanvasMouseMove(e: MouseEvent) {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
 
@@ -830,22 +959,16 @@ canvas.addEventListener('mousemove', e => {
   prevMousePos.x = e.offsetX;
   prevMousePos.y = e.offsetY;
 
-});
-window.addEventListener('mouseup', _ => {
-  if (isSelecting || isDragging) {
-    isSelecting = false;
-    isDragging = false;
-    drawingTimer.stop();
-    drawingTimer.step();
-  }
-})
-canvas.addEventListener('mouseout', _ => {
+}
+window.addEventListener('mouseup', onCanvasMouseOut);
+
+function onCanvasMouseOut() {
   isHandMoving = false;
   isSelecting = false;
   isDragging = false;
   drawingTimer.stop();
-  // drawingTimer.step();
-});
+  drawingTimer.step();
+}
 
 function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   const zoomFactor = 1.1;
@@ -860,13 +983,14 @@ function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   camera.y = worldY * h2 - centerY;
 }
 
-canvas.addEventListener('wheel', (e) => {
+
+function onCanvasWheel(e: WheelEvent) {
   e.preventDefault();
   zoomCanvas(e.deltaY < 0, e.offsetX, e.offsetY);
   drawingTimer.step();
-}, { passive: false });
+}
 
-canvas.addEventListener('mouseup', e => {
+function onCanvasMouseUp(e: MouseEvent) {
   if (isHandMoving && e.button === 1) {
     isHandMoving = false;
     drawingTimer.stop();
@@ -881,7 +1005,7 @@ canvas.addEventListener('mouseup', e => {
     e.stopPropagation();
   }
 
-});
+}
 
 // Обработка клавиш
 document.addEventListener('keydown', e => {
@@ -896,9 +1020,13 @@ document.addEventListener('keydown', e => {
       selectedElements.forEach(el => circuit.deleteElement(el));
       clearSelection();
     } else if (e.code === '-' || e.code === '+') {
-      zoomCanvas(e.code === '+', canvas.width / 2, canvas.height / 2);
+      zoomCanvas(e.code === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
     } else if (e.code === 'Escape') {
       clearSelection();
+      ghostElements.clear();
+      customOverlays.clear();
+      connectTool.targets.length = 0;
+      connectTool.vectors.length = 0;
     } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
       document.getElementById('tool-connect')?.click();
     } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyV') {
@@ -1006,52 +1134,9 @@ function updateToolButtons(pressedBtn?: HTMLElement) {
   pressedBtn?.setAttribute('active', 'true');
 }
 
-const drawingTimer = {
-  interval: 0,
-  active: false,
-  setup() {
-    if (drawingTimer.active) return;
-    drawingTimer.active = true;
-    drawingTimer.interval = setInterval(() =>
-      requestAnimationFrame(draw), 1000 / (displayRefreshRate || 60));
-  },
-  stop() {
-    if (isSimulating) return;
-    clearInterval(drawingTimer.interval);
-    drawingTimer.active = false;
-  },
-  step() {
-    if (!drawingTimer.active) requestAnimationFrame(draw);
-  }
-};
+
 
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
+  pushSettingsToLS();
 });
-
-function estimateDisplayHz() {
-  const duration = 500;
-  let frameCount = 0;
-  let startTime: number | null = null;
-  let rafId: number;
-
-  function loop(timestamp: number) {
-    if (!startTime) {
-      startTime = timestamp;
-    }
-
-    frameCount++;
-    const elapsed = timestamp - startTime;
-
-    if (elapsed < duration) {
-      rafId = requestAnimationFrame(loop);
-    } else {
-      cancelAnimationFrame(rafId);
-      const hz = (frameCount / elapsed) * 1000;
-      displayRefreshRate = Math.max(Math.round(hz/15)*15, 60);
-      console.log(`Estimated display refresh rate: ${displayRefreshRate} Hz`);
-    }
-  }
-
-  rafId = requestAnimationFrame(loop);
-}

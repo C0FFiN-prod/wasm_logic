@@ -1,6 +1,7 @@
 import type { CircuitIO } from "../IOs/circuitIO";
-import type { LocaleNames } from "../consts";
-import { draw } from "../drawingWGL";
+import { ToolMode, type LocaleNames } from "../consts";
+import { drawingTimer } from "../drawings";
+import { selectedTool } from "../main";
 import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 
 export class FileIO {
@@ -48,7 +49,7 @@ export class FileIO {
     }
     private get unnamed() {
         return this.i18n.getValue("dynamic", "no-file") || "Unnamed";
-    } 
+    }
     clearFileHandle() {
         this.currentFileHandle = null;
         this.currentFileName = '';
@@ -110,7 +111,7 @@ export class FileIO {
         }
     }
 
-    writeToCurrentFile = async(): Promise<void> => {
+    writeToCurrentFile = async (): Promise<void> => {
         if (!this.currentFileHandle) {
             await this.saveAs();
             return;
@@ -140,7 +141,7 @@ export class FileIO {
             const contents = await file.text();
             if (!add) this.circuitIO.clearCircuit();
             this.circuitIO.deserializeCircuit(contents);
-            requestAnimationFrame(draw);
+            drawingTimer.step();
         } else {
             const input = document.createElement("input");
             input.type = "file";
@@ -155,7 +156,7 @@ export class FileIO {
                 const text = await file.text();
                 if (!add) this.circuitIO.clearCircuit();
                 this.circuitIO.deserializeCircuit(text);
-                requestAnimationFrame(draw);
+                drawingTimer.step();
             };
             input.click();
         }

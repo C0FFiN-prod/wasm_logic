@@ -1,7 +1,7 @@
 :root {
     --font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
     --text: #070707;
-    --bg-color: #e0e0e0;
+    --bg-color: #e5e5e5;
     --btn-color: #e7e7e7;
     --btn-color-hover: #cdcdcd;
     --btn-color-active: #f3f3f3;
@@ -20,7 +20,7 @@
 
 [data-theme="dark"] {
     --text: #e0e0e0;
-    --bg-color: #121212;
+    --bg-color: #191919;
     --btn-color: #333;
     --btn-color-hover: #444;
     --btn-color-active: #525252;
@@ -112,7 +112,7 @@ input[type="checkbox"]:checked::before {
 
 
 
-#circuit-canvas {
+.circuit-canvas {
     display: block;
     width: 100%;
     height: 100%;
@@ -225,16 +225,19 @@ hr {
     height: 1px;
 }
 
-#settings-toggle {
+#dots-toggle {
     position: absolute;
     top: 20px;
     right: 20px;
 }
 
-#settings-menu {
+#dots-menu {
     position: absolute;
-    top: 70px;
+    top: 60px;
     right: 20px;
+}
+.dots-menu-block {
+    margin-top: 20px;
     display: flex;
     gap: 10px;
     flex-direction: column;
@@ -248,6 +251,16 @@ hr {
     display: flex;
     justify-content: center;
     box-shadow: 0px 3px 10px 0px #00000073;
+}
+
+.settings-block {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 10px;
+}
+.settings-block > * {
+    margin-bottom: 5px;
+    margin-top: 5px;
 }
 
 input[type="number"] {

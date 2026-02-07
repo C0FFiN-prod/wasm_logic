@@ -1,23 +1,20 @@
 import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode, type Point, gridSize, minZoom, chunkMargin } from "../consts";
 import * as LogicGates from "../logic";
-import { getPointDelta, getPointFromChunkKey, screenToWorld } from "../utils/utils";
+import { getPointDelta, getPointFromChunkKey, getScale, screenToWorld } from "../utils/utils";
 export type Element = { id: string, type: string, inputs: string[], layer: number };
 type Rect = { x0: number, y0: number, x1: number, y1: number };
 // Сериализация схемы в JSON
 export class CircuitIO {
 
     circuit: LogicGates.Circuit;
-    canvas: HTMLCanvasElement;
     camera: Camera;
     colorPicker: HTMLInputElement;
     constructor(
         circuit: LogicGates.Circuit,
         colorPicker: HTMLInputElement,
-        camera: Camera,
-        canvas: HTMLCanvasElement
+        camera: Camera
     ) {
         this.circuit = circuit;
-        this.canvas = canvas;
         this.camera = camera;
         this.colorPicker = colorPicker;
     }
@@ -29,12 +26,12 @@ export class CircuitIO {
         const h1 = this.camera.zoom * gridSize;
         const h2 = minZoom * gridSize * 2;
         const center: Point = {
-            x: (this.camera.x + this.canvas.width / 2) / h1,
-            y: (this.camera.y + this.canvas.height / 2) / h1
+            x: (this.camera.x + window.innerWidth * getScale() / 2) / h1,
+            y: (this.camera.y + window.innerHeight * getScale() / 2) / h1
         };
         const maxDist: Point = {
-            x: chunkMargin + this.canvas.width / h2,
-            y: chunkMargin + this.canvas.height / h2
+            x: chunkMargin + window.innerWidth * getScale() / h2,
+            y: chunkMargin + window.innerHeight * getScale() / h2
         }
         const keysToDelete = [];
         for (const key of this.circuit.lruChunkCache.values()) {
@@ -57,7 +54,7 @@ export class CircuitIO {
         let maxHeight = 0;
         for (const layer of layers) maxHeight = Math.max(layer.length, maxHeight);
 
-        const center = screenToWorld(this.camera, this.canvas.width / 2, this.canvas.height / 2);
+        const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
         const topLeft = { x: Math.round(center.x) - layers.length, y: Math.round(center.y) - maxHeight };
         if (!typeToshapeId.has(inputElementType) && !gateTypeToMode.has(inputElementType)
             || typeToshapeId.has(inputElementType) && inputElementType === 'GATE')
@@ -212,11 +209,9 @@ export class CircuitIO {
 
     deserializeCircuit(json: string) {
         const data = JSON.parse(json);
-        this.circuit.clear();
         const idMap = new Map<number, LogicGates.LogicElement>();
         const version = data.version;
-
-        const center = screenToWorld(this.camera, this.canvas.width / 2, this.canvas.height / 2);
+        const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
         const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
 
         if (version === 3 || version === 4) {
@@ -257,7 +252,7 @@ export class CircuitIO {
                 }
             }
         }
-
+        return idMap.values();
     }
 
     rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean) {
@@ -354,7 +349,7 @@ export class CircuitIO {
     }
 
     addElement(type: string, params: Record<string, any>) {
-        const center = screenToWorld(this.camera, this.canvas.width / 2, this.canvas.height / 2);
+        const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
         params.pos = params.pos ?? {};
         params.controller = params.controller ?? {};
         params.pos.x = params.pos.x ?? Math.round(center.x + Math.random() * 10 - 5);

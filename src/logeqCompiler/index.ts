@@ -136,7 +136,7 @@ export class LogEqLangCompiler {
         }
     }
 }
-
+/*
 // Примеры использования
 const compiler = new LogEqLangCompiler();
 
@@ -253,3 +253,4 @@ try {
 } catch (error) {
     console.error('Ошибка:', error);
 }
+*/
