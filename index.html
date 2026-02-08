@@ -75,9 +75,12 @@
             <button class="hide"></button>
         </div>
         <div class="floating-menu-container flex col justify">
-            <textarea name="logeq-text" id="logeq-text" cols="60" rows="10" placeholder="A = S0; 
+            <div class="code-container">
+                <div class="code-lines" id="logeq-lines"></div>
+                <textarea name="logeq-text" class="code-text" id="logeq-text" cols="60" rows="10" placeholder="A = S0; 
 B = B0;
 L0 = A ^ B;"></textarea>
+            </div>
             <div class="flex row between gap-3">
                 <button id="logeq-clear" data-locale="clear"></button>
                 <span class="align-content-center lh-1">
@@ -94,6 +97,7 @@ L0 = A ^ B;"></textarea>
                 </span>
                 <button id="logeq-parse" data-locale="parse"></button>
             </div>
+            <div id="logeq-console"></div>
         </div>
     </div>
     <div class="floating-menu" id="fm-tools" style="left: 20px; top: 20px;" data-locale-section="floating-menu-tools">

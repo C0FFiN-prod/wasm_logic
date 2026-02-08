@@ -178,3 +178,15 @@ export function getPointDelta(point1: Point, point2: Point): Point {
 export function getScale() {
   return window.devicePixelRatio > 1 ? window.devicePixelRatio : 1;
 }
+
+export function countSubstr(source: string, substring: string, start = 0, end = -1) {
+  if (end === -1) end = source.length;
+  if (start > end || source.length < substring.length) return 0;
+  let cnt = 0;
+  let i = start;
+  while ((i = source.indexOf(substring, i)) !== -1 && i < end) {
+    ++i;
+    ++cnt;
+  };
+  return cnt;
+}

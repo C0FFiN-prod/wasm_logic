@@ -20,7 +20,7 @@ export class LogEqLangCompiler {
         let j = pos;
         while (i > 0 && source[i] != '\n' && pos - i < 15) --i;
         while (j < source.length && source[j] != '\n' && j - pos < 30 - (pos - i)) ++j;
-        return source.slice(i, j) + '\n'+' '.repeat(pos - i - 1) + '^' + '~'.repeat(width-1);
+        return source.slice(i, j) + '\n'+' '.repeat(pos - i) + '^' + '~'.repeat(width-1);
     }
 
     tokenize(source: string) {

@@ -33,6 +33,7 @@
     "unknown-expression-type": "Неизвестный тип выражения: %1"
   },
   "dynamic": {
+    "success": "Успех",
     "no-file": "Без названия",
     "none": "Нет",
     "temporary": "Временные",

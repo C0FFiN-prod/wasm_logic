@@ -1,5 +1,6 @@
 :root {
     --font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
+    --font-family-ms: ui-monospace, Menlo, Consolas, "Ubuntu Mono", "Roboto Mono", "DejaVu Sans Mono", monospace;
     --text: #070707;
     --bg-color: #e5e5e5;
     --btn-color: #e7e7e7;
@@ -104,6 +105,7 @@ input[type="checkbox"]:checked::after {
     translate: 4px 8px;
     width: 15px;
 }
+
 input[type="checkbox"]:checked::before {
     rotate: 45deg;
     translate: 0px 10px;
@@ -236,6 +238,7 @@ hr {
     top: 60px;
     right: 20px;
 }
+
 .dots-menu-block {
     margin-top: 20px;
     display: flex;
@@ -258,7 +261,8 @@ hr {
     flex-direction: column;
     margin-bottom: 10px;
 }
-.settings-block > * {
+
+.settings-block>* {
     margin-bottom: 5px;
     margin-top: 5px;
 }
@@ -335,7 +339,8 @@ button.hide::after {
 }
 
 select,
-textarea {
+textarea,
+#logeq-console {
     background-color: var(--fm-bg-color);
     padding: 5px;
     color: var(--text);
@@ -355,9 +360,45 @@ textarea:hover {
     outline: none;
     border: 1px solid var(--text);
 }
+#logeq-text,
+#logeq-console {
+    font-family: var(--font-family-ms);
+    text-wrap-mode: nowrap;
+}
 
 #logeq-text {
+    flex: 1;
+    
+    min-height: 60px;
+    max-height: 70vh;
+}
+
+#logeq-console {
+    resize: both;
+    min-height: 20px;
+    max-height: 150px;
+    border: 1px solid var(--input-border-color);
+    white-space-collapse: preserve;
+    overflow: auto;
     min-width: calc(100% - 10px);
+}
+
+.code-container {
+    display: flex;
+    border: 1px solid var(--input-border-color);
+    border-radius: 5px;
+}
+
+.code-text {
+    border: none !important;
+    border-left: 1px solid var(--input-border-color) !important;
+    border-radius: 0 5px 5px 0;
+}
+
+.code-lines {
+    
+    overflow: hidden;
+    text-align: right;
 }
 
 select {

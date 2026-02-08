@@ -33,6 +33,7 @@
     "unknown-expression-type": "Nieznany typ wyrażenia: %1"
   },
   "dynamic": {
+    "success": "Sukces",
     "no-file": "Bez nazwy",
     "none": "Brak",
     "temporary": "Tymczasowe",

@@ -13,6 +13,8 @@ export class LexerError extends Error {
         public value: string,
         public pos: number,
         public width: number,
+        public line: number,
+        public column: number,
     ) {
         super(message);
         this.name = 'LexerError';
@@ -229,6 +231,6 @@ export class Lexer {
     }
 
     private error(message: string, value:string, pos: number, width: number): void {
-        throw new LexerError(`[${this.line}:${this.column}] ${message}`, value, pos, width);
+        throw new LexerError(message, value, pos, width, this.line, this.column - width);
     }
 }

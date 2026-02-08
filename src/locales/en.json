@@ -33,6 +33,7 @@
     "unknown-expression-type": "Unknown expression type: %1"
   },
   "dynamic": {
+    "success": "Success",
     "no-file": "Unnamed",
     "none": "None",
     "temporary": "Temporary",
