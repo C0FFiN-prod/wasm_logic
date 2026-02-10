@@ -13,6 +13,7 @@ import {
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
 import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld } from "../utils/utils";
+import { wireDrawingAlg } from "./wiresDrawing";
 
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
@@ -114,7 +115,13 @@ export function draw() {
         ctx.strokeRect(x, y, w, h);
     }
 }
-
+function drawLines(points: number[]) {
+    const n = Math.trunc(points.length / 4);
+    ctx.moveTo(points[0], points[1]);
+    for (let i = 0; i < n; ++i) {
+        ctx.lineTo(points[2 + i * 4], points[2 + i * 4 + 1]);
+    }
+}
 function drawWires() {
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
@@ -128,10 +135,9 @@ function drawWires() {
         ctx.beginPath();
 
         for (const wire of circuit.wires.values()) {
-            let start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
-            let end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
-            ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
-            ctx.lineTo(end.x, end.y + gridSize * .5);
+            const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
+            const end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
+            drawLines(wireDrawingAlg(start, end));
         }
         ctx.stroke();
     }
@@ -155,8 +161,7 @@ function drawWires() {
                 for (const target of connectTool.sources[1]) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
-                    ctx.lineTo(end.x, end.y + gridSize * .5);
+                    drawLines(wireDrawingAlg(start, end));
                 }
             }
             ctx.stroke();
@@ -168,8 +173,7 @@ function drawWires() {
                 if (prevEl !== null) {
                     const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
                     const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
-                    ctx.lineTo(end.x, end.y + gridSize * .5);
+                    drawLines(wireDrawingAlg(start, end));
                 }
                 prevEl = el;
             }
@@ -186,8 +190,7 @@ function drawWires() {
             ) {
                 const start = worldToTranslatedScreen(camera, source.x, source.y);
                 const end = worldToTranslatedScreen(camera, target.x, target.y);
-                ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
-                ctx.lineTo(end.x, end.y + gridSize * .5);
+                drawLines(wireDrawingAlg(start, end));
             }
             ctx.stroke();
         } else if (connectTool.mode === ConnectMode.Decoder) {
@@ -207,8 +210,7 @@ function drawWires() {
                 for (const target of targets) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    ctx.moveTo(start.x + gridSize, start.y + gridSize * .5);
-                    ctx.lineTo(end.x, end.y + gridSize * .5);
+                    drawLines(wireDrawingAlg(start, end));
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;

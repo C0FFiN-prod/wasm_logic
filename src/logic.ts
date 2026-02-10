@@ -346,11 +346,11 @@ export class Circuit {
 
     addWire(src: LogicElement, dst: LogicElement) {
         // Проверяем, нет ли уже такого провода
-        const wireKey = `${src.id}-${dst.id}`;
-        const reverseWireKey = `${dst.id}-${src.id}`;
+        const wireKey = `${src.id}|${dst.id}`;
+        // const reverseWireKey = `${dst.id}|${src.id}`;
 
 
-        if (this.wires.has(wireKey) || this.wires.has(reverseWireKey))
+        if (this.wires.has(wireKey))
             return false;
 
 
@@ -359,8 +359,8 @@ export class Circuit {
         return true;
     }
 
-    removeWire(src: { id: any; }, dst: { id: any; removeInput: (arg0: any) => void; }) {
-        const wireKey = `${src.id}-${dst.id}`;
+    removeWire(src: LogicElement, dst: LogicElement) {
+        const wireKey = `${src.id}|${dst.id}`;
 
         if (this.wires.has(wireKey)) {
             this.wires.delete(wireKey);
@@ -372,21 +372,19 @@ export class Circuit {
     }
 
     // Удалить все провода, связанные с элементом
-    removeWiresForElement(element: { id: any; inputs: any; }) {
+    removeWiresForElement(element: LogicElement) {
         const wiresToRemove = new Array<Pair<Wire, string>>();
 
         // Сначала находим все провода для удаления
         const elID = element.id;
         let wire, key: string;
-        for (const chunk of this.chunks.values()) {
-            for (const el of chunk) {
-                if ((wire = this.wires.get(key = `${elID}-${el.id}`)) !== undefined)
-                    wiresToRemove.push(new Pair(wire, key));
-            }
+        for (const el of element.outputs) {
+            if ((wire = this.wires.get(key = `${elID}|${el.id}`)) !== undefined)
+                wiresToRemove.push(new Pair(wire, key));
         }
 
         for (const el of element.inputs) {
-            if (wire = this.wires.get(key = `${el.id}-${elID}`)) {
+            if (wire = this.wires.get(key = `${el.id}|${elID}`)) {
                 wiresToRemove.push(new Pair(wire, key));
             }
         }

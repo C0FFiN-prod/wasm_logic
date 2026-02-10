@@ -81,9 +81,11 @@ export const locales = {
   pl: plLocale,
 }
 export const Themes = ['system', 'light' , 'dark'] as const;
+export const WireDrawings = ['simple', 'dimple' , 'manhattan'] as const;
 export const Drawings = ['webgl', 'canvas'] as const;
 export type LocaleNames = keyof typeof locales
 export type Themes = (typeof Themes)[number];
+export type WireDrawings = (typeof WireDrawings)[number];
 export type Drawings = (typeof Drawings)[number];
 
 export type ConnectMode = typeof ConnectMode[keyof typeof ConnectMode];

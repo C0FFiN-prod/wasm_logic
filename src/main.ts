@@ -1,6 +1,6 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, ConnectMode, CopyWiresMode, Drawings, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
+import { colors, ConnectMode, CopyWiresMode, Drawings, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
@@ -8,6 +8,7 @@ import { LogEqLangCompiler, LexerError, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr } from './utils/utils';
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
+import { changeWireDrawingAlg } from './drawings/wiresDrawing';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -69,6 +70,7 @@ export const settings = {
   theme: 'system' as Themes,
   locale: 'en' as LocaleNames,
   drawing: 'webgl' as Drawings,
+  wireDrawing: 'simple' as WireDrawings,
   maxFPS: 60,
   drawIcons: true
 }
@@ -89,6 +91,8 @@ function getSettingsFromLS() {
     (<HTMLInputElement>setting).value = settings.locale;
   if (setting = document.getElementById('drawing-select'))
     (<HTMLInputElement>setting).value = settings.drawing;
+  if (setting = document.getElementById('wire-drawing-select'))
+    (<HTMLInputElement>setting).value = settings.wireDrawing;
   if (setting = document.getElementById('max-fps-range')) {
     (<HTMLInputElement>setting).value = settings.maxFPS.toString();
     const maxFpsValueDisplay = document.getElementById('max-fps-value');
@@ -138,6 +142,15 @@ window.onload = (() => {
       settings.theme = <Themes>theme;
       pushSettingsToLS();
       toggleThemeOnChange();
+    }
+  });
+  setupEvent('wire-drawing-select', "change", (e) => {
+    const wireDrawing = (<HTMLInputElement>e.target).value;
+    if (WireDrawings.includes(<WireDrawings>wireDrawing)) {
+      settings.wireDrawing = <WireDrawings>wireDrawing;
+      pushSettingsToLS();
+      changeWireDrawingAlg();
+      drawingTimer.step();
     }
   });
   setupEvent('locale-select', "change", (e) => {
@@ -679,6 +692,7 @@ function onCanvasMouseDown(e: MouseEvent) {
         } else {
           if (el instanceof LogicGates.LogicElement) customOverlays.delete(el);
           connectTool.targets[elIndex] = null;
+          connectTool.vectors[0] = { x: 0, y: 0, length: 0 };
         }
       } else if (connectTool.mode === ConnectMode.Parallel) {
         let elIndex = connectTool.targets.indexOf(el);
@@ -1017,7 +1031,6 @@ function onCanvasMouseMove(e: MouseEvent) {
   prevMousePos.y = e.offsetY;
 
 }
-window.addEventListener('mouseup', onCanvasMouseOut);
 
 function onCanvasMouseOut() {
   isHandMoving = false;
