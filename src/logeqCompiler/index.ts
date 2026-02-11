@@ -1,9 +1,9 @@
 // main.ts - Объединение парсера AST и CircuitBuilder
-import { Lexer, LexerError, type Token } from './lexer';
+import { Lexer, type Token } from './lexer';
 import { ParseError, Parser } from './parser';
 import { BuildError, CircuitBuilder, type CircuitLayers } from './circuitBuilder';
 import type { Program } from './ast';
-export {LexerError, BuildError, ParseError};
+export {BuildError, ParseError};
 export class LogEqLangCompiler {
     private lexer: Lexer;
     private parser: Parser;
@@ -44,7 +44,7 @@ export class LogEqLangCompiler {
     } {
         try {
             // 1. Лексический анализ
-            const tokens = this.lexer.tokenize(source);
+            const [tokens, unknownTokens] = this.lexer.tokenize(source);
 
             // 2. Синтаксический анализ (построение AST)
             const ast = this.parser.parse(tokens);
@@ -78,7 +78,7 @@ export class LogEqLangCompiler {
 
             console.log('\n1. AST:');
             this.printAST(result.ast);
-
+            
             console.log('\n2. Схема:');
             this.printCircuit(result.layers);
             // console.log(JSON.stringify(result.layers,null,2))
@@ -89,12 +89,7 @@ export class LogEqLangCompiler {
             }
 
         } catch (error: any) {
-            if (error instanceof LexerError) {
-                this.highlighter(source, error.pos, error.width);
-                console.log(error.message+": " + error.value);
-            } else {
-                console.error('\nКритическая ошибка:', error.message);
-            }
+            console.error('\nКритическая ошибка:', error.message);
         }
     }
 

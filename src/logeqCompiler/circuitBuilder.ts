@@ -363,9 +363,9 @@ export class CircuitBuilder {
     }
 
     private getInputType(name: string): string {
-        if (/S[0-9]+/.test(name)) {
+        if (/^S[0-9]+/.test(name)) {
             return 'SWITCH';
-        } else if (/B[0-9]+/.test(name)) {
+        } else if (/^B[0-9]+/.test(name)) {
             return 'BUTTON';
         }
         return 'INPUT';

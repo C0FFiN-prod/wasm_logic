@@ -14,7 +14,7 @@ import { type LogicGate } from "../logic";
 import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, WireDrawings, type Point, type vec3 } from "../consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
-import { wireDrawingAlg } from "./wiresDrawing";
+import { wireDrawingAlg, overlayIconMap } from ".";
 
 
 
@@ -436,7 +436,7 @@ function packElements(): {
         ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(el, nextColorIndex));
         const border = el.borderColor;
         const iconIndex = iconMap.get(el.icon)!;
-        const iconOverlayIndex = iconMap.get(el.overlay)!;
+        const iconOverlayIndex = overlayIconMap.get(el.overlay)!;
         const iconOverlayColor = el.overlayColor;
         attributes[i] =
             (iconOverlayColor & 0xF) << 20 |
@@ -476,17 +476,19 @@ function packElements(): {
             let iconOverlayColor = 0;
             if (customOverlays.has(el)) {
                 const { icon, color } = customOverlays.get(el)!;
-                iconOverlayIndex = iconMap.get(icon)!;
+                iconOverlayIndex = overlayIconMap.get(icon)!;
                 iconOverlayColor = color;
             } else if (elementUnderCursor) {
                 if (elementUnderCursor.inputs.has(el) && elementUnderCursor === el) {
-                    iconOverlayIndex = iconMap.get('sw')!;
+                    iconOverlayIndex = overlayIconMap.get('sw')!;
                 } else if (elementUnderCursor == el) {
-                    iconOverlayIndex = iconMap.get('x')!;
+                    iconOverlayIndex = overlayIconMap.get('x')!;
+                } else if (elementUnderCursor.inputs.has(el) && elementUnderCursor.outputs.has(el)) {
+                    iconOverlayIndex = overlayIconMap.get('vv')!;
                 } else if (elementUnderCursor.inputs.has(el)) {
-                    iconOverlayIndex = iconMap.get('in')!;
+                    iconOverlayIndex = overlayIconMap.get('in')!;
                 } else if (elementUnderCursor.outputs.has(el)) {
-                    iconOverlayIndex = iconMap.get('out')!;
+                    iconOverlayIndex = overlayIconMap.get('out')!;
                 }
                 iconOverlayColor = overlayColorIndexes[iconOverlayIndex] || 0;
             }
@@ -846,22 +848,8 @@ const iconMap = new Map<string, number>(Object.entries({
     button: 8,
     switch: 10,
     output: 12,
-
-    // overlays
-    x: 1,
-    sw: 2,
-    in: 3,
-    out: 4,
-    a0: 5,
-    a1: 6,
-    an: 7,
-    b0: 8,
-    b1: 9,
-    bn: 10,
-    r0: 11,
-    r1: 12,
-    rn: 13,
 }));
+
 const hasActiveIcon: Set<string> = new Set([
     'button',
     'switch',

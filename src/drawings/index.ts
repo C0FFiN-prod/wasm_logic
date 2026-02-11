@@ -2,6 +2,7 @@ import * as dWebGl from "./drawingWGL";
 import * as dCanvas from "./drawingCanvas";
 import { isSimulating, settings } from "../main";
 import type { Drawings } from "../consts";
+import { dimple, manhattan, simple } from "./wiresDrawing";
 let draw = dWebGl.draw;
 let initContext = dWebGl.initContext;
 let displayRefreshRate = 0;
@@ -64,3 +65,30 @@ export const drawingTimer = {
         console.log(1);
     }
 };
+
+export const overlayIconMap = new Map<string, number>(Object.entries({
+    // overlays
+    x: 1,
+    sw: 2,
+    in: 3,
+    out: 4,
+    vv: 5,
+    a0: 6,
+    a1: 7,
+    an: 8,
+    b0: 9,
+    b1: 10,
+    bn: 11,
+    r0: 12,
+    r1: 13,
+    rn: 14,
+}));
+
+export function changeWireDrawingAlg() {
+    switch (settings.wireDrawing) {
+        case 'dimple': wireDrawingAlg = dimple; break;
+        case 'manhattan': wireDrawingAlg = manhattan; break;
+        default:
+        case 'simple': wireDrawingAlg = simple; break;
+    }
+} export let wireDrawingAlg = simple;

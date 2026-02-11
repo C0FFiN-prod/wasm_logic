@@ -4,11 +4,11 @@ import { colors, ConnectMode, CopyWiresMode, Drawings, gateTypeToMode, gridSize,
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
-import { LogEqLangCompiler, LexerError, BuildError } from './logeqCompiler';
+import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr } from './utils/utils';
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
-import { changeWireDrawingAlg } from './drawings/wiresDrawing';
+import { changeWireDrawingAlg } from "./drawings";
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -358,24 +358,29 @@ window.onload = (() => {
     if (logEqText.value) {
       const logEqConsole = document.getElementById('logeq-console');
       try {
-        const tokens = logEqParser.tokenize(logEqText.value);
-        const parsed = logEqParser.parse(tokens);
-        // logEqParser.printAST(parsed.ast);
-        if (parsed.errors.length === 0) {
-
-          const layers = logEqParser.buildFromAst(parsed.ast, logEqFlatten.checked);
-          // logEqParser.printCircuit(layers);
-          const newEls = circuitIO.fromLayers(layers, logEqInputEl.value);
-          selectedElements.clear();
-          for (const newEl of newEls) {
-            selectedElements.add(newEl);
+        const [tokens, unknownTokens] = logEqParser.tokenize(logEqText.value);
+        if (unknownTokens.length) {
+          let row = i18n.getValue("logeq-lexer", "lexer-errors");
+          let html = row + ':';
+          let i = 0;
+          for (const token of unknownTokens) {
+            row = logEqParser.highlighter(logEqText.value, token.position, token.lexeme.length);
+            html += `\n${row}`;
+            console.log(row);
+            row = `[${token.line}:${token.column}] ${i18n.getValue("logeq-lexer", token.type) || token.type}: ${token.lexeme}`;
+            html += `\n - ${row}`;
+            console.log(row);
           }
           if (logEqConsole) {
-            logEqConsole.innerHTML = i18n.getValue("dynamic", 'success');
-            logEqConsole.style.color = 'green';
+            logEqConsole.innerText = html;
+            logEqConsole.style.color = 'red';
           }
-          drawingTimer.step();
-        } else {
+          return;
+        }
+        const parsed = logEqParser.parse(tokens);
+
+        // logEqParser.printAST(parsed.ast);
+        if (parsed.errors.length) {
           let row = i18n.getValue("logeq-parser", "compilation-errors");
           let html = row + ':';
           console.log(row);
@@ -388,18 +393,26 @@ window.onload = (() => {
             logEqConsole.innerText = html;
             logEqConsole.style.color = 'red';
           }
+          return;
         }
+
+        const layers = logEqParser.buildFromAst(parsed.ast, logEqFlatten.checked);
+        // logEqParser.printCircuit(layers);
+        const newEls = circuitIO.fromLayers(layers, logEqInputEl.value);
+        selectedElements.clear();
+        for (const newEl of newEls) {
+          selectedElements.add(newEl);
+        }
+        if (logEqConsole) {
+          logEqConsole.innerHTML = i18n.getValue("dynamic", 'success');
+          logEqConsole.style.color = 'green';
+        }
+        drawingTimer.step();
+
       }
       catch (error: any) {
         let row, html;
-        if (error instanceof LexerError) {
-          row = logEqParser.highlighter(logEqText.value, error.pos, error.width);
-          html = row;
-          console.log(row);
-          row = `LexerError: [${error.line}:${error.column}] ${i18n.getValue("logeq-lexer", error.message) || error.message}: ${error.value}`;
-          html += '\n'+row;
-          console.log(row);
-        } else if (error instanceof BuildError) {
+        if (error instanceof BuildError) {
           row = `BuildError: [${error.pos.line}:${error.pos.column}] ` +
             formatString(i18n.getValue("logeq-builder", error.message) || error.message, error.args);
           html = row;
@@ -422,7 +435,7 @@ window.onload = (() => {
   });
   setupEvent('logeq-text', 'input', (e) => {
     if (e instanceof InputEvent && e.inputType !== 'insertText') {
-        displayLineNumbers(logEqLines, logEqText);
+      displayLineNumbers(logEqLines, logEqText);
     }
   })
   const textareaStyles = window.getComputedStyle(logEqText);

@@ -1,20 +1,9 @@
 import { gridSize, type Point } from "../consts";
-import { settings } from "../main";
 
 const halv = gridSize * .5
 const quater = gridSize * .25;
 const oneAndQuater = gridSize * 1.25;
 const oneAndHalv = gridSize * 1.5;
-
-export let wireDrawingAlg = simple;
-export function changeWireDrawingAlg() {        
-    switch (settings.wireDrawing) {
-        case 'dimple': wireDrawingAlg = dimple; break;
-        case 'manhattan': wireDrawingAlg = manhattan; break;
-        default:
-        case 'simple': wireDrawingAlg = simple; break;
-    }
-}
 
 function sameY(src: Point, dst: Point) {
     if (dst.x >= src.x) return simple(src, dst);
@@ -37,7 +26,7 @@ function sameY(src: Point, dst: Point) {
         src.y - halv,
         dst.x - quater,
         src.y - halv,
-        
+
         dst.x - quater,
         dst.y + halv,
         dst.x - quater,
@@ -48,7 +37,7 @@ function sameY(src: Point, dst: Point) {
     ]
 }
 
-function simple(src: Point, dst: Point) {
+export function simple(src: Point, dst: Point) {
     return [
         src.x + gridSize,
         src.y + halv,
@@ -58,7 +47,7 @@ function simple(src: Point, dst: Point) {
     ]
 }
 
-function dimple(src: Point, dst: Point) {
+export function dimple(src: Point, dst: Point) {
     if (dst.y === src.y) return sameY(src, dst);
     if (dst.x - gridSize <= src.x) {
         const dy = Math.sign(dst.y - src.y) * halv;
@@ -109,7 +98,7 @@ function dimple(src: Point, dst: Point) {
     ]
 }
 
-function manhattan(src: Point, dst: Point) {
+export function manhattan(src: Point, dst: Point) {
     if (dst.y === src.y) return sameY(src, dst);
     if (dst.x - gridSize <= src.x) {
         const dy = Math.sign(dst.y - src.y) * (Math.abs(dst.y - src.y) > gridSize ? gridSize : halv);

@@ -1,6 +1,7 @@
 {
   "logeq-lexer": {
-    "unexpected-character": "Неожиданный символ",
+    "lexer-errors": "Ошибки токенизации",
+    "invalid-token": "Недопустимый токен",
     "invalid-number": "Недопустимое числовое значение",
     "invalid-identifier": "Недопустимый идентификатор",
     "unknown-operator": "Неизвестный оператор"
@@ -70,7 +71,7 @@
   },
   "floating-menu-elements": {
     "header": "Палитра",
-    "and": "AND()И ", 
+    "and": "AND (И)", 
     "or": "OR (ИЛИ)",
     "xor": "XOR (Иск.ИЛИ)",
     "nand": "NAND (НЕ-И)",

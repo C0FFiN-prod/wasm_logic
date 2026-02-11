@@ -1,6 +1,7 @@
 {
   "logeq-lexer": {
-    "unexpected-character": "Nieoczekiwany znak",
+    "lexer-errors": "Błędy tokenizacji",
+    "invalid-token": "Nieprawidłowy token",
     "invalid-number": "Nieprawidłowa wartość numeryczna",
     "invalid-identifier": "Nieprawidłowy identyfikator",
     "unknown-operator": "Nieznany operator"

@@ -36,9 +36,9 @@ export const borderPalette = [
   68, 68, 204, // B0 | B1 | Bn
   68, 204, 68, // R0 | R1 | Rn
 ]
-export const overlayColorIndexes = [0, 6, 4, 2, 3, 7, 7, 7, 8, 8, 8, 9, 9, 9];
+export const overlayColorIndexes = [0, 6, 4, 2, 3, 1, 7, 7, 7, 8, 8, 8, 9, 9, 9];
 export const textColors = ['#545454','#1098ff','#0F0', '#F00', '#FF0', '#F0F', '#0FF', '#C44', '#44C', '#4C4',];
-export const texts = ['X', 'SW', 'IN', 'OUT', 'A0', 'A1', 'An', 'B0', 'B1', 'Bn', 'R0', 'R1', 'Rn'];
+export const texts = ['X', 'SW', 'IN', 'OUT', 'VV', 'A0', 'A1', 'An', 'B0', 'B1', 'Bn', 'R0', 'R1', 'Rn'];
 
 
 export const gateTypeToMode = new Map<string, number>(Object.entries({

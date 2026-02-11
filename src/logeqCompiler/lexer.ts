@@ -7,20 +7,6 @@ export interface Token {
     column: number;
 }
 
-export class LexerError extends Error {
-    constructor(
-        message: string,
-        public value: string,
-        public pos: number,
-        public width: number,
-        public line: number,
-        public column: number,
-    ) {
-        super(message);
-        this.name = 'LexerError';
-    }
-}
-
 export class Lexer {
     private source: string = '';
     private tokens: Token[] = [];
@@ -28,17 +14,33 @@ export class Lexer {
     private current: number = 0;
     private line: number = 1;
     private column: number = 1;
+    private skipComments: boolean = true;
 
-    // Операторы в порядке убывания длины
-    private static OPERATORS = [
-        '&!', '^!', '|!',
-        '&', '^', '|', '!',
-        '=', ',', ';', '(', ')', '{', '}', '<'
-    ];//.sort((a, b) => b.length - a.length);
+    private static OPERATORS = new Map(Object.entries({
+        '&!':'OP_NAND',
+        '^!':'OP_XNOR',
+        '|!':'OP_NOR',
+        '!': 'OP_NOT',
+        '&': 'OP_AND',
+        '^': 'OP_XOR',
+        '|': 'OP_OR',
+        '=': 'OP_ASSIGN',
+        ',': 'OP_COMMA',
+        ';': 'OP_SEMICOLON',
+        '(': 'OP_LPAREN',
+        ')': 'OP_RPAREN',
+        '{': 'OP_LBRACE',
+        '}': 'OP_RBRACE',
+        '<': 'OP_RETURN',
+    }));
+    private static MAX_OP_LENGTH = Lexer.OPERATORS.keys().reduce((m, c) => c.length > m.length ? c : m ).length;
+    private unknownTokens: (Token & {type: string})[] = [];
 
-    tokenize(source: string): Token[] {
+    tokenize(source: string, skipComments: boolean = true) {
+        this.skipComments = skipComments;
         this.source = source;
         this.tokens = [];
+        this.unknownTokens = [];
         this.start = 0;
         this.current = 0;
         this.line = 1;
@@ -57,7 +59,7 @@ export class Lexer {
             column: this.column
         });
 
-        return this.tokens;
+        return [this.tokens, this.unknownTokens];
     }
 
     private isAtEnd(): boolean {
@@ -94,15 +96,20 @@ export class Lexer {
         return true;
     }
 
-    private addToken(type: string, lexeme?: string): void {
+    private addToken(type: string, lexeme?: string, errType?: string): void {
         const text = lexeme || this.source.substring(this.start, this.current);
-        this.tokens.push({
+        const token = {
             type,
             lexeme: text,
             position: this.start,
             line: this.line,
             column: this.column - text.length
-        });
+        }
+        if (type === 'UNKNOWN') {
+            token.type = errType || 'unknown-token';
+            this.unknownTokens.push(token);  
+        }
+        else this.tokens.push(token);
     }
 
     private scanToken(): void {
@@ -123,6 +130,7 @@ export class Lexer {
                 if (this.match('/')) {
                     // Однострочный комментарий
                     while (this.peek() !== '\n' && !this.isAtEnd()) this.advance();
+                    if(!this.skipComments) this.addToken('COMMENT');
                 } else if (this.match('*')) {
                     // Многострочный комментарий
                     while (!(this.peek() === '*' && this.peekNext() === '/') && !this.isAtEnd()) {
@@ -132,28 +140,32 @@ export class Lexer {
                         this.advance(); // *
                         this.advance(); // /
                     }
+                    if(!this.skipComments) this.addToken('COMMENT');
                 } else {
-                    this.error('unexpected-character', c, this.current, 1);
+                    this.addToken('UNKNOWN', '/', 'unknown-operator');
                 }
                 break;
 
             default:
                 if (this.isDigit(c)) {
                     this.number();
-                }else if (this.isAlpha(c)) {
+                } else if (this.isAlpha(c)) {
                     this.identifier();
+                } else if (this.operator()){
+                    ;
                 } else {
-                    this.operator();
+                    while (![' ', '\t', '\r', '\n'].includes(this.peek()) && !this.isAtEnd()) this.advance();
+                    this.addToken('UNKNOWN');
                 }
                 break;
         }
     }
 
     private isDigit(c: string): boolean {
-        return c >= '0' && c <= '9'; // Только 0 и 1 для битов
+        return c >= '0' && c <= '9';
     }
     private isBit(c: string): boolean {
-        return c >= '0' && c <= '1'; // Только 0 и 1 для битов
+        return c >= '0' && c <= '1';
     }
 
     private isAlpha(c: string): boolean {
@@ -171,10 +183,11 @@ export class Lexer {
 
         const value = this.source.substring(this.start, this.current);
         if (value !== '0' && value !== '1') {
-            this.error('invalid-number', value, this.start, value.length);
+            this.addToken('UNKNOWN', value, 'invalid-number');
+        } else {
+            this.addToken('NUMBER');
         }
 
-        this.addToken('NUMBER');
     }
 
     private identifier(): void {
@@ -182,55 +195,25 @@ export class Lexer {
 
         const value = this.source.substring(this.start, this.current);
         if (value === 'CONST_0' || value === 'CONST_1') {
-            this.error('invalid-identifier', value, this.start, value.length);
+            // this.error('invalid-identifier', value, this.start, value.length);
+            this.addToken('UNKNOWN', value, 'invalid-identifier');
         }
 
         this.addToken('IDENTIFIER');
     }
 
-    private operator(): void {
-        // Пытаемся найти самый длинный оператор
-        let found = false;
-        for (const op of Lexer.OPERATORS) {
-            if (this.source.startsWith(op, this.start)) {
+    private operator(): boolean {
+        let op = this.source.slice(this.start, this.start + Lexer.MAX_OP_LENGTH);
+        let type: string | undefined;
+        for (let i = Lexer.MAX_OP_LENGTH; i-- > 0;){
+            if (type = Lexer.OPERATORS.get(op)) {
                 this.current = this.start + op.length;
                 this.column += op.length - 1;
-
-                const type = this.getOperatorType(op);
                 this.addToken(type, op);
-                found = true;
-                break;
+                return true;
             }
+            op = op.slice(0, i);
         }
-
-        if (!found) {
-            this.error('unknown-operator', this.source.charAt(this.start), this.start, 1);
-        }
-    }
-
-    private getOperatorType(op: string): string {
-        switch (op) {
-            case '&!': return 'OP_NAND';
-            case '^!': return 'OP_XNOR';
-            case '|!': return 'OP_NOR';
-            case '!': return 'OP_NOT';
-            case '&': return 'OP_AND';
-            case '^': return 'OP_XOR';
-            case '|': return 'OP_OR';
-            case '=': return 'OP_ASSIGN';
-            case ',': return 'OP_COMMA';
-            case ';': return 'OP_SEMICOLON';
-            case '(': return 'OP_LPAREN';
-            case ')': return 'OP_RPAREN';
-            case '{': return 'OP_LBRACE';
-            case '}': return 'OP_RBRACE';
-            case '<': return 'OP_RETURN';
-            default: this.error('unknown-operator', op, this.start, op.length);
-        }
-        return "";
-    }
-
-    private error(message: string, value:string, pos: number, width: number): void {
-        throw new LexerError(message, value, pos, width, this.line, this.column - width);
+        return false;
     }
 }

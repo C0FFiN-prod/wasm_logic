@@ -258,10 +258,6 @@ export class Parser {
         );
     }
 
-    /**
-     * Парсит цепочку бинарных операторов одного уровня приоритета
-     * Обрабатывает как одинаковые, так и смешанные операторы
-     */
     private parseBinaryChain(
         parseOperand: () => Expr,
         operatorTypes: string[]
@@ -272,11 +268,9 @@ export class Parser {
             const operator = this.previous().lexeme as '&' | '&!' | '^' | '^!' | '|' | '|!';
             const right = parseOperand();
 
-            // Для ассоциативных операторов строим N-арное дерево
             if (this.isAssociativeOperator(operator)) {
                 left = this.buildAssociativeChain(left, operator, right);
             } else {
-                // Для неассоциативных - просто бинарный оператор
                 const position = this.getPosition(this.previous());
                 left = new BinaryOp(operator, left, right, position);
             }
@@ -285,42 +279,28 @@ export class Parser {
         return left;
     }
 
-    /**
-     * Строит N-арное дерево для ассоциативных операторов
-     * Объединяет одинаковые операторы в один NaryOp
-     */
     private buildAssociativeChain(left: Expr, operator: string, right: Expr): Expr {
-        // Если левая часть уже NaryOp с тем же оператором
         if (left instanceof NaryOp && left.op === operator) {
-            // Если правая часть тоже NaryOp с тем же оператором - объединяем
             if (right instanceof NaryOp && right.op === operator) {
                 left.operands.push(...right.operands);
                 return left;
             } else {
-                // Просто добавляем правый операнд
                 left.operands.push(right);
                 return left;
             }
         }
 
-        // Если правая часть NaryOp с тем же оператором
         if (right instanceof NaryOp && right.op === operator) {
             const position = left.position;
             const operands = [left, ...right.operands];
             return new NaryOp(operator as any, operands, position);
         }
 
-        // Создаем новый NaryOp с двумя операндами
         const position = left.position;
         return new NaryOp(operator as any, [left, right], position);
     }
 
-    /**
-     * Проверяет, является ли оператор ассоциативным
-     */
     private isAssociativeOperator(operator: string): boolean {
-        // В нашей грамматике: &, |, ^ - ассоциативные
-        // &!, |!, ^! - не ассоциативные
         return ['&' , '&!' , '^' , '^!' , '|' , '|!'].includes(operator);
     }
 

@@ -13,7 +13,7 @@ import {
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
 import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld } from "../utils/utils";
-import { wireDrawingAlg } from "./wiresDrawing";
+import { wireDrawingAlg, overlayIconMap } from ".";
 
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
@@ -324,6 +324,8 @@ function drawElement(el: LogicElement | ElementPDO) {
                 iconOverlayIndex = overlayIconMap.get('sw')!;
             } else if (elementUnderCursor == el) {
                 iconOverlayIndex = overlayIconMap.get('x')!;
+            } else if (elementUnderCursor.inputs.has(el) && elementUnderCursor.outputs.has(el)) {
+                iconOverlayIndex = overlayIconMap.get('vv')!;
             } else if (elementUnderCursor.inputs.has(el)) {
                 iconOverlayIndex = overlayIconMap.get('in')!;
             } else if (elementUnderCursor.outputs.has(el)) {
@@ -397,22 +399,6 @@ function writeTextAt(x: number, y: number, fontSize: number, color: string, ...d
     ctx.fillText(str, x, y);
     ctx.restore();
 }
-
-const overlayIconMap = new Map<string, number>(Object.entries({
-    x: 1,
-    sw: 2,
-    in: 3,
-    out: 4,
-    a0: 5,
-    a1: 6,
-    an: 7,
-    b0: 8,
-    b1: 9,
-    bn: 10,
-    r0: 11,
-    r1: 12,
-    rn: 13,
-}));
 
 const pathMap = new Map<string, string>(Object.entries(
     {
