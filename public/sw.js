@@ -24,6 +24,8 @@ async function loadManifest() {
     precacheFiles.push('/icons/favicon.svg');
     precacheFiles.push('/icons/web-app-manifest-192x192.png');
     precacheFiles.push('/icons/web-app-manifest-512x512.png');
+    precacheFiles.push('/icons/texture_icons.png');
+    precacheFiles.push('/icons/texture_overlays.png');
     precacheFiles.push('/index.html');
 
     return manifestData;
