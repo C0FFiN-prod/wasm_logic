@@ -47,7 +47,7 @@ export class FileIO {
             });
         });
     }
-    private get unnamed() {
+    get unnamed() {
         return this.i18n.getValue("dynamic", "no-file") || "Unnamed";
     }
     clearFileHandle() {
@@ -55,8 +55,8 @@ export class FileIO {
         this.currentFileName = '';
         this.updateFilenameDisplay();
     }
-    updateFilenameDisplay() {
-        this.filenameDisplay.textContent = this.currentFileName || this.unnamed;
+    updateFilenameDisplay(text?: string) {
+        this.filenameDisplay.textContent = text || (this.currentFileName || this.unnamed);
     }
     // ======= Сохранение =======
     saveAs = async (): Promise<void> => {

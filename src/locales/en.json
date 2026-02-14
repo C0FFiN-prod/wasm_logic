@@ -36,6 +36,7 @@
   "dynamic": {
     "success": "Success",
     "no-file": "Unnamed",
+    "restored": "Restored",
     "none": "None",
     "temporary": "Temporary",
     "all": "All",

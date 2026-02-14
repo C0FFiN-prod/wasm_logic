@@ -36,6 +36,7 @@
   "dynamic": {
     "success": "Sukces",
     "no-file": "Bez nazwy",
+    "restored": "Przywrócony",
     "none": "Brak",
     "temporary": "Tymczasowe",
     "all": "Wszystkie",

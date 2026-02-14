@@ -464,7 +464,7 @@ window.onload = (() => {
       fileIO.save();
     }
   });
-
+  getCircuitFromLS();
   drawingTimer.step();
   setInterval(() => circuitIO.clearUnusedChunks(), 5000);
 });
@@ -546,6 +546,7 @@ function clearCanvas() {
     camera.x = 0;
     camera.y = 0;
     fileIO.clearFileHandle();
+    clearCircuitInLS();
     clearSelection();
     clearInterval(simInterval);
     isSimulating = false;
@@ -1217,9 +1218,50 @@ function updateToolButtons(pressedBtn?: HTMLElement) {
   pressedBtn?.setAttribute('active', 'true');
 }
 
-
+function getCircuitFromLS() {
+  const keyCircuit = 'backup-circuit';
+  const keyName = 'backup-name';
+  const text = localStorage.getItem(keyCircuit);
+  if (text) {    
+    circuitIO.deserializeCircuit(text);
+    fileIO.clearFileHandle();
+    const name = localStorage.getItem(keyName);
+    const restoredTag = i18n.getValue('dynamic', 'restored') || 'Restored';
+    if (name) {
+      fileIO.currentFileName = name
+      fileIO.updateFilenameDisplay(`${name} (${restoredTag})`);
+    } else 
+      fileIO.updateFilenameDisplay(`${fileIO.unnamed} (${restoredTag})`);
+    drawingTimer.step();
+  }
+}
+function clearCircuitInLS() {
+  const keyCircuit = 'backup-circuit';
+  const keyName = 'backup-name';
+  localStorage.removeItem(keyCircuit);
+  localStorage.removeItem(keyName);
+}
+function saveCircuitToLS() {
+  const keyCircuit = 'backup-circuit';
+  const keyName = 'backup-name';
+  let isEmpty = true;
+  if (circuit.chunks.size !== 0) {
+    for (const chunk of circuit.chunks.values()) {
+      if (chunk.size !== 0) {
+        isEmpty = false;
+        break;
+      }
+    }
+  }
+  if (isEmpty) return;
+  const text = circuitIO.serializeCircuit();
+  localStorage.setItem(keyCircuit, text);
+  if (fileIO.currentFileName)
+    localStorage.setItem(keyName, fileIO.currentFileName);
+}
 
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
   pushSettingsToLS();
+  saveCircuitToLS();
 });

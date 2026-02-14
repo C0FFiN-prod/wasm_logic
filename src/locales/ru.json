@@ -36,6 +36,7 @@
   "dynamic": {
     "success": "Успех",
     "no-file": "Без названия",
+    "restored": "Восстановлено",
     "none": "Нет",
     "temporary": "Временные",
     "all": "Все",
