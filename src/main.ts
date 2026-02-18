@@ -9,6 +9,7 @@ import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElem
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
 import { changeWireDrawingAlg } from "./drawings";
+import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -81,6 +82,7 @@ function getSettingsFromLS() {
   settings.theme = newSettings.theme ?? settings.theme;
   settings.locale = newSettings.locale ?? settings.locale;
   settings.drawing = newSettings.drawing ?? settings.drawing;
+  settings.wireDrawing = newSettings.wireDrawing ?? settings.wireDrawing;
   settings.maxFPS = newSettings.maxFPS ?? settings.maxFPS;
   settings.drawIcons = newSettings.drawIcons ?? settings.drawIcons;
 
@@ -224,6 +226,7 @@ window.onload = (() => {
   updateConnectModeButtonText();
   drawingTimer.changeMaxFPS();
   drawingTimer.changeDrawing();
+  changeWireDrawingAlg();
   toggleThemeOnChange();
   toggleLocale();
 
@@ -297,52 +300,7 @@ window.onload = (() => {
     }
   });
 
-  const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
-  let mouse = { x: 0, y: 0 };
-  for (const floatingMenu of floatingMenus) {
-    const header = floatingMenu.querySelector(".floating-menu-header") as HTMLElement;
-    header?.addEventListener('mousedown', (e) => {
-      // floatingMenu.toggleAttribute("dragging", true);
-      e.preventDefault();
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
-      const onMouseMove = (e: MouseEvent) => {
-        e.preventDefault();
-        if (20 > e.clientX || e.clientX > window.innerWidth - 20 ||
-          20 > e.clientY || e.clientY > window.innerHeight - 20) {
-          onMouseUp();
-        }
-        const x = clamp(floatingMenu.offsetLeft - (mouse.x - e.clientX), 20, window.innerWidth - parseInt(getStyleFMH.width) - 55);
-        const y = clamp(floatingMenu.offsetTop - (mouse.y - e.clientY), 20, window.innerHeight - parseInt(getStyleFMH.height) - 55);
-        floatingMenu.style.left = `${x}px`;
-        floatingMenu.style.top = `${y}px`;
-        mouse.x = e.clientX;
-        mouse.y = e.clientY;
-      }
-      const onMouseUp = () => {
-        document.removeEventListener('mouseup', onMouseUp);
-        document.removeEventListener('mousemove', onMouseMove);
-      };
-      document.addEventListener('mouseup', onMouseUp);
-      document.addEventListener('mousemove', onMouseMove);
-    });
-    const getStyleFM = window.getComputedStyle(floatingMenu);
-    const getStyleFMH = window.getComputedStyle(header);
-    const x = parseInt(getStyleFM.left);
-    const y = parseInt(getStyleFM.top);
-    floatingMenu.style.left = `${x}px`;
-    floatingMenu.style.top = `${y}px`;
-    floatingMenu.style.width = getStyleFM.width;
-    const check = header.querySelector("input[type='checkbox']") as HTMLInputElement;
-    const hideBtn = header.querySelector("button.hide") as HTMLButtonElement;
-    const container = floatingMenu.querySelector(".floating-menu-container");
-    check?.addEventListener("change", () => {
-      container?.classList.toggle("hidden", check.checked);
-    })
-    hideBtn?.addEventListener("click", () => {
-      floatingMenu.classList.toggle("hidden", true);
-    })
-  }
+  initFMs();
   const fmLogEq = document.getElementById("fm-logeq");
   const logEqText = document.getElementById("logeq-text") as HTMLTextAreaElement;
   const logEqLines = document.getElementById("logeq-lines") as HTMLElement;
@@ -500,22 +458,7 @@ window.addEventListener('resize', () => {
   drawingTimer.step();
 });
 
-function clampFMCoords(floatingMenu: HTMLElement) {
-  const getStyleFM = window.getComputedStyle(floatingMenu);
-  const x = clamp(parseInt(getStyleFM.left), 20, window.innerWidth - parseInt(getStyleFM.width) - 55);
-  const y = clamp(parseInt(getStyleFM.top), 20, window.innerHeight - parseInt(getStyleFM.height) - 55);
-  floatingMenu.style.left = `${x}px`;
-  floatingMenu.style.top = `${y}px`;
-}
 
-function resizeFMs() {
-  const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
-  for (const floatingMenu of floatingMenus) {
-    floatingMenu.style.width = "";
-    const getStyleFM = window.getComputedStyle(floatingMenu);
-    floatingMenu.style.width = getStyleFM.width;
-  }
-}
 
 function toggleTheme(setDark?: boolean) {
   const htmlElement = document.documentElement;
@@ -1159,16 +1102,14 @@ document.addEventListener('keydown', e => {
         e.preventDefault();
         const cursorX = prevMousePos.x;
         const cursorY = prevMousePos.y;
-        circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY);
+        selectedElements = new Set(circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY));
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
         e.preventDefault();
         const cursorX = prevMousePos.x;
         const cursorY = prevMousePos.y;
         navigator.clipboard.readText().then((json) => {
           try {
-            const newElements = circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY));
-            selectedElements.clear();
-            newElements.forEach(el => selectedElements.add(el));
+            selectedElements = new Set(circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY)));
             drawingTimer.step();
           } catch (err) {
             console.log(err);
@@ -1222,7 +1163,7 @@ function getCircuitFromLS() {
   const keyCircuit = 'backup-circuit';
   const keyName = 'backup-name';
   const text = localStorage.getItem(keyCircuit);
-  if (text) {    
+  if (text) {
     circuitIO.deserializeCircuit(text);
     fileIO.clearFileHandle();
     const name = localStorage.getItem(keyName);
@@ -1230,7 +1171,7 @@ function getCircuitFromLS() {
     if (name) {
       fileIO.currentFileName = name
       fileIO.updateFilenameDisplay(`${name} (${restoredTag})`);
-    } else 
+    } else
       fileIO.updateFilenameDisplay(`${fileIO.unnamed} (${restoredTag})`);
     drawingTimer.step();
   }
@@ -1263,5 +1204,6 @@ function saveCircuitToLS() {
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
   pushSettingsToLS();
+  saveFMsToLS();
   saveCircuitToLS();
 });

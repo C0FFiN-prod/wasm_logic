@@ -453,6 +453,7 @@ export class CircuitIO {
                 }
             }
         }
+        return idMap.values();
     }
     _getColor() {
         return this.colorPicker.value.replace("#", "");
