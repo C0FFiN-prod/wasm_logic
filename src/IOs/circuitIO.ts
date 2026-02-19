@@ -73,16 +73,23 @@ export class CircuitIO {
                 );
                 if (obj) {
                     idMap.set(el.id, obj);
-                    for (const input of el.inputs) {
-                        const from = idMap.get(input);
-                        if (from)
-                            this.circuit.addWire(from, obj);
-                    }
                 }
                 ++j;
             }
             ++i;
         }
+
+        for (const layer of layers) {
+            for (const el of layer) {
+                for (const input of el.inputs) {
+                    const from = idMap.get(input);
+                    const to = idMap.get(el.id);
+                    if (from && to)
+                        this.circuit.addWire(from, to);
+                }
+            }
+        }
+        
         return idMap.values();
     }
     serializeCircuit(): string {

@@ -315,7 +315,7 @@ export class CircuitBuilder {
 
         if (value === 1 && !this.variableMap.has('CONST_0')) {
             this.addElement({
-                id: constId,
+                id: 'CONST_0',
                 type: 'AND',
                 inputs: [],
                 layer: 1
@@ -326,7 +326,7 @@ export class CircuitBuilder {
         this.addElement({
             id: constId,
             type: type,
-            inputs: (value === 0 ? [] : [`CONST_0`]),
+            inputs: (value === 0 ? [] : ['CONST_0']),
             layer: 1
         });
 
