@@ -40,7 +40,7 @@ class OperatorInfo {
 }
 
 export class CircuitBuilder {
-    private elements: Element[] = [];
+    private elements: Map<string, Element> = new Map();
     private variableMap: Map<string, string> = new Map();
     private idCounters: Record<string, number> = {
         AND: 0, OR: 0, XOR: 0,
@@ -56,7 +56,7 @@ export class CircuitBuilder {
     }
 
     private reset(): void {
-        this.elements = [];
+        this.elements.clear();
         this.variableMap.clear();
         this.idCounters = {
             AND: 0, OR: 0, XOR: 0,
@@ -284,7 +284,7 @@ export class CircuitBuilder {
 
     private evaluateGroupExpr(group: GroupExpr): string {
         // Начинаем новую группу
-        this.groupStack.push(this.elements.length);
+        this.groupStack.push(this.elements.size);
 
         try {
             // Вычисляем выражение внутри скобок
@@ -341,7 +341,7 @@ export class CircuitBuilder {
         }
 
         if (this.isInputIdentifier(name)) {
-            if (!this.elements.some(el => el.id === name)) {
+            if (!this.elements.has(name)) {
                 const type = this.getInputType(name);
                 this.addElement({
                     id: name,
@@ -376,7 +376,7 @@ export class CircuitBuilder {
     }
 
     private addElement(element: Element): void {
-        this.elements.push(element);
+        this.elements.set(element.id, element);
     }
 
     private flattenAssociativeGates(): void {
@@ -385,21 +385,21 @@ export class CircuitBuilder {
         const outputCount = new Map<string, number>();
 
         // Считаем использование каждого элемента
-        for (const element of this.elements) {
+        for (const element of this.elements.values()) {
             for (const inputId of element.inputs) {
                 outputCount.set(inputId, (outputCount.get(inputId) || 0) + 1);
             }
         }
 
         // Flatten ассоциативных вентилей
-        for (const element of this.elements) {
+        for (const element of this.elements.values()) {
             const opType = element.type;
 
             if (OperatorInfo.isAssociative(opType)) {
                 const newInputs: string[] = [];
 
                 for (const inputId of element.inputs) {
-                    const inputElement = this.elements.find(el => el.id === inputId);
+                    const inputElement = this.elements.get(inputId);
 
                     if (inputElement &&
                         !elementsToSave.has(inputId) &&
@@ -416,16 +416,14 @@ export class CircuitBuilder {
                 element.inputs = [...new Set(newInputs)];
                 elementsToSave.add(element.id);
 
-            } else if (opType === 'NOT' && element.inputs.length === 2 &&
-                element.inputs[0] === element.inputs[1]) {
-                // Оптимизация NOT
+            } else if (opType === 'NOT') {
                 this.optimizeNotGate(element, outputCount, elementsToRemove, elementsToSave);
             }
         }
 
-        this.elements = this.elements.filter(el =>
-            !elementsToRemove.has(el.id) || elementsToSave.has(el.id)
-        );
+        for (const el of elementsToRemove) {
+            if (!elementsToSave.has(el)) this.elements.delete(el);
+        }
     }
 
     private optimizeNotGate(
@@ -435,7 +433,7 @@ export class CircuitBuilder {
         elementsToSave: Set<string>
     ): void {
         const inputId = element.inputs[0]!;
-        const inputElement = this.elements.find(el => el.id === inputId);
+        const inputElement = this.elements.get(inputId);
 
         if (!inputElement || elementsToSave.has(inputId) ||
             (outputCount.get(inputId) || 0) !== 1) {
@@ -445,16 +443,8 @@ export class CircuitBuilder {
         let newType: string;
 
         switch (inputElement.type) {
-            case 'NAND':
-                if (inputElement.inputs.length === 2 &&
-                    inputElement.inputs[0] === inputElement.inputs[1]) {
-                    newType = 'AND';
-                    element.inputs = inputElement.inputs;
-                    elementsToRemove.add(inputId);
-                } else {
-                    return;
-                }
-                break;
+            case 'NOT': newType = 'AND'; break;
+            case 'NAND': newType = 'AND'; break;                
             case 'AND': newType = 'NAND'; break;
             case 'OR': newType = 'NOR'; break;
             case 'XOR': newType = 'XNOR'; break;
@@ -464,9 +454,7 @@ export class CircuitBuilder {
         }
 
         element.type = newType;
-        if (newType === 'AND') {
-            element.inputs = inputElement.inputs;
-        }
+        element.inputs = inputElement.inputs;
         elementsToRemove.add(inputId);
     }
 
@@ -476,7 +464,7 @@ export class CircuitBuilder {
         while (changed) {
             changed = false;
 
-            for (const element of this.elements) {
+            for (const element of this.elements.values()) {
                 if (element.type === 'INPUT' || element.type === 'SWITCH' ||
                     element.type === 'BUTTON' || element.id.startsWith('CONST_')) {
                     continue;
@@ -485,7 +473,7 @@ export class CircuitBuilder {
                 let maxInputLayer = 0;
 
                 for (const inputId of element.inputs) {
-                    const inputElement = this.elements.find(el => el.id === inputId);
+                    const inputElement = this.elements.get(inputId);
 
                     if (inputElement) {
                         maxInputLayer = Math.max(maxInputLayer, inputElement.layer || 0);
@@ -504,7 +492,7 @@ export class CircuitBuilder {
             }
         }
 
-        for (const element of this.elements) {
+        for (const element of this.elements.values()) {
             if (element.type === 'OUTPUT') {
                 element.layer = this.lastLayer;
             }
@@ -514,7 +502,7 @@ export class CircuitBuilder {
     private getLayers(): CircuitLayers {
         const layers: Element[][] = Array.from({ length: this.lastLayer }, () => []);
 
-        for (const element of this.elements) {
+        for (const element of this.elements.values()) {
             if (element.type === 'NOT') {
                 element.type = 'NAND';
             }
