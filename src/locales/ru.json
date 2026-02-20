@@ -52,6 +52,29 @@
     "tensor": "Тензор",
     "decoder": "Декодер"
   },
+  "elements": {
+    "and": "AND (И)", 
+    "or": "OR (ИЛИ)",
+    "xor": "XOR (Иск.ИЛИ)",
+    "nand": "NAND (НЕ-И)",
+    "nor": "NOR (НЕ-ИЛИ)",
+    "xnor": "XNOR (Иск.НЕ-ИЛИ)",
+    "timer": "Таймер",
+    "t_flop": "T-триггер",
+    "button": "Кнопка",
+    "switch": "Тумблер",
+    "output": "Выход"
+  },
+  "floating-menu-change-prompt": {
+    "header": "Изменение",
+    "gate-mode-title": "Установить режим логического элемента",
+    "gate-mode-current": "Текущий: ",
+    "gate-mode-new": "Новый: ",
+    "delay-title": "Установить задержку таймера",
+    "delay-current": "Текущая (такты): ",
+    "change-delay-new": "Новая (такты): ",
+    "submit": "Применить"
+  },
   "floating-menu-settings": {
     "header": "Настройки",
     "language": "Язык",
@@ -71,18 +94,7 @@
     "edit-logeq": "Ред. LogEq"
   },
   "floating-menu-elements": {
-    "header": "Палитра",
-    "and": "AND (И)", 
-    "or": "OR (ИЛИ)",
-    "xor": "XOR (Иск.ИЛИ)",
-    "nand": "NAND (НЕ-И)",
-    "nor": "NOR (НЕ-ИЛИ)",
-    "xnor": "XNOR (Иск.НЕ-ИЛИ)",
-    "timer": "Таймер",
-    "t-flop": "T-триггер",
-    "button": "Кнопка",
-    "switch": "Тумблер",
-    "output": "Выход"
+    "header": "Палитра"
   },
   "floating-menu-file": {
     "header": "Файл",

@@ -52,6 +52,29 @@
     "tensor": "Tensor",
     "decoder": "Decoder"
   },
+  "elements": {
+    "and": "AND",
+    "or": "OR",
+    "xor": "XOR",
+    "nand": "NAND",
+    "nor": "NOR",
+    "xnor": "XNOR",
+    "timer": "Timer",
+    "t_flop": "T-Flop",
+    "button": "Button",
+    "switch": "Switch",
+    "output": "Output"
+  },
+  "floating-menu-change-prompt" :{ 
+    "header": "Edit",
+    "gate-mode-title": "Set gate mode",
+    "gate-mode-current": "Current: ",
+    "gate-mode-new": "New: ",
+    "delay-title": "Set timer delay",
+    "delay-current": "Current (ticks): ",
+    "change-delay-new": "New (ticks): ",
+    "submit": "Submit"
+  },
   "floating-menu-settings": {
     "header": "Settings",
     "language": "Language",
@@ -71,18 +94,7 @@
     "edit-logeq": "Edit LogEq"
   },
   "floating-menu-elements": {
-    "header": "Palette",
-    "and": "AND",
-    "or": "OR",
-    "xor": "XOR",
-    "nand": "NAND",
-    "nor": "NOR",
-    "xnor": "XNOR",
-    "timer": "Timer",
-    "t-flop": "T-Flop",
-    "button": "Button",
-    "switch": "Switch",
-    "output": "Output"
+    "header": "Palette"
   },
   "floating-menu-file": {
     "header": "File",

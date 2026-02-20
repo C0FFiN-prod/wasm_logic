@@ -52,6 +52,29 @@
     "tensor": "Tensor",
     "decoder": "Dekoder"
   },
+  "elements": {
+    "and": "AND (I)",
+    "or": "OR (LUB)",
+    "xor": "XOR (XOR)",
+    "nand": "NAND (NAND)",
+    "nor": "NOR (NOR)",
+    "xnor": "XNOR (XNOR)",
+    "timer": "Timer",
+    "t_flop": "T-flop",
+    "button": "Przycisk",
+    "switch": "Przełącznik",
+    "output": "Wyjście"
+  },
+  "floating-menu-change-prompt": {
+    "header": "Edycja",
+    "gate-mode-title": "Ustaw tryb bramki logicznej",
+    "gate-mode-current": "Aktualny: ",
+    "gate-mode-new": "Nowy: ",
+    "delay-title": "Ustaw opóźnienie timera",
+    "delay-current": "Aktualne (tick): ",
+    "change-delay-new": "Nowe (tick): ",
+    "submit": "Zatwierdź"
+  },
   "floating-menu-settings": {
     "header": "Ustawienia",
     "language": "Język",
@@ -71,18 +94,7 @@
     "edit-logeq": "Edytuj LogEq"
   },
   "floating-menu-elements": {
-    "header": "Paleta",
-    "and": "AND (I)",
-    "or": "OR (LUB)",
-    "xor": "XOR (XOR)",
-    "nand": "NAND (NAND)",
-    "nor": "NOR (NOR)",
-    "xnor": "XNOR (XNOR)",
-    "timer": "Timer",
-    "t-flop": "T-flop",
-    "button": "Przycisk",
-    "switch": "Przełącznik",
-    "output": "Wyjście"
+    "header": "Paleta"
   },
   "floating-menu-file": {
     "header": "Plik",

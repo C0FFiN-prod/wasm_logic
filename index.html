@@ -127,14 +127,14 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             <span data-locale="header"></span>
             <input type="checkbox">
         </div>
-        <div class="floating-menu-container flex col justify">
+        <div class="floating-menu-container flex col justify" data-locale-section="elements">
             <button id="add-and" data-locale="and"></button>
             <button id="add-or" data-locale="or"></button>
             <button id="add-xor" data-locale="xor"></button>
             <button id="add-nand" data-locale="nand"></button>
             <button id="add-nor" data-locale="nor"></button>
             <button id="add-xnor" data-locale="xnor"></button>
-            <button id="add-t_flop" data-locale="t-flop"></button>
+            <button id="add-t_flop" data-locale="t_flop"></button>
             <button id="add-timer" data-locale="timer"></button>
             <button id="add-button" data-locale="button"></button>
             <button id="add-switch" data-locale="switch"></button>
@@ -227,6 +227,47 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
                     <input type="checkbox" id="draw-icons-check" checked>
                 </span>
             </div>
+        </div>
+    </div>
+
+    <div class="floating-menu hidden" id="fm-change-prompt" data-locale-section="floating-menu-change-prompt">
+        <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
+        <div class="floating-menu-container flex col gap-3">
+            <div id="change-gate-mode" class="hidden align-items-center col flex gap-3">
+                <span data-locale="gate-mode-title"></span>
+                <div class="flex row justify gap-5">
+                    <div class="flex col">
+                        <span data-locale="gate-mode-current"></span>
+                        <span id="change-gate-current"></span>
+                    </div>
+                    <div class="flex col">
+                        <label for="change-gate-select" data-locale="gate-mode-new"></label>
+                        <select id="change-gate-select" data-locale-section="elements">
+                            <option value="and" data-locale="and"></button>
+                            <option value="or" data-locale="or"></button>
+                            <option value="xor" data-locale="xor"></button>
+                            <option value="nand" data-locale="nand"></button>
+                            <option value="nor" data-locale="nor"></button>
+                            <option value="xnor" data-locale="xnor"></button>
+                            <option value="t_flop" data-locale="t_flop"></button>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="change-delay" class="hidden align-items-center col flex gap-3">
+                <span data-locale="delay-title"></span>
+                <div class="flex row justify gap-5">
+                    <span>
+                        <span data-locale="delay-current"></span>
+                        <span id="change-delay-current"></span>
+                    </span>
+                    <span>
+                        <label for="change-delay-new" data-locale="change-delay-new"></label>
+                        <input type="number" id="change-delay-new" min="0" max="1000" value="0" style="width:50px;">
+                    </span>
+                </div>
+            </div>
+            <button id="change-prompt-submit" data-locale="submit"></button>
         </div>
     </div>
 

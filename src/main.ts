@@ -1,9 +1,10 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, ConnectMode, CopyWiresMode, Drawings, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
+import { colors, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
+import * as ChangePrompt from './utils/changePrompt';
 import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr } from './utils/utils';
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
@@ -129,6 +130,7 @@ window.onload = (() => {
   setupEvent('file-toggle', "click", () => toggleFM('fm-file', false));
   setupEvent('tools-toggle', "click", () => toggleFM('fm-tools', false));
   setupEvent('palette-toggle', "click", () => toggleFM('fm-palette', false));
+  ChangePrompt.init();
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
   const toggleThemeOnChange = () => {
     switch (settings.theme) {
@@ -880,35 +882,9 @@ function onCanvasMouseDown(e: MouseEvent) {
         } else if (el instanceof LogicGates.Button) {
           el.setValue(true);
         } else if (el instanceof LogicGates.Timer) {
-          const delay = prompt(`Set delay (now ${el.delay} ticks):`)?.trim();
-          const newDelay = Math.round(Number(delay));
-          if (delay !== null && delay !== '' && !Number.isNaN(newDelay) && (0 <= newDelay && newDelay <= 1024)) {
-            el.setDelay(newDelay);
-            for (const elI of selectedElements) {
-              if (elI instanceof LogicGates.Timer)
-                elI.setDelay(newDelay);
-            }
-          }
+          ChangePrompt.show('delay', el);
         } else if (el instanceof LogicGates.LogicGate) {
-          const mode = prompt(`Set gate mode (now ${el.gateType}):`)?.trim();
-          const newMode = Math.round(Number(mode));
-          if (mode !== null && mode !== '' && !Number.isNaN(newMode) && (0 <= newMode && newMode <= 6)) {
-            if (newMode === gateTypeToMode.get('T_FLOP'))
-              circuit.addWire(el, el);
-            else
-              circuit.removeWire(el, el);
-            el.gateType = newMode;
-            for (const elI of selectedElements) {
-              if (elI instanceof LogicGates.LogicGate) {
-                if (newMode === gateTypeToMode.get('T_FLOP'))
-                  circuit.addWire(elI, elI);
-                else
-                  circuit.removeWire(elI, elI);
-                elI.gateType = newMode;
-              }
-            }
-            drawingTimer.step();
-          }
+          ChangePrompt.show('gate', el);
         }
       }
     }
@@ -1049,11 +1025,13 @@ document.addEventListener('keydown', e => {
     } else if (e.code === '-' || e.code === '+') {
       zoomCanvas(e.code === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
     } else if (e.code === 'Escape') {
-      clearSelection();
-      ghostElements.clear();
-      customOverlays.clear();
-      connectTool.targets.length = 0;
-      connectTool.vectors.length = 0;
+      if (ChangePrompt.isHidden()) {
+        clearSelection();
+        ghostElements.clear();
+        customOverlays.clear();
+        connectTool.targets.length = 0;
+        connectTool.vectors.length = 0;
+      } else ChangePrompt.cancel();
     } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
       document.getElementById('tool-connect')?.click();
     } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyV') {

@@ -8,8 +8,8 @@ export let floatingMenus: NodeListOf<HTMLElement>;
 export function saveFMsToLS() {
     let obj: Record<string, FloatingMenu> = {};
     for (const floatingMenu of floatingMenus) {
-        if (floatingMenu.id) {
-            const { header, check, hideBtn, container } = getFMParts(floatingMenu);
+        if (floatingMenu.id && !floatingMenu.id.endsWith('prompt')) {
+            const { container } = getFMParts(floatingMenu);
             const getStyleFM = window.getComputedStyle(floatingMenu);
             const x = parseInt(getStyleFM.left);
             const y = parseInt(getStyleFM.top);
@@ -54,7 +54,7 @@ export function initFMs() {
             y = parseInt(getStyleFM.top),
             isHidden = floatingMenu.classList.contains("hidden"),
             isContainerHidden = container?.classList.contains('hidden')
-        }: FloatingMenu = savedFMs[floatingMenu.id];
+        }: FloatingMenu = savedFMs[floatingMenu.id] ?? {};
 
         floatingMenu.style.left = `${x}px`;
         floatingMenu.style.top = `${y}px`;
@@ -67,7 +67,6 @@ export function initFMs() {
         floatingMenu.classList.toggle('hidden', isHidden);
 
         header?.addEventListener('mousedown', (e) => {
-            // floatingMenu.toggleAttribute("dragging", true);
             e.preventDefault();
             mouse.x = e.clientX;
             mouse.y = e.clientY;

@@ -874,4 +874,5 @@ async function updateIcons() {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.overlays);
     gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA, textureImgOverlay.width, textureImgOverlay.width, textureImgOverlay.height / textureImgOverlay.width, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureImgOverlay);
+    draw();
 }
