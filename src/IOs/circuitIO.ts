@@ -359,8 +359,8 @@ export class CircuitIO {
         const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
         params.pos = params.pos ?? {};
         params.controller = params.controller ?? {};
-        params.pos.x = params.pos.x ?? Math.round(center.x + Math.random() * 10 - 5);
-        params.pos.y = params.pos.y ?? Math.round(center.y + Math.random() * 10 - 5);
+        params.pos.x = params.pos.x ?? Math.round(center.x + Math.random() * 4 - 2);
+        params.pos.y = params.pos.y ?? Math.round(center.y + Math.random() * 4 - 2);
         params.pos.z = params.pos.z ?? 0;
         params.xaxis = params.xaxis ?? -2;
         params.zaxis = params.zaxis ?? -1;
