@@ -152,8 +152,8 @@ export function initContext(_canvas: HTMLCanvasElement) {
     vaos.allInOne = initAllInOne();
     vaos.pos2only = initPos2Only();
 
-    // gl.enable(gl.BLEND);
-    // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.enable(gl.BLEND);
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
     updateIcons();
     requestAnimationFrame(draw);
@@ -573,7 +573,7 @@ function drawGrid() {
 
 function drawWires() {
     gl.uniform4fv(program.uniforms.color, colors.wires);
-    gl.lineWidth(1 / camera.zoom);
+    gl.lineWidth(2 / camera.zoom);
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         const lines: number[] = [];

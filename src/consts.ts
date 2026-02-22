@@ -16,7 +16,7 @@ export const colors: Record<string, vec4> = {
   grid: [0, 0, 0, 1],
   on: [0.066, 0.332, 0.797, 1],
   off: [0.2, 0.2, 0.2, 1],
-  wires: [0.531, 0.531, 0.531, 1],
+  wires: [0.5, 0.5, 0.5, 0.3],
   tempWires: [1, 0.664, 0, 1],
   border: [0.332, 0.332, 0.332, 1],
   selection: [0.066, 0.598, 1, 1],
