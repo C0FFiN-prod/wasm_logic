@@ -414,7 +414,7 @@ export class CircuitBuilder {
                 }
 
                 element.inputs = [...new Set(newInputs)];
-                elementsToSave.add(element.id);
+                if ((outputCount.get(element.id) || 0) > 1) elementsToSave.add(element.id);
 
             } else if (opType === 'NOT') {
                 this.optimizeNotGate(element, outputCount, elementsToRemove, elementsToSave);

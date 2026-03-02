@@ -412,6 +412,14 @@ select {
     font-size: medium;
 }
 
+.collapse-section p{
+    margin: 0 0 10px 0;
+}
+.collapse-section ol,
+.collapse-section ul {
+    margin-bottom: 10px;
+}
+
 .collapse-section summary {
     cursor: pointer;
     font-weight: bold;
@@ -446,6 +454,7 @@ select {
 }
 
 #fm-user-manual>.resizeable {
+    max-height: 90vh;
     min-width: calc(100% - var(--fm-padding) * 2);
 }
 

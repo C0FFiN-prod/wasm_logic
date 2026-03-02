@@ -183,6 +183,7 @@ window.onload = (() => {
         else removeCanvasEventListeners(v);
         v.classList.toggle('hidden', k !== settings.drawing);
       }
+      window.dispatchEvent(new Event('resize'));
     }
   });
   const maxFpsValueDisplay = document.getElementById('max-fps-value');
@@ -486,7 +487,7 @@ function optimizedStep() {
 }
 
 function clearCanvas() {
-  if (confirm('Вы уверены, что хотите очистить холст?')) {
+  if (confirm(i18n.getValue('dynamic', 'clear-canvas'))) {
     circuit.clear();
     camera.x = 0;
     camera.y = 0;

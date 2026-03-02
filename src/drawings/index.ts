@@ -62,7 +62,6 @@ export const drawingTimer = {
     },
     step() {
         if (!this.active) requestAnimationFrame(draw);
-        console.log(1);
     }
 };
 

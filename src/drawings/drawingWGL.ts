@@ -857,15 +857,16 @@ const hasActiveIcon: Set<string> = new Set([
 ])
 async function updateIcons() {
 
-    const loadImage = (image: HTMLImageElement, src: string) => new Promise(resolve => {
-        image.addEventListener('load', () => resolve(image));
-        image.src = src;
-    });
+    const getImage = (src: string) => {
+        const existingImg = document.querySelector('img#' + src) as HTMLImageElement | null;
+        if (existingImg) {
+            return existingImg;
+        }
+        else throw "Can't load texture: " + src;
+    };
 
-    const textureImgIcons = new Image();
-    const textureImgOverlay = new Image();
-    await loadImage(textureImgIcons, './icons/texture_icons.png');
-    await loadImage(textureImgOverlay, './icons/texture_overlays.png');
+    const textureImgIcons = getImage('texture_icons');
+    const textureImgOverlay = getImage('texture_overlays');
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, textures.icons);
