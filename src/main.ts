@@ -1093,8 +1093,10 @@ function stopSelecting() {
 // Обработка клавиш
 document.addEventListener('keydown', e => {
   if (document.activeElement === document.body) {
-    if (e.code === '-' || e.code === '+') {
-      zoomCanvas(e.code === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
+    console.log(e.code);
+    if (e.key === '-' || e.key === '+') {
+      zoomCanvas(e.key === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
+      if (isDragging || isSelecting) drawingTimer.currentCanvas().dispatchEvent(new MouseEvent('mousemove', { clientX: prevMousePos.x, clientY: prevMousePos.y }));
     } else if (e.altKey && e.code === 'KeyW') {
       cycleCopyWiresMode();
     } else if (e.shiftKey && e.code === 'KeyW') {
