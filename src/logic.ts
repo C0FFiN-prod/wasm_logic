@@ -299,7 +299,9 @@ export class Circuit {
         this.affectedElements = new Set();
         this.wires = new Map();
     }
-
+    addExitstingElement(el: LogicElement) {
+        this._getChunk(el).add(el);
+    }
     addElement(type: string, params: Record<string, any>) {
         let el: LogicElement;
         switch (type) {
@@ -310,7 +312,7 @@ export class Circuit {
                 }
                 break;
             case 'TIMER':
-                el = new Timer(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                el = new Timer(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, (params.controller.seconds ?? 0), (params.controller.ticks ?? 0));
                 break;
             case 'BUTTON':
                 el = new Button(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
@@ -351,24 +353,24 @@ export class Circuit {
 
 
         if (this.wires.has(wireKey))
-            return false;
+            return undefined;
 
-
-        this.wires.set(wireKey, new Wire(src, dst));
+        const wire = new Wire(src, dst);
+        this.wires.set(wireKey, wire);
         dst.addInput(src);
-        return true;
+        return wire;
     }
 
     removeWire(src: LogicElement, dst: LogicElement) {
         const wireKey = `${src.id}|${dst.id}`;
-
-        if (this.wires.has(wireKey)) {
+        let wire;
+        if ((wire = this.wires.get(wireKey)) !== undefined) {
             this.wires.delete(wireKey);
             dst.removeInput(src);
-            return true;
+            return wire;
         }
 
-        return false;
+        return undefined;
     }
 
     // Удалить все провода, связанные с элементом
@@ -394,6 +396,7 @@ export class Circuit {
             wire.first.dst.removeInput(wire.first.src);
             this.wires.delete(wire.second);
         }
+        return wiresToRemove.map(p => p.first);
     }
 
     step() {

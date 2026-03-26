@@ -1,5 +1,5 @@
 import { ConnectMode, type ElementPDO, type Point, type Vector } from "../consts";
-import { isInputElement, isOutputElement, LogicElement } from "../logic";
+import { isInputElement, isOutputElement, LogicElement, Wire } from "../logic";
 import { circuit, clearSelection, customOverlays, ghostElements } from "../main";
 import { getChunkKey, getPointDelta, getPointFromChunkKey } from "./utils";
 
@@ -38,12 +38,12 @@ export function initConnectTool(mode: ConnectMode) {
 }
 export function connectSelected() {
   if (!connectTool.canConnect) return;
-
+  const wires: Wire[] = [];
   if (connectTool.mode === ConnectMode.NtoN) {
     for (const source of connectTool.sources[0] as Set<LogicElement>) {
       for (const target of connectTool.sources[1] as Set<LogicElement>) {
         if ((!isOutputElement(source)) && (!isInputElement(target))) {
-          circuit.addWire(source, target);
+          addWire(wires, source, target);
         }
       }
     }
@@ -52,7 +52,7 @@ export function connectSelected() {
     for (const el of connectTool.sources[0] as Set<LogicElement>) {
       if (prevEl !== null) {
         if ((!isOutputElement(prevEl)) && (!isInputElement(el))) {
-          circuit.addWire(prevEl, el);
+          addWire(wires, prevEl, el);
         }
       }
       prevEl = el;
@@ -65,7 +65,7 @@ export function connectSelected() {
     while ((source = sources.next().value) !== undefined &&
       (target = targets.next().value) !== undefined) {
       if ((!isOutputElement(source)) && (!isInputElement(target))) {
-        circuit.addWire(source, target);
+        addWire(wires, source, target);
       }
     }
   } else if (connectTool.mode === ConnectMode.Decoder) {
@@ -80,7 +80,7 @@ export function connectSelected() {
       let j = i, flag = false, source = negative;
       for (const target of targets) {
         if ((!isOutputElement(source)) && (!isInputElement(target))) {
-          circuit.addWire(source, target);
+          addWire(wires, source, target);
         }
         if (--j === 0) {
           flag = !flag;
@@ -97,19 +97,21 @@ export function connectSelected() {
   ghostElements.clear();
   customOverlays.clear();
   clearSelection();
+  return wires;
 }
 export function disconnectSelected() {
+  const wires: Wire[] = [];
   if (connectTool.mode === ConnectMode.NtoN) {
     for (const source of connectTool.sources[0] as Set<LogicElement>) {
       for (const target of connectTool.sources[1] as Set<LogicElement>) {
-        circuit.removeWire(source, target);
+        removeWire(wires, source, target);
       }
     }
   } else if (connectTool.mode === ConnectMode.Sequence) {
     let prevEl: LogicElement | null = null;
     for (const el of connectTool.sources[0] as Set<LogicElement>) {
       if (prevEl !== null) {
-        circuit.removeWire(prevEl, el);
+        removeWire(wires, prevEl, el);
       }
       prevEl = el;
     }
@@ -120,7 +122,7 @@ export function disconnectSelected() {
     let target: LogicElement | undefined;
     while ((source = sources.next().value?.[0]) !== undefined &&
       (target = targets.next().value?.[0]) !== undefined) {
-      circuit.removeWire(source, target);
+      removeWire(wires, source, target);
     }
   } else if (connectTool.mode === ConnectMode.Decoder) {
     const positives = (connectTool.sources[0] as Set<LogicElement>).values();
@@ -133,7 +135,7 @@ export function disconnectSelected() {
       (negative = negatives.next().value) !== undefined) {
       let j = i, flag = false, source = negative;
       for (const target of targets) {
-        circuit.removeWire(source, target);
+        removeWire(wires, source, target);
         if (--j === 0) {
           flag = !flag;
           source = flag ? positive : negative;
@@ -148,6 +150,7 @@ export function disconnectSelected() {
   ghostElements.clear();
   customOverlays.clear();
   clearSelection();
+  return wires;
 }
 export function makeGhostEl(point: Point): ElementPDO {
   return {
@@ -231,4 +234,16 @@ export function getVectorFrom2Points(point0: Point, point1: Point, length: numbe
     }
   }
   return { x: 0, y: 0, length: 0 };
+}
+
+function addWire(wires: Wire[], source: LogicElement, target: LogicElement) {
+  let wire;
+  if ((wire = circuit.addWire(source, target)) !== undefined)
+    wires.push(wire);
+}
+
+function removeWire(wires: Wire[], source: LogicElement, target: LogicElement) {
+  let wire;
+  if ((wire = circuit.removeWire(source, target)) !== undefined)
+    wires.push(wire);
 }

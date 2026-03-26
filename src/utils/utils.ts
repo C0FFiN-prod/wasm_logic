@@ -190,3 +190,28 @@ export function countSubstr(source: string, substring: string, start = 0, end = 
   };
   return cnt;
 }
+
+export function getSelectionCenter(elements: Set<LogicElement>): Point {
+  if (elements.size === 0) return { x: 0, y: 0 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const el of elements) {
+    minX = Math.min(minX, el.x);
+    minY = Math.min(minY, el.y);
+    maxX = Math.max(maxX, el.x);
+    maxY = Math.max(maxY, el.y);
+  }
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+  };
+}
+
+export function getSetDifference<T>(from: Set<T>, exclude: Set<T>): T[] {
+  const result: T[] = [];
+  for (const item of from) {
+    if (!exclude.has(item)) {
+      result.push(item);
+    }
+  }
+  return result;
+}

@@ -1,7 +1,8 @@
 import type { CircuitIO } from "../IOs/circuitIO";
 import { ToolMode, type LocaleNames } from "../consts";
 import { drawingTimer } from "../drawings";
-import { selectedTool } from "../main";
+import { HistoryManager } from "../history";
+import { selectedElements, selectedTool } from "../main";
 import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 
 export class FileIO {
@@ -12,10 +13,12 @@ export class FileIO {
     filenameDisplay: HTMLSpanElement;
     circuitIO: CircuitIO;
     i18n;
-    constructor(i18n: I18n<I18nLocale, LocaleNames, I18nLocales<LocaleNames, I18nLocale>>, circuitIO: CircuitIO, filenameDisplaySpan: HTMLSpanElement) {
+    historyManager: HistoryManager;
+    constructor(i18n: I18n<I18nLocale, LocaleNames, I18nLocales<LocaleNames, I18nLocale>>, circuitIO: CircuitIO, historyManager: HistoryManager, filenameDisplaySpan: HTMLSpanElement) {
         this.i18n = i18n;
         this.filenameDisplay = filenameDisplaySpan;
         this.circuitIO = circuitIO;
+        this.historyManager = historyManager;
         // Клик по имени — превращаем в input для редактирования
         this.filenameDisplay.addEventListener("click", () => {
             const input = document.createElement("input");
@@ -54,6 +57,7 @@ export class FileIO {
         this.currentFileHandle = null;
         this.currentFileName = '';
         this.updateFilenameDisplay();
+        this.historyManager.clear();
     }
     updateFilenameDisplay(text?: string) {
         this.filenameDisplay.textContent = text || (this.currentFileName || this.unnamed);
@@ -136,11 +140,18 @@ export class FileIO {
                 this.currentFileHandle = fileHandle;
                 this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || this.unnamed;
                 this.updateFilenameDisplay();
+                this.historyManager.clear();
             }
             const file = await fileHandle.getFile();
             const contents = await file.text();
             if (!add) this.circuitIO.clearCircuit();
-            this.circuitIO.deserializeCircuit(contents);
+            const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
+            if (!add) {
+                this.historyManager.clear();
+            } else {
+                this.historyManager.pushSelectionState(new Set(selectedElements));
+                this.historyManager.recordAddSchemeFromFile(newElements);
+            }
             drawingTimer.step();
         } else {
             const input = document.createElement("input");
@@ -153,9 +164,15 @@ export class FileIO {
                     this.currentFileName = file.name.replace(/\.json$/i, "");
                     this.updateFilenameDisplay();
                 }
-                const text = await file.text();
+                const contents = await file.text();
                 if (!add) this.circuitIO.clearCircuit();
-                this.circuitIO.deserializeCircuit(text);
+                const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
+                if (!add) {
+                    this.historyManager.clear();
+                } else {
+                    this.historyManager.pushSelectionState(new Set(selectedElements));
+                    this.historyManager.recordAddSchemeFromFile(newElements);
+                }
                 drawingTimer.step();
             };
             input.click();

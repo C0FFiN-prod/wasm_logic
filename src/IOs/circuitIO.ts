@@ -118,11 +118,10 @@ export class CircuitIO {
 
     serializeSelectedElements(selectedElements: Set<LogicGates.LogicElement>) {
         const data = Array.from(selectedElements).map(el => {
-            const controller = el.getController();
             return {
                 color: el.color,
                 id: el.id,
-                controller: controller,
+                controller: el.getController(),
                 pos: {
                     x: el.x,
                     y: el.y,
@@ -262,16 +261,22 @@ export class CircuitIO {
         return idMap.values();
     }
 
-    rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean) {
+    rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean, center: Point | undefined = undefined) {
         const sinF = clockwise ? -1 : 1;
-        const blueprintRect = this._getBlueprintRect(selectedElements);
-        const bpcX = (blueprintRect.x1 + blueprintRect.x0) / 2;
-        const bpcY = (blueprintRect.y1 + blueprintRect.y0) / 2;
+        let x, y;
+        if (center === undefined) {
+            const blueprintRect = this._getBlueprintRect(selectedElements);
+            x = (blueprintRect.x1 + blueprintRect.x0) / 2;
+            y = (blueprintRect.y1 + blueprintRect.y0) / 2;
 
-        const cX = Math.ceil(bpcX);
-        const cY = Math.ceil(bpcY);
-        const compensateX = clockwise ? 0 : (cX - Math.floor(bpcX));
-        const compensateY = clockwise ? (cY - Math.floor(bpcY)) : 0;
+        } else {
+            x = center.x;
+            y = center.y;
+        }
+        const cX = Math.ceil(x);
+        const cY = Math.ceil(y);
+        const compensateX = clockwise ? 0 : (cX - Math.floor(x));
+        const compensateY = clockwise ? (cY - Math.floor(y)) : 0;
         selectedElements.forEach(el => {
             const elX = el.x;
             const elY = el.y;
@@ -283,10 +288,19 @@ export class CircuitIO {
 
     }
 
-    flipSelected(selectedElements: Set<LogicGates.LogicElement>, vertical: boolean) {
-        const blueprintRect = this._getBlueprintRect(selectedElements);
-        const cX = Math.round((blueprintRect.x1 + blueprintRect.x0) / 2);
-        const cY = Math.round((blueprintRect.y1 + blueprintRect.y0) / 2);
+    flipSelected(selectedElements: Set<LogicGates.LogicElement>, vertical: boolean, center: Point | undefined = undefined) {
+        let x, y;
+        if (center === undefined) {
+            const blueprintRect = this._getBlueprintRect(selectedElements);
+            x = (blueprintRect.x1 + blueprintRect.x0) / 2;
+            y = (blueprintRect.y1 + blueprintRect.y0) / 2;
+
+        } else {
+            x = center.x;
+            y = center.y;
+        }
+        const cX = Math.round(x);
+        const cY = Math.round(y);
         if (vertical)
             selectedElements.forEach(el => this.circuit.moveElementBy(el, { x: 0, y: (cY - el.y) * 2 }));
         else
@@ -376,12 +390,15 @@ export class CircuitIO {
         return this.circuit.addElement(type, params);
     }
 
-    paintSelected(selectedElements: Iterable<LogicGates.LogicElement>, color: string | null) {
-        if (color === null)
-            color = this._getColor();
+    paintSelected(selectedElements: Iterable<LogicGates.LogicElement>, newColor: string | null) {
+        const oldColors = new Map<LogicGates.LogicElement, string>();
+        if (newColor === null)
+            newColor = this._getColor();
         for (const el of selectedElements) {
-            el.color = color;
+            oldColors.set(el, el.color);
+            el.color = newColor;
         }
+        return {oldColors, newColor}
     }
 
     pasteSelectedElementsAtCursor(

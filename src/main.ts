@@ -6,11 +6,12 @@ import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
 import * as ChangePrompt from './utils/changePrompt';
 import { LogEqLangCompiler, BuildError } from './logeqCompiler';
-import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr } from './utils/utils';
+import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr, getSelectionCenter, getPointDelta } from './utils/utils';
 import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
 import { changeWireDrawingAlg } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
+import { HistoryManager } from './history';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -19,6 +20,7 @@ export let isSimulating = false;
 let simInterval: number;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
+let startMousePos: Point = { x: 0, y: 0 };
 
 let mouseX = 0;
 let mouseY = 0;
@@ -37,6 +39,8 @@ export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
+
+let historyManager: HistoryManager;
 let fileIO: FileIO;
 let circuitIO: CircuitIO;
 let logEqParser: LogEqLangCompiler = new LogEqLangCompiler();
@@ -204,8 +208,17 @@ window.onload = (() => {
 
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
   circuitIO = new CircuitIO(circuit, colorPicker, camera);
-  fileIO = new FileIO(i18n, circuitIO, document.getElementById("filename-display") as HTMLSpanElement);
-
+  historyManager = new HistoryManager(circuit, circuitIO, {
+    maxMemoryMB: 100,
+    onHistoryChange: (canUndo, canRedo, undoStack, redoStack) => {
+      console.log(undoStack, redoStack);
+      const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement;
+      const redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
+      if (undoBtn) undoBtn.disabled = !canUndo;
+      if (redoBtn) redoBtn.disabled = !canRedo;
+    },
+  });
+  fileIO = new FileIO(i18n, circuitIO, historyManager, document.getElementById("filename-display") as HTMLSpanElement);
   canvases = {
     'canvas': document.getElementById('canvas-canvas') as HTMLCanvasElement,
     'webgl': document.getElementById('webgl-canvas') as HTMLCanvasElement
@@ -247,8 +260,11 @@ window.onload = (() => {
     const type = id.toUpperCase();
     if (el) {
       el.onclick = () => {
-        circuitIO.addElement(type, {});
-        drawingTimer.step();
+        const newEl = circuitIO.addElement(type, {});
+        if (newEl !== null) {
+          historyManager.recordAddElements([newEl]);
+          drawingTimer.step();
+        }
       };
     }
 
@@ -257,7 +273,8 @@ window.onload = (() => {
   const switchTool = (e: Event, toolMode: ToolMode) => {
     if (selectedTool === toolMode) return;
     selectedTool = toolMode;
-    clearSelection();
+    historyManager.pushSelectionState(selectedElements);
+    if (toolMode === ToolMode.Connect || selectedTool === ToolMode.Connect) clearSelection();
     updateToolButtons(e.target as HTMLElement);
     drawingTimer.step();
   }
@@ -488,6 +505,7 @@ function optimizedStep() {
 
 function clearCanvas() {
   if (confirm(i18n.getValue('dynamic', 'clear-canvas'))) {
+    historyManager.clear();
     circuit.clear();
     camera.x = 0;
     camera.y = 0;
@@ -505,6 +523,7 @@ export function clearSelection() {
   for (const s of connectTool.sources) s.clear();
   connectTool.coordMap.clear();
   selectedElements.clear();
+
 }
 
 function updateCopyWiresButtonText() {
@@ -861,6 +880,7 @@ function onCanvasMouseDown(e: MouseEvent) {
     }
     else {
       if (e.button === 0) {
+        historyManager.pushSelectionState(selectedElements);
         if (!selectedElements.has(el)) {
           if (!e.shiftKey) {
             clearSelection();
@@ -869,6 +889,8 @@ function onCanvasMouseDown(e: MouseEvent) {
         } else if (e.shiftKey) {
           selectedElements.delete(el);
         }
+        startMousePos.x = mouseX;
+        startMousePos.y = mouseY;
         prevMousePos.x = mouseX;
         prevMousePos.y = mouseY;
         prevMouseWorld = screenToWorld(camera, mouseX, mouseY);
@@ -883,13 +905,55 @@ function onCanvasMouseDown(e: MouseEvent) {
         } else if (el instanceof LogicGates.Button) {
           el.setValue(true);
         } else if (el instanceof LogicGates.Timer) {
-          ChangePrompt.show('delay', el);
+          ChangePrompt.show('delay', el.delay.toString(),
+            (value) => {
+              const delay = value;
+              const newDelay = Math.round(Number(delay));
+              if (delay !== null && delay !== '' && !Number.isNaN(newDelay) && (0 <= newDelay && newDelay <= 1024)) {
+                const oldDelays: Map<LogicGates.Timer, number> = new Map();
+
+                function changeDelay(el: LogicGates.Timer) {
+                  if (el.delay === newDelay) return;
+                  oldDelays.set(el, el.delay);
+                  el.setDelay(newDelay);
+                }
+
+                changeDelay(el);
+                for (const elI of selectedElements) {
+                  if (elI instanceof LogicGates.Timer) changeDelay(el);
+                }
+                historyManager.recordChangeTimerDelay(oldDelays, newDelay);
+              }
+            });
         } else if (el instanceof LogicGates.LogicGate) {
-          ChangePrompt.show('gate', el);
+          ChangePrompt.show('gate', gateModeToType.get(el.gateType)!,
+            (value) => {
+              const mode = value.toUpperCase();
+              if (gateTypeToMode.has(mode)) {
+                const oldTypes: Map<LogicGates.LogicGate, number> = new Map();
+                const newType = gateTypeToMode.get(mode)!;
+
+                function changeGateMode(el: LogicGates.LogicGate, type: string) {
+                  if (el.gateType === newType) return;
+                  if (!oldTypes.has(el)) oldTypes.set(el, el.gateType);
+                  if (type === 'T_FLOP') circuit.addWire(el, el);
+                  else circuit.removeWire(el, el);
+                  el.gateType = newType;
+                }
+
+                changeGateMode(el, mode);
+                for (const elI of selectedElements) {
+                  if (elI instanceof LogicGates.LogicGate) changeGateMode(elI, mode);
+                }
+
+                historyManager.recordChangeGateType(oldTypes, newType);
+                drawingTimer.step();
+              }
+            });
         }
       }
     }
-  } else {
+  } else if (!isSelecting) {
     isSelecting = true;
     selectionStart = { x: e.offsetX, y: e.offsetY };
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -913,7 +977,10 @@ function onCanvasMouseDown(e: MouseEvent) {
     } else {
       isSelecting = false;
     }
-    if (isSelecting) drawingTimer.setup();
+    if (isSelecting) {
+      historyManager.pushSelectionState(selectionSet);
+      drawingTimer.setup();
+    }
   }
   if (e.button === 1) {
     prevMousePos.x = mouseX;
@@ -968,8 +1035,8 @@ function onCanvasMouseMove(e: MouseEvent) {
 
 function onCanvasMouseOut() {
   isHandMoving = false;
-  isSelecting = false;
-  isDragging = false;
+  stopSelecting()
+  stopDragging();
   drawingTimer.stop();
   drawingTimer.step();
 }
@@ -1000,128 +1067,182 @@ function onCanvasMouseUp(e: MouseEvent) {
     drawingTimer.stop();
   }
   else {
-    if (isSelecting || isDragging) {
-      isSelecting = false;
-      isDragging = false;
-      drawingTimer.stop();
-      drawingTimer.step();
-    }
+    stopSelecting()
+    stopDragging();
+    drawingTimer.stop();
+    drawingTimer.step();
     e.stopPropagation();
   }
 
 }
-
+function stopDragging() {
+  if (isDragging) {
+    const startMouseWorls = screenToWorld(camera, startMousePos.x, startMousePos.y);
+    const x = Math.round(prevMouseWorld.x) - Math.round(startMouseWorls.x);
+    const y = Math.round(prevMouseWorld.y) - Math.round(startMouseWorls.y);
+    historyManager.recordMoveElements(x, y);
+  }
+  isDragging = false;
+}
+function stopSelecting() {
+  if (isSelecting) {
+    historyManager.recordSelectionChange(selectedElements);
+  }
+  isSelecting = false;
+}
 // Обработка клавиш
 document.addEventListener('keydown', e => {
   if (document.activeElement === document.body) {
-    if (e.code === 'Delete' && selectedElements.size > 0) {
-      // Удаление выбранных элементов
-      for (const element of selectedElements) {
-        circuit.removeWiresForElement(element);
-      }
-      if (elementUnderCursor && selectedElements.has(elementUnderCursor))
-        elementUnderCursor = null;
-      selectedElements.forEach(el => circuit.deleteElement(el));
-      clearSelection();
-    } else if (e.code === '-' || e.code === '+') {
+    if (e.code === '-' || e.code === '+') {
       zoomCanvas(e.code === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
-    } else if (e.code === 'Escape') {
-      if (ChangePrompt.isHidden()) {
-        clearSelection();
-        ghostElements.clear();
-        customOverlays.clear();
-        connectTool.targets.length = 0;
-        connectTool.vectors.length = 0;
-      } else ChangePrompt.cancel();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
-      document.getElementById('tool-connect')?.click();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyV') {
-      document.getElementById('tool-move')?.click();
-    } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyP') {
-      document.getElementById('tool-paint')?.click();
     } else if (e.altKey && e.code === 'KeyW') {
       cycleCopyWiresMode();
     } else if (e.shiftKey && e.code === 'KeyW') {
       cycleShowWiresMode();
-    } else if (e.code === 'KeyR') {
-      circuitIO.rotateSelected(selectedElements, e.shiftKey);
-    } else if (e.code === 'KeyF') {
-      circuitIO.flipSelected(selectedElements, e.shiftKey);
     } else if ((e.ctrlKey || e.metaKey) && e.key.startsWith('Arrow')) {
       const mul = (e.shiftKey ? 5 : 1) * gridSize;
       if (e.key === 'ArrowRight') {
         camera.x += mul;
+        if (isSelecting) selectionStart.x -= mul;
       } else if (e.key === 'ArrowLeft') {
         camera.x -= mul;
+        if (isSelecting) selectionStart.x += mul;
       } else if (e.key === 'ArrowUp') {
         camera.y -= mul;
+        if (isSelecting) selectionStart.y += mul;
       } else if (e.key === 'ArrowDown') {
         camera.y += mul;
+        if (isSelecting) selectionStart.y -= mul;
       }
-    } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
-      const deltaWorld = { x: 0, y: 0 };
-      const mul = e.shiftKey ? 5 : 1;
-      if (e.key === 'ArrowRight') {
-        deltaWorld.x = mul;
-      } else if (e.key === 'ArrowLeft') {
-        deltaWorld.x = -mul;
-      } else if (e.key === 'ArrowUp') {
-        deltaWorld.y = -mul;
-      } else if (e.key === 'ArrowDown') {
-        deltaWorld.y = mul;
-      }
-      for (const el of selectedElements)
-        circuit.moveElementBy(el, deltaWorld);
-    } else if (selectedTool === ToolMode.Cursor) {
-      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
-        e.preventDefault();
+      if (isDragging || isSelecting) drawingTimer.currentCanvas().dispatchEvent(new MouseEvent('mousemove', { clientX: prevMousePos.x, clientY: prevMousePos.y }));
+    } else if (!isDragging && !isSelecting) {
+      if (e.code === 'Delete') {
+        if (selectedElements.size > 0) {
+          historyManager.pushSelectionState(selectedElements);
+          const wires: LogicGates.Wire[] = [];
+          for (const element of selectedElements) {
+            wires.push(...circuit.removeWiresForElement(element));
+          }
+          selectedElements.forEach(el => circuit.deleteElement(el));
+          const elements = Array.from(selectedElements);
 
-        navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectedElements)).catch((err) => { console.log(err) });
-      } else if (e.shiftKey && e.code === 'KeyV') {
-        e.preventDefault();
-        const cursorX = prevMousePos.x;
-        const cursorY = prevMousePos.y;
-        selectedElements = new Set(circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY));
-      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
-        e.preventDefault();
-        const cursorX = prevMousePos.x;
-        const cursorY = prevMousePos.y;
-        navigator.clipboard.readText().then((json) => {
-          try {
-            selectedElements = new Set(circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY)));
-            drawingTimer.step();
-          } catch (err) {
-            console.log(err);
-          }
-        }).catch(err => console.log(err));
-      }
-    } else if (selectedTool === ToolMode.Connect) {
-      if (e.code === 'Enter') {
-        connectSelected();
-      }
-      else if (e.code === 'Backspace') {
-        disconnectSelected();
-      }
-    } else if (selectedTool === ToolMode.Paint) {
-      if (e.code === 'Enter')
-        circuitIO.paintSelected(selectedElements, null);
-      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
-        const el = getElementAt(circuit, camera, prevMousePos, true);
-        if (el) {
-          navigator.clipboard.writeText(el.color).catch((err) => { console.log(err) });
+          clearSelection();
+          historyManager.recordSelectionChange(selectedElements);
+          historyManager.recordRemoveElements(elements, wires);
         }
-      }
-      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
-        navigator.clipboard.readText().then((color) => {
-          color = color.trim().replace('#', '');
-          if (color.match('[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}')) {
-            if (color.length === 3) {
-              color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
+      } else if (e.code === 'Escape') {
+        if (ChangePrompt.isHidden()) {
+          historyManager.pushSelectionState(selectedElements);
+          clearSelection();
+          ghostElements.clear();
+          customOverlays.clear();
+          connectTool.targets.length = 0;
+          connectTool.vectors.length = 0;
+          historyManager.recordSelectionChange(selectedElements);
+        } else ChangePrompt.cancel();
+      } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
+        document.getElementById('tool-connect')?.click();
+      } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyV') {
+        document.getElementById('tool-move')?.click();
+      } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyP') {
+        document.getElementById('tool-paint')?.click();
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        if (historyManager.getLastUndoActionType() !== 'SELECTION_CHANGE' || selectedTool !== ToolMode.Connect)
+          historyManager.undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && e.shiftKey) {
+        e.preventDefault();
+        if (historyManager.getLastRedoActionType() !== 'SELECTION_CHANGE' || selectedTool !== ToolMode.Connect)
+          historyManager.redo();
+      } else if (e.code === 'KeyR') {
+        if (selectedElements.size > 1) {
+          const center = getSelectionCenter(selectedElements);
+          historyManager.recordRotateElements(center, e.shiftKey);
+          circuitIO.rotateSelected(selectedElements, e.shiftKey, center);
+        }
+      } else if (e.code === 'KeyF') {
+        if (selectedElements.size > 1) {
+          const center = getSelectionCenter(selectedElements);
+          historyManager.recordFlipElements(center, e.shiftKey);
+          circuitIO.flipSelected(selectedElements, e.shiftKey, center);
+        }
+      } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
+        const deltaWorld = { x: 0, y: 0 };
+        const mul = e.shiftKey ? 5 : 1;
+        if (e.key === 'ArrowRight') deltaWorld.x = mul;
+        else if (e.key === 'ArrowLeft') deltaWorld.x = -mul;
+        else if (e.key === 'ArrowUp') deltaWorld.y = -mul;
+        else if (e.key === 'ArrowDown') deltaWorld.y = mul;
+
+        for (const el of selectedElements)
+          circuit.moveElementBy(el, deltaWorld);
+        historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
+      } else if (selectedTool === ToolMode.Cursor) {
+        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
+          e.preventDefault();
+
+          navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectedElements)).catch((err) => { console.log(err) });
+        } else if (e.shiftKey && e.code === 'KeyV') {
+          e.preventDefault();
+          const cursorX = prevMousePos.x;
+          const cursorY = prevMousePos.y;
+
+          historyManager.pushSelectionState(selectedElements);
+          selectedElements = new Set(circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY));
+
+          historyManager.recordDuplicateElements(Array.from(selectedElements));
+          historyManager.recordSelectionChange(selectedElements);
+          drawingTimer.step();
+        } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
+          e.preventDefault();
+          const cursorX = prevMousePos.x;
+          const cursorY = prevMousePos.y;
+          navigator.clipboard.readText().then((json) => {
+            try {
+              historyManager.pushSelectionState(selectedElements);
+              selectedElements = new Set(circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY)));
+
+              historyManager.recordPasteElements(Array.from(selectedElements));
+              historyManager.recordSelectionChange(selectedElements);
+              drawingTimer.step();
+            } catch (err) {
+              console.log(err);
             }
-            circuitIO.paintSelected(selectedElements, color);
-            drawingTimer.step();
+          }).catch(err => console.log(err));
+        }
+      } else if (selectedTool === ToolMode.Connect) {
+        if (e.code === 'Enter') {
+          const wires = connectSelected();
+          if (wires)
+            historyManager.recordAddConnections(wires);
+        }
+        else if (e.code === 'Backspace') {
+          const wires = disconnectSelected();
+          historyManager.recordRemoveConnections(wires);
+        }
+      } else if (selectedTool === ToolMode.Paint) {
+        if (e.code === 'Enter') {
+          const { oldColors, newColor } = circuitIO.paintSelected(selectedElements, null);
+          historyManager.recordChangeColor(oldColors, newColor);
+        }
+        else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
+          const el = getElementAt(circuit, camera, prevMousePos, true);
+          if (el) {
+            navigator.clipboard.writeText(el.color).catch((err) => { console.log(err) });
           }
-        })
+        }
+        else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
+          navigator.clipboard.readText().then((color) => {
+            color = color.trim().replace('#', '');
+            if (color.match('[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3}')) {
+              if (color.length === 3) {
+                color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
+              }
+              circuitIO.paintSelected(selectedElements, color);
+              drawingTimer.step();
+            }
+          })
+        }
       }
     }
     drawingTimer.step();
