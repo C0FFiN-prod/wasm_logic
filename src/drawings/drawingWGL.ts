@@ -425,7 +425,7 @@ function packElements(): {
     const colorIndices = new Uint32Array(visibleCount);
 
     let nextColorIndex = colorData.length / 3;
-    let i = 0;
+    let i = visibleCount-1;
 
     for (const el of ghostElements) {
         const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
@@ -447,7 +447,7 @@ function packElements(): {
             (el.value ? 1 : 0) << 3 |
             (border & 0b111);
         colorIndices[i] = colorMap.get(el.color)![0];
-        ++i;
+        --i;
     }
 
     for (const chunk of visibleChunks) {
@@ -501,7 +501,7 @@ function packElements(): {
                 (el.value ? 1 : 0) << 3 |
                 (border & 0b111);
             colorIndices[i] = colorMap.get(el.color)![0];
-            ++i;
+            --i;
         }
     }
 
