@@ -1,7 +1,7 @@
 import {
     camera,
     isSelecting, selectionEnd, selectionStart,
-    selectedElements,
+    selectionSets,
     selectedTool, showWiresMode, circuit,
     elementUnderCursor,
     selectionColor,
@@ -11,10 +11,11 @@ import {
 } from "../main";
 import m3 from '../utils/m3';
 import { type LogicGate } from "../logic";
-import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, WireDrawings, type Point, type vec3 } from "../consts";
-import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen } from "../utils/utils";
+import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, WireDrawings, type Point, type Rect, type vec3 } from "../consts";
+import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, cameraViewportRect } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
 import { wireDrawingAlg, overlayIconMap } from ".";
+import { segmentIntersectsRect } from "../utils/geometry";
 
 
 
@@ -427,28 +428,7 @@ function packElements(): {
     let nextColorIndex = colorData.length / 3;
     let i = visibleCount-1;
 
-    for (const el of ghostElements) {
-        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
-        positions[i * 2] = x;
-        positions[i * 2 + 1] = y;
-        let isLuminant: number;
-        let isBright: number;
-        ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(el, nextColorIndex));
-        const border = el.borderColor;
-        const iconIndex = iconMap.get(el.icon)!;
-        const iconOverlayIndex = overlayIconMap.get(el.overlay)!;
-        const iconOverlayColor = el.overlayColor;
-        attributes[i] =
-            (iconOverlayColor & 0xF) << 20 |
-            (iconOverlayIndex & 0xF) << 16 |
-            (iconIndex & 0xF) << 8 |
-            (isLuminant & 0b1) << 5 |
-            (isBright & 0b1) << 4 |
-            (el.value ? 1 : 0) << 3 |
-            (border & 0b111);
-        colorIndices[i] = colorMap.get(el.color)![0];
-        --i;
-    }
+
 
     for (const chunk of visibleChunks) {
         for (const el of chunk) {
@@ -461,7 +441,7 @@ function packElements(): {
 
             // Упаковка атрибутов в 32 бит
             let border = 0;
-            if (connectTool.sources[2].has(el) || selectedElements.has(el))
+            if (connectTool.sources[2].has(el) || selectionSets['selection'].has(el))
                 border = selectedTool === ToolMode.Cursor ? 1 : 5;
             else if (connectTool.sources[1].has(el) && connectTool.sources[0].has(el))
                 border = 4;
@@ -504,7 +484,29 @@ function packElements(): {
             --i;
         }
     }
-
+    
+    for (const el of ghostElements) {
+        const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
+        positions[i * 2] = x;
+        positions[i * 2 + 1] = y;
+        let isLuminant: number;
+        let isBright: number;
+        ({ isLuminant, isBright, nextColorIndex } = addElementToColorMap(el, nextColorIndex));
+        const border = el.borderColor;
+        const iconIndex = iconMap.get(el.icon)!;
+        const iconOverlayIndex = overlayIconMap.get(el.overlay)!;
+        const iconOverlayColor = el.overlayColor;
+        attributes[i] =
+            (iconOverlayColor & 0xF) << 20 |
+            (iconOverlayIndex & 0xF) << 16 |
+            (iconIndex & 0xF) << 8 |
+            (isLuminant & 0b1) << 5 |
+            (isBright & 0b1) << 4 |
+            (el.value ? 1 : 0) << 3 |
+            (border & 0b111);
+        colorIndices[i] = colorMap.get(el.color)![0];
+        --i;
+    }
 
     return {
         positions,
@@ -574,6 +576,7 @@ function drawGrid() {
 function drawWires() {
     gl.uniform4fv(program.uniforms.color, colors.wires);
     gl.lineWidth(2 / camera.zoom);
+    const screenRect: Rect = cameraViewportRect(camera, canvas.clientWidth, canvas.clientHeight);
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         const lines: number[] = [];
@@ -581,7 +584,10 @@ function drawWires() {
         for (const [_, wire] of circuit.wires) {
             const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
             const end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
-            lines.push(...wireDrawingAlg(start, end));
+            
+            if(segmentIntersectsRect(start, end, screenRect)) {
+                lines.push(...wireDrawingAlg(start, end));
+            }
         }
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
         gl.drawArrays(gl.LINES, 0, lines.length / 2);
@@ -602,7 +608,8 @@ function drawWires() {
                 for (const target of connectTool.sources[1]) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    lines.push(...wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        lines.push(...wireDrawingAlg(start, end));
                 }
             }
         } else if (connectTool.mode === ConnectMode.Sequence) {
@@ -612,7 +619,8 @@ function drawWires() {
                 if (prevEl !== null) {
                     const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
                     const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    lines.push(...wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        lines.push(...wireDrawingAlg(start, end));
                 }
                 prevEl = el;
             }
@@ -627,7 +635,8 @@ function drawWires() {
             ) {
                 const start = worldToTranslatedScreen(camera, source.x, source.y);
                 const end = worldToTranslatedScreen(camera, target.x, target.y);
-                lines.push(...wireDrawingAlg(start, end));
+                if(segmentIntersectsRect(start, end, screenRect))
+                    lines.push(...wireDrawingAlg(start, end));
             }
         } else if (connectTool.mode === ConnectMode.Decoder) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0 || connectTool.sources[2].size === 0) return;
@@ -645,7 +654,8 @@ function drawWires() {
                 for (const target of targets) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    lines.push(...wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        lines.push(...wireDrawingAlg(start, end));
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;

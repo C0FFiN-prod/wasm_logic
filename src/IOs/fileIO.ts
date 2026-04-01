@@ -2,7 +2,7 @@ import type { CircuitIO } from "../IOs/circuitIO";
 import { ToolMode, type LocaleNames } from "../consts";
 import { drawingTimer } from "../drawings";
 import { HistoryManager } from "../history";
-import { selectedElements, selectedTool } from "../main";
+import { selectionSets, selectedTool } from "../main";
 import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 
 export class FileIO {
@@ -66,7 +66,8 @@ export class FileIO {
     saveAs = async (): Promise<void> => {
         if (this.hasFSAPI) {
             // --- FSAPI способ ---
-            const options = {
+            this.currentFileHandle = await (window as any).showSaveFilePicker({
+                id: 'losi-file-picker',
                 suggestedName: this.currentFileName.endsWith(".json")
                     ? this.currentFileName
                     : this.currentFileName + ".json",
@@ -76,8 +77,7 @@ export class FileIO {
                         accept: { "application/json": [".json"] }
                     }
                 ]
-            };
-            this.currentFileHandle = await (window as any).showSaveFilePicker(options);
+            });
             this.currentFileName = this.currentFileHandle?.name.replace(/\.json$/i, "") || this.currentFileName;
             this.updateFilenameDisplay();
             await this.writeToCurrentFile();
@@ -129,6 +129,7 @@ export class FileIO {
     load = async (add: boolean): Promise<void> => {
         if (this.hasFSAPI) {
             const [fileHandle] = await (window as any).showOpenFilePicker({
+                id: 'losi-file-picker',
                 types: [
                     {
                         description: "Logic Simulator Scheme",
@@ -143,16 +144,7 @@ export class FileIO {
                 this.historyManager.clear();
             }
             const file = await fileHandle.getFile();
-            const contents = await file.text();
-            if (!add) this.circuitIO.clearCircuit();
-            const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
-            if (!add) {
-                this.historyManager.clear();
-            } else {
-                this.historyManager.pushSelectionState(new Set(selectedElements));
-                this.historyManager.recordAddSchemeFromFile(newElements);
-            }
-            drawingTimer.step();
+            this.processLoadedFile(file, add);
         } else {
             const input = document.createElement("input");
             input.type = "file";
@@ -164,19 +156,23 @@ export class FileIO {
                     this.currentFileName = file.name.replace(/\.json$/i, "");
                     this.updateFilenameDisplay();
                 }
-                const contents = await file.text();
-                if (!add) this.circuitIO.clearCircuit();
-                const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
-                if (!add) {
-                    this.historyManager.clear();
-                } else {
-                    this.historyManager.pushSelectionState(new Set(selectedElements));
-                    this.historyManager.recordAddSchemeFromFile(newElements);
-                }
-                drawingTimer.step();
+                this.processLoadedFile(file, add);
             };
             input.click();
         }
     }
-
+    private async processLoadedFile(file: File, add: boolean) {
+        const contents = await file.text();
+        if (!add) this.circuitIO.clearCircuit();
+        const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
+        if (!add) {
+            this.historyManager.clear();
+        } else {
+            this.historyManager.pushSelectionsState(['selection']);
+            selectionSets['selection'] = new Set(newElements);
+            this.historyManager.recordAddSchemeFromFile(newElements);
+            this.historyManager.recordSelectionsChange(['selection']);
+        }
+        drawingTimer.step();
+    }
 }

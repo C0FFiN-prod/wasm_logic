@@ -1,17 +1,17 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, locales, maxZoom, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
+import { colors, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, locales, maxZoom, SelectionSets, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
 import * as ChangePrompt from './utils/changePrompt';
 import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr, getSelectionCenter, getPointDelta } from './utils/utils';
-import { connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, initConnectTool, makeGhostEl } from './utils/connectionTool';
+import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, handleElementClick, initConnectTool, makeGhostEl, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
 import { changeWireDrawingAlg } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
-import { HistoryManager } from './history';
+import { HistoryManager, type HistoryAction } from './history';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -30,8 +30,12 @@ let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
 export let selectionEnd: Point = { x: 0, y: 0 };
 export let selectionColor: vec4 = colors.selection;
-export let selectedElements = new Set<LogicGates.LogicElement>();
-let selectionSet: Set<LogicGates.LogicElement>;
+let selectionSetKey: SelectionSets = 'selection';
+export let selectionSets: Record<SelectionSets, Set<LogicGates.LogicElement>> = {
+  'selection': new Set(),
+  'source': connectTool.sources[0] as Set<LogicGates.LogicElement>,
+  'target': connectTool.sources[1] as Set<LogicGates.LogicElement>
+};
 export const customOverlays: Map<LogicGates.LogicElement, { icon: string, color: number }> = new Map();
 export const ghostElements: Set<ElementPDO> = new Set();
 
@@ -272,9 +276,19 @@ window.onload = (() => {
   });
   const switchTool = (e: Event, toolMode: ToolMode) => {
     if (selectedTool === toolMode) return;
+    switch (toolMode) {
+      case ToolMode.Cursor:
+      case ToolMode.Paint:
+        if (connectTool.mode === ConnectMode.NtoN) historyManager.recordSelectionsClear(selectedTool, ['source', 'target']);
+        clearModeState();
+        break;
+      case ToolMode.Connect:
+        historyManager.recordSelectionsClear(selectedTool, ['selection']);
+        clearSelections(['selection']);
+        processConnectToolMode();
+        break;
+    }
     selectedTool = toolMode;
-    historyManager.pushSelectionState(selectedElements);
-    if (toolMode === ToolMode.Connect || selectedTool === ToolMode.Connect) clearSelection();
     updateToolButtons(e.target as HTMLElement);
     drawingTimer.step();
   }
@@ -377,9 +391,9 @@ window.onload = (() => {
         const layers = logEqParser.buildFromAst(parsed.ast, logEqFlatten.checked);
         // logEqParser.printCircuit(layers);
         const newEls = circuitIO.fromLayers(layers, logEqInputEl.value);
-        selectedElements.clear();
+        selectionSets['selection'].clear();
         for (const newEl of newEls) {
-          selectedElements.add(newEl);
+          selectionSets['selection'].add(newEl);
         }
         if (logEqConsole) {
           logEqConsole.innerHTML = i18n.getValue("dynamic", 'success');
@@ -505,25 +519,24 @@ function optimizedStep() {
 
 function clearCanvas() {
   if (confirm(i18n.getValue('dynamic', 'clear-canvas'))) {
-    historyManager.clear();
     circuit.clear();
     camera.x = 0;
     camera.y = 0;
     fileIO.clearFileHandle();
     clearCircuitInLS();
-    clearSelection();
+    clearSelections(SelectionSets.flat());
+    clearConnectTool();
     clearInterval(simInterval);
     isSimulating = false;
+    historyManager.clear();
     drawingTimer.stop();
     drawingTimer.step();
   }
 }
 
-export function clearSelection() {
-  for (const s of connectTool.sources) s.clear();
-  connectTool.coordMap.clear();
-  selectedElements.clear();
-
+export function clearSelections(keys: SelectionSets[]) {
+  for(const key of keys)
+    selectionSets[key].clear();
 }
 
 function updateCopyWiresButtonText() {
@@ -579,23 +592,41 @@ function cycleShowWiresMode() {
 }
 
 function cycleConnectMode(e: Event) {
-  connectTool.mode = ((4 + connectTool.mode + ((<MouseEvent>e)?.shiftKey ? -1 : 1)) % 4) as ConnectMode;
-  customOverlays.clear();
-  ghostElements.clear();
-  clearSelection();
-  connectTool.targets.length = 0;
-  drawingTimer.step();
-  updateConnectModeButtonText();
+  updateConnectMode(((4 + connectTool.mode + ((<MouseEvent>e)?.shiftKey ? -1 : 1)) % 4) as ConnectMode);
 }
 
+function updateConnectMode(newMode: ConnectMode) {
+  const oldMode = connectTool.mode;
+  if (oldMode === newMode) return;
+  if (oldMode === ConnectMode.NtoN) historyManager.recordSelectionsClear(selectedTool, ['source', 'target']);
+  else historyManager.recordConnectTargetsClear(connectTool.targets, connectTool.mode);
+  clearConnectTool();
+  initConnectTool(newMode);
+  updateConnectModeButtonText();
+  drawingTimer.step();
+}
 
+function clickSelectElement(e: MouseEvent, el: LogicGates.LogicElement, key: SelectionSets) {
+  const wasIn = selectionSets[key].has(el);
+  if (e.shiftKey) {
+    historyManager.recordSelectionClickChange(!wasIn, el, key);
+    if (wasIn)
+      selectionSets[key].delete(el);
+    else
+      selectionSets[key].add(el);
+  } else if (!wasIn) {
+    historyManager.recordSelectionClickClear(el, key);
+    selectionSets[key].clear();
+    selectionSets[key].add(el);
+  }
+}
 
 function onCanvasMouseDown(e: MouseEvent) {
   mouseX = e.offsetX;
   mouseY = e.offsetY;
 
   const el = getElementAt(circuit, camera, { x: mouseX, y: mouseY }, true);
-  console.log(el);
+  // console.log(el);
   if (el) {
     if (e.button === 1) {
       if (elementUnderCursor === el)
@@ -603,292 +634,17 @@ function onCanvasMouseDown(e: MouseEvent) {
       else
         elementUnderCursor = el;
     } else if (selectedTool === ToolMode.Connect) {
-      initConnectTool(connectTool.mode);
       if (connectTool.mode === ConnectMode.NtoN) {
-        connectTool.canConnect = true;
-        if (e.button === 0) {
-          if (!LogicGates.isOutputElement(el)) {
-            if (!connectTool.sources[0].has(el)) {
-              connectTool.sources[0].add(el);
-            } else {
-              connectTool.sources[0].delete(el);
-            }
-          }
-        } else if (e.button === 2) {
-          if (!LogicGates.isInputElement(el)) {
-            if (!connectTool.sources[1].has(el)) {
-              connectTool.sources[1].add(el);
-            } else {
-              connectTool.sources[1].delete(el);
-            }
-          }
-        }
-      } else if (connectTool.mode === ConnectMode.Sequence) {
-        let elIndex = connectTool.targets.indexOf(el);
-        clearSelection();
-        ghostElements.clear();
-        if (elIndex === -1) {
-          let nullIndex = connectTool.targets.indexOf(null);
-          if (nullIndex === -1) {
-            if (connectTool.targets[2] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[2]);
-            nullIndex = 2;
-          }
-          connectTool.targets[nullIndex] = el;
-          elIndex = nullIndex;
-          customOverlays.set(el, { icon: ['a0', 'a1', 'an'][nullIndex], color: 7 });
-          nullIndex = connectTool.targets.indexOf(null);
-
-          let targetEl: LogicGates.LogicElement | ElementPDO | null = el;
-          if (nullIndex === -1) {
-            if (connectTool.targets[2] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[2]);
-            connectTool.vectors[0] = getVectorFrom3Points(
-              connectTool.targets[0]!,
-              connectTool.targets[1]!,
-              connectTool.targets[2]!,
-            );
-
-            if (connectTool.vectors[0].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[0]!.x + connectTool.vectors[0].x * connectTool.vectors[0].length,
-                y: connectTool.targets[0]!.y + connectTool.vectors[0].y * connectTool.vectors[0].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false);
-            }
-            if (targetEl === connectTool.targets[0] || targetEl === connectTool.targets[1]) targetEl = null;
-            if (targetEl instanceof LogicGates.LogicElement) customOverlays.set(targetEl, { icon: 'an', color: 7 });
-            connectTool.targets[2] = targetEl;
-          }
-          const rows: (string[] | null)[] = [
-            connectTool.vectors[0]?.length ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length) : null
-          ];
-          fillCoordMapWithElements(circuit, connectTool.coordMap);
-
-          const check = (_: number, v: LogicGates.LogicElement) => {
-            return (connectTool.sources[0].size !== 0 && LogicGates.isInputElement(v)) ||
-              (connectTool.sources[0].size !== connectTool.coordMap.size - 1 && LogicGates.isOutputElement(v));
-          }
-          fillCTSources(rows, check);
-        } else {
-          if (el instanceof LogicGates.LogicElement) customOverlays.delete(el);
-          connectTool.targets[elIndex] = null;
-          connectTool.vectors[0] = { x: 0, y: 0, length: 0 };
-        }
-      } else if (connectTool.mode === ConnectMode.Parallel) {
-        let elIndex = connectTool.targets.indexOf(el);
-        clearSelection();
-        ghostElements.clear();
-        if (elIndex === -1 || elIndex === 5) {
-          let nullIndex = connectTool.targets.indexOf(null);
-          if (nullIndex === -1 || nullIndex === 5 || elIndex === 5) {
-            if (connectTool.targets[4] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[4]);
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-            nullIndex = 4;
-          }
-          connectTool.targets[nullIndex] = el;
-          elIndex = nullIndex;
-          if (nullIndex < 3) customOverlays.set(el, { icon: ['a0', 'a1', 'an'][nullIndex], color: 7 });
-          else if (nullIndex < 5) customOverlays.set(el, { icon: ['b0', 'b1', 'bn'][nullIndex - 3], color: 8 });
-          nullIndex = connectTool.targets.indexOf(null);
-
-          let targetEl: LogicGates.LogicElement | ElementPDO | null = null;
-          if ((nullIndex === -1 || nullIndex > 2) && elIndex < 3) {
-            connectTool.vectors[0] = getVectorFrom3Points(
-              connectTool.targets[0]!,
-              connectTool.targets[1]!,
-              connectTool.targets[2]!,
-            );
-            if (connectTool.vectors[0].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[0]!.x + connectTool.vectors[0].x * connectTool.vectors[0].length,
-                y: connectTool.targets[0]!.y + connectTool.vectors[0].y * connectTool.vectors[0].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false);
-            }
-            if (targetEl === connectTool.targets[0] || targetEl === connectTool.targets[1]) targetEl = null;
-            if (connectTool.targets[2] !== targetEl && connectTool.targets[2] instanceof LogicGates.LogicElement)
-              customOverlays.delete(connectTool.targets[2]);
-            connectTool.targets[2] = targetEl;
-            elIndex = 5;
-            nullIndex = connectTool.targets.indexOf(null); targetEl = null;
-          }
-          if ((nullIndex === -1 || nullIndex === 5) && elIndex > 2) {
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.vectors[1] = getVectorFrom2Points(
-              connectTool.targets[3]!,
-              connectTool.targets[4]!,
-              connectTool.vectors[0].length
-            );
-            if (connectTool.vectors[1].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[3]!.x + connectTool.vectors[1].x * connectTool.vectors[1].length,
-                y: connectTool.targets[3]!.y + connectTool.vectors[1].y * connectTool.vectors[1].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false);
-            }
-            if (targetEl === connectTool.targets[3] || targetEl === connectTool.targets[4]) targetEl = null;
-            if (targetEl instanceof LogicGates.LogicElement) customOverlays.set(targetEl, { icon: 'bn', color: 8 });
-            connectTool.targets[5] = targetEl;
-          }
-        } else {
-          if (el instanceof LogicGates.LogicElement) customOverlays.delete(el);
-          connectTool.targets[elIndex] = null;
-
-          if (elIndex < 3) {
-            connectTool.vectors[0] = { x: 0, y: 0, length: 0 };
-            connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-          } else if (elIndex < 5) {
-            connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-          }
-        }
-        const rows: (string[] | null)[] = [
-          connectTool.vectors[0]?.length ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length) : null,
-          connectTool.vectors[1]?.length ? fillCoordMapWithCoords(connectTool.targets[3]!, connectTool.vectors[1], connectTool.vectors[1].length) : null
-        ];
-        fillCoordMapWithElements(circuit, connectTool.coordMap);
-
-        const check = (i: number, v: LogicGates.LogicElement) => {
-          return i === 0 && LogicGates.isOutputElement(v) ||
-            i === 1 && LogicGates.isInputElement(v);
-        }
-        fillCTSources(rows, check);
-      } else if (connectTool.mode === ConnectMode.Decoder) {
-        let elIndex = connectTool.targets.indexOf(el);
-
-        clearSelection();
-        ghostElements.clear();
-
-        if (elIndex === -1 || elIndex === 5 || elIndex === 8) {
-          let nullIndex = connectTool.targets.indexOf(null);
-          if (nullIndex === -1 || nullIndex === 8 || elIndex === 8) {
-            if (connectTool.targets[7] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[7]);
-            if (connectTool.targets[8] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[8]);
-            connectTool.targets[8] = null;
-            nullIndex = 7;
-          } else if (nullIndex === 5 || elIndex === 5) {
-            if (connectTool.targets[4] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[4]);
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-            nullIndex = 4;
-          }
-          connectTool.targets[nullIndex] = el;
-          elIndex = nullIndex;
-          if (nullIndex < 3) customOverlays.set(el, { icon: ['a0', 'a1', 'an'][nullIndex], color: 7 });
-          else if (nullIndex < 6) customOverlays.set(el, { icon: ['b0', 'b1', 'bn'][nullIndex - 3], color: 8 });
-          else if (nullIndex < 9) customOverlays.set(el, { icon: ['r0', 'r1', 'rn'][nullIndex - 6], color: 9 });
-          nullIndex = connectTool.targets.indexOf(null);
-
-          let targetEl: LogicGates.LogicElement | ElementPDO | null = null;
-          if (nullIndex > 2 && elIndex < 3) {
-            if (connectTool.targets[2] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[2]);
-            connectTool.vectors[0] = getVectorFrom3Points(
-              connectTool.targets[0]!,
-              connectTool.targets[1]!,
-              connectTool.targets[2]!,
-            );
-            if (connectTool.vectors[0].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[0]!.x + connectTool.vectors[0].x * connectTool.vectors[0].length,
-                y: connectTool.targets[0]!.y + connectTool.vectors[0].y * connectTool.vectors[0].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false);
-            }
-            if (targetEl === connectTool.targets[0] || targetEl === connectTool.targets[1]) targetEl = null;
-            if (targetEl instanceof LogicGates.LogicElement) customOverlays.set(targetEl, { icon: 'an', color: 7 });
-            connectTool.targets[2] = targetEl;
-            elIndex = 5;
-            nullIndex = connectTool.targets.indexOf(null); targetEl = null;
-          }
-          if ((nullIndex === -1 || nullIndex === 5) && elIndex > 2) {
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.vectors[1] = getVectorFrom2Points(
-              connectTool.targets[3]!,
-              connectTool.targets[4]!,
-              connectTool.vectors[0].length
-            );
-            if (connectTool.vectors[1].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[3]!.x + connectTool.vectors[1].x * connectTool.vectors[1].length,
-                y: connectTool.targets[3]!.y + connectTool.vectors[1].y * connectTool.vectors[1].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false) || makeGhostEl(pointN);
-            }
-            if (targetEl === connectTool.targets[3] || targetEl === connectTool.targets[4]) targetEl = null;
-            if (targetEl instanceof LogicGates.LogicElement) customOverlays.set(targetEl, { icon: 'bn', color: 8 });
-            connectTool.targets[5] = targetEl;
-            elIndex = 8
-            nullIndex = connectTool.targets.indexOf(null); targetEl = null;
-          }
-          if ((nullIndex === -1 || nullIndex === 8) && elIndex > 5) {
-            if (connectTool.targets[8] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[8]);
-            connectTool.vectors[2] = getVectorFrom2Points(
-              connectTool.targets[6]!,
-              connectTool.targets[7]!,
-              Math.pow(2, connectTool.vectors[0].length + 1) - 1
-            );
-            if (connectTool.vectors[2].length !== 0) {
-              const pointN = {
-                x: connectTool.targets[6]!.x + connectTool.vectors[2].x * connectTool.vectors[2].length,
-                y: connectTool.targets[6]!.y + connectTool.vectors[2].y * connectTool.vectors[2].length,
-              }
-              targetEl = getElementAt(circuit, camera, pointN, false) || makeGhostEl(pointN);
-            }
-            if (targetEl === connectTool.targets[6] || targetEl === connectTool.targets[7]) targetEl = null;
-            if (targetEl instanceof LogicGates.LogicElement) customOverlays.set(targetEl, { icon: 'rn', color: 9 });
-            connectTool.targets[8] = targetEl;
-          }
-        } else {
-          if (el instanceof LogicGates.LogicElement) customOverlays.delete(el);
-          connectTool.targets[elIndex] = null;
-
-          if (elIndex < 3) {
-            connectTool.vectors[0] = { x: 0, y: 0, length: 0 };
-            connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
-            connectTool.vectors[2] = { x: 0, y: 0, length: 0 };
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-            if (connectTool.targets[8] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[8]);
-            connectTool.targets[8] = null;
-          } else if (elIndex < 5) {
-            connectTool.vectors[1] = { x: 0, y: 0, length: 0 };
-            connectTool.vectors[2] = { x: 0, y: 0, length: 0 };
-            if (connectTool.targets[5] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[5]);
-            connectTool.targets[5] = null;
-          } else if (elIndex < 8) {
-            connectTool.vectors[2] = { x: 0, y: 0, length: 0 };
-            if (connectTool.targets[8] instanceof LogicGates.LogicElement) customOverlays.delete(connectTool.targets[8]);
-            connectTool.targets[8] = null;
-          }
-        }
-        const rows: (string[] | null)[] = [
-          connectTool.vectors[0]?.length ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length) : null,
-          connectTool.vectors[1]?.length ? fillCoordMapWithCoords(connectTool.targets[3]!, connectTool.vectors[1], connectTool.vectors[1].length) : null,
-          connectTool.vectors[2]?.length ? fillCoordMapWithCoords(connectTool.targets[6]!, connectTool.vectors[2], connectTool.vectors[2].length) : null,
-        ];
-        fillCoordMapWithElements(circuit, connectTool.coordMap);
-
-        const check = (i: number, v: LogicGates.LogicElement) => {
-          return i < 2 && LogicGates.isOutputElement(v) ||
-            i === 2 && LogicGates.isInputElement(v);
-        }
-        fillCTSources(rows, check);
+        clickSelectElement(e, el, e.button === 0 ? 'source' : 'target');
+      } else {
+        const { element, index } = handleElementClick(el) as { element: ConnectToolTarget; index: number; };
+        historyManager.recordConnectTargetChange(element, el, index, connectTool.mode)
       }
     }
     else {
       if (e.button === 0) {
-        historyManager.pushSelectionState(selectedElements);
-        if (!selectedElements.has(el)) {
-          if (!e.shiftKey) {
-            clearSelection();
-          }
-          selectedElements.add(el);
-        } else if (e.shiftKey) {
-          selectedElements.delete(el);
-        }
+        clickSelectElement(e, el, 'selection');
+
         startMousePos.x = mouseX;
         startMousePos.y = mouseY;
         prevMousePos.x = mouseX;
@@ -919,7 +675,7 @@ function onCanvasMouseDown(e: MouseEvent) {
                 }
 
                 changeDelay(el);
-                for (const elI of selectedElements) {
+                for (const elI of selectionSets['selection']) {
                   if (elI instanceof LogicGates.Timer) changeDelay(el);
                 }
                 historyManager.recordChangeTimerDelay(oldDelays, newDelay);
@@ -942,7 +698,7 @@ function onCanvasMouseDown(e: MouseEvent) {
                 }
 
                 changeGateMode(el, mode);
-                for (const elI of selectedElements) {
+                for (const elI of selectionSets['selection']) {
                   if (elI instanceof LogicGates.LogicGate) changeGateMode(elI, mode);
                 }
 
@@ -957,28 +713,34 @@ function onCanvasMouseDown(e: MouseEvent) {
     isSelecting = true;
     selectionStart = { x: e.offsetX, y: e.offsetY };
     selectionEnd = { x: e.offsetX, y: e.offsetY };
+    let selectionSet = selectionSets['selection'];
     if (selectedTool === ToolMode.Cursor && e.button === 0) {
       selectionColor = colors.selection;
-      selectionSet = selectedElements;
+      selectionSetKey = 'selection';
+      selectionSet = selectionSets['selection'];
     }
     else if (selectedTool === ToolMode.Connect && connectTool.mode === ConnectMode.NtoN && e.button === 0) {
       connectTool.canConnect = true;
       selectionColor = colors.source;
+      selectionSetKey = 'source';
       selectionSet = connectTool.sources[0] as Set<LogicGates.LogicElement>;
     }
     else if (selectedTool === ToolMode.Connect && connectTool.mode === ConnectMode.NtoN && e.button === 2) {
       connectTool.canConnect = true;
       selectionColor = colors.target;
+      selectionSetKey = 'target';
       selectionSet = connectTool.sources[1] as Set<LogicGates.LogicElement>;
     }
     else if (selectedTool === ToolMode.Paint && e.button === 0) {
       selectionColor = colors.paint;
-      selectionSet = selectedElements;
+      selectionSet = selectionSets['selection'];
+      selectionSetKey = 'selection';
     } else {
       isSelecting = false;
     }
     if (isSelecting) {
-      historyManager.pushSelectionState(selectionSet);
+      selectionSets[selectionSetKey] = selectionSet;
+      historyManager.pushSelectionsState([selectionSetKey]);
       drawingTimer.setup();
     }
   }
@@ -1002,7 +764,7 @@ function onCanvasMouseMove(e: MouseEvent) {
   if (isHandMoving) {
     camera.x -= (e.offsetX - prevMousePos.x);
     camera.y -= (e.offsetY - prevMousePos.y);
-  } else if (isDragging && selectedElements.size > 0) {
+  } else if (isDragging && selectionSets['selection'].size > 0) {
     const deltaWorld = {
       x: Math.round(mouseWorld.x) - Math.round(prevMouseWorld.x),
       y: Math.round(mouseWorld.y) - Math.round(prevMouseWorld.y)
@@ -1012,7 +774,7 @@ function onCanvasMouseMove(e: MouseEvent) {
     prevMouseWorld.y = mouseWorld.y;
 
     if (deltaWorld.x === 0 && deltaWorld.y === 0) return;
-    for (const el of selectedElements)
+    for (const el of selectionSets['selection'])
       circuit.moveElementBy(el, deltaWorld);
   }
   else if (isSelecting) {
@@ -1020,12 +782,12 @@ function onCanvasMouseMove(e: MouseEvent) {
     const rect = getSelectionWorldRect(camera, selectionStart, selectionEnd);
     const { selected, selectionRect } = getElementsInRect(circuit, rect);
     if (e.ctrlKey && e.shiftKey)
-      selected.forEach(el => selectionSet.delete(el));
+      selected.forEach(el => selectionSets[selectionSetKey].delete(el));
     else if (e.shiftKey)
-      selected.forEach(el => selectionSet.add(el));
+      selected.forEach(el => selectionSets[selectionSetKey].add(el));
     else {
-      selectionSet.clear();
-      selected.forEach(el => selectionSet.add(el));
+      selectionSets[selectionSetKey].clear();
+      selected.forEach(el => selectionSets[selectionSetKey].add(el));
     }
   }
   prevMousePos.x = e.offsetX;
@@ -1086,14 +848,14 @@ function stopDragging() {
 }
 function stopSelecting() {
   if (isSelecting) {
-    historyManager.recordSelectionChange(selectedElements);
+    historyManager.recordSelectionsChange([selectionSetKey]);
   }
   isSelecting = false;
 }
 // Обработка клавиш
 document.addEventListener('keydown', e => {
   if (document.activeElement === document.body) {
-    console.log(e.code);
+    // console.log(e.code);
     if (e.key === '-' || e.key === '+') {
       zoomCanvas(e.key === '+', drawingTimer.currentCanvas().width / 2, drawingTimer.currentCanvas().height / 2);
       if (isDragging || isSelecting) drawingTimer.currentCanvas().dispatchEvent(new MouseEvent('mousemove', { clientX: prevMousePos.x, clientY: prevMousePos.y }));
@@ -1119,28 +881,24 @@ document.addEventListener('keydown', e => {
       if (isDragging || isSelecting) drawingTimer.currentCanvas().dispatchEvent(new MouseEvent('mousemove', { clientX: prevMousePos.x, clientY: prevMousePos.y }));
     } else if (!isDragging && !isSelecting) {
       if (e.code === 'Delete') {
-        if (selectedElements.size > 0) {
-          historyManager.pushSelectionState(selectedElements);
+        if (selectionSets['selection'].size > 0) {
           const wires: LogicGates.Wire[] = [];
-          for (const element of selectedElements) {
+          for (const element of selectionSets['selection']) {
             wires.push(...circuit.removeWiresForElement(element));
           }
-          selectedElements.forEach(el => circuit.deleteElement(el));
-          const elements = Array.from(selectedElements);
+          selectionSets['selection'].forEach(el => circuit.deleteElement(el));
 
-          clearSelection();
-          historyManager.recordSelectionChange(selectedElements);
-          historyManager.recordRemoveElements(elements, wires);
+          historyManager.recordSelectionsClear(selectedTool, ['selection']);
+          historyManager.recordRemoveElements([...selectionSets['selection']], wires);
+          clearSelections(['selection']);
         }
       } else if (e.code === 'Escape') {
         if (ChangePrompt.isHidden()) {
-          historyManager.pushSelectionState(selectedElements);
-          clearSelection();
-          ghostElements.clear();
-          customOverlays.clear();
-          connectTool.targets.length = 0;
-          connectTool.vectors.length = 0;
-          historyManager.recordSelectionChange(selectedElements);
+          const keys: SelectionSets[] = connectTool.mode === ConnectMode.NtoN ? ['selection', 'source', 'target'] : ['selection'];
+          historyManager.recordSelectionsClear(selectedTool, keys);
+          clearSelections(keys);
+          if (connectTool.mode !== ConnectMode.NtoN) historyManager.recordConnectTargetsClear(connectTool.targets, connectTool.mode);
+          clearConnectTool();
         } else ChangePrompt.cancel();
       } else if (!(e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) && e.code === 'KeyC') {
         document.getElementById('tool-connect')?.click();
@@ -1150,25 +908,25 @@ document.addEventListener('keydown', e => {
         document.getElementById('tool-paint')?.click();
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !e.shiftKey) {
         e.preventDefault();
-        if (historyManager.getLastUndoActionType() !== 'SELECTION_CHANGE' || selectedTool !== ToolMode.Connect)
-          historyManager.undo();
+        switchToolAndMode(true);
+        historyManager.undo();
       } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && e.shiftKey) {
         e.preventDefault();
-        if (historyManager.getLastRedoActionType() !== 'SELECTION_CHANGE' || selectedTool !== ToolMode.Connect)
-          historyManager.redo();
+        switchToolAndMode(false);
+        historyManager.redo();
       } else if (e.code === 'KeyR') {
-        if (selectedElements.size > 1) {
-          const center = getSelectionCenter(selectedElements);
+        if (selectionSets['selection'].size > 1) {
+          const center = getSelectionCenter(selectionSets['selection']);
           historyManager.recordRotateElements(center, e.shiftKey);
-          circuitIO.rotateSelected(selectedElements, e.shiftKey, center);
+          circuitIO.rotateSelected(selectionSets['selection'], e.shiftKey, center);
         }
       } else if (e.code === 'KeyF') {
-        if (selectedElements.size > 1) {
-          const center = getSelectionCenter(selectedElements);
+        if (selectionSets['selection'].size > 1) {
+          const center = getSelectionCenter(selectionSets['selection']);
           historyManager.recordFlipElements(center, e.shiftKey);
-          circuitIO.flipSelected(selectedElements, e.shiftKey, center);
+          circuitIO.flipSelected(selectionSets['selection'], e.shiftKey, center);
         }
-      } else if (e.key.startsWith('Arrow') && selectedElements.size > 0) {
+      } else if (e.key.startsWith('Arrow') && selectionSets['selection'].size > 0) {
         const deltaWorld = { x: 0, y: 0 };
         const mul = e.shiftKey ? 5 : 1;
         if (e.key === 'ArrowRight') deltaWorld.x = mul;
@@ -1176,24 +934,24 @@ document.addEventListener('keydown', e => {
         else if (e.key === 'ArrowUp') deltaWorld.y = -mul;
         else if (e.key === 'ArrowDown') deltaWorld.y = mul;
 
-        for (const el of selectedElements)
+        for (const el of selectionSets['selection'])
           circuit.moveElementBy(el, deltaWorld);
         historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
       } else if (selectedTool === ToolMode.Cursor) {
         if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
           e.preventDefault();
 
-          navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectedElements)).catch((err) => { console.log(err) });
+          navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectionSets['selection'])).catch((err) => { console.log(err) });
         } else if (e.shiftKey && e.code === 'KeyV') {
           e.preventDefault();
           const cursorX = prevMousePos.x;
           const cursorY = prevMousePos.y;
 
-          historyManager.pushSelectionState(selectedElements);
-          selectedElements = new Set(circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectedElements, cursorX, cursorY));
+          historyManager.pushSelectionsState(['selection']);
+          selectionSets['selection'] = new Set(circuitIO.pasteSelectedElementsAtCursor(copyWiresMode, selectionSets['selection'], cursorX, cursorY));
 
-          historyManager.recordDuplicateElements(Array.from(selectedElements));
-          historyManager.recordSelectionChange(selectedElements);
+          historyManager.recordDuplicateElements(Array.from(selectionSets['selection']));
+          historyManager.recordSelectionsChange(['selection']);
           drawingTimer.step();
         } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyV') {
           e.preventDefault();
@@ -1201,11 +959,11 @@ document.addEventListener('keydown', e => {
           const cursorY = prevMousePos.y;
           navigator.clipboard.readText().then((json) => {
             try {
-              historyManager.pushSelectionState(selectedElements);
-              selectedElements = new Set(circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY)));
+              historyManager.pushSelectionsState(['selection']);
+              selectionSets['selection'] = new Set(circuitIO.deserializeJSONAtPoint(copyWiresMode, json, screenToWorld(camera, cursorX, cursorY)));
 
-              historyManager.recordPasteElements(Array.from(selectedElements));
-              historyManager.recordSelectionChange(selectedElements);
+              historyManager.recordPasteElements(Array.from(selectionSets['selection']));
+              historyManager.recordSelectionsChange(['selection']);
               drawingTimer.step();
             } catch (err) {
               console.log(err);
@@ -1214,17 +972,23 @@ document.addEventListener('keydown', e => {
         }
       } else if (selectedTool === ToolMode.Connect) {
         if (e.code === 'Enter') {
-          const wires = connectSelected();
-          if (wires)
-            historyManager.recordAddConnections(wires);
+          if (connectTool.canConnect) {
+            if (connectTool.mode === ConnectMode.NtoN) historyManager.recordSelectionsClear(selectedTool, ['source', 'target']);
+            else historyManager.recordConnectTargetsClear(connectTool.targets, connectTool.mode);
+            const wires = connectSelected();
+            if (wires)
+              historyManager.recordAddConnections(wires);
+          }
         }
         else if (e.code === 'Backspace') {
+          if (connectTool.mode === ConnectMode.NtoN) historyManager.recordSelectionsClear(selectedTool, ['source', 'target']);
+          else historyManager.recordConnectTargetsClear(connectTool.targets, connectTool.mode);
           const wires = disconnectSelected();
           historyManager.recordRemoveConnections(wires);
         }
       } else if (selectedTool === ToolMode.Paint) {
         if (e.code === 'Enter') {
-          const { oldColors, newColor } = circuitIO.paintSelected(selectedElements, null);
+          const { oldColors, newColor } = circuitIO.paintSelected(selectionSets['selection'], null);
           historyManager.recordChangeColor(oldColors, newColor);
         }
         else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
@@ -1240,7 +1004,7 @@ document.addEventListener('keydown', e => {
               if (color.length === 3) {
                 color = color[0] + color[0] + color[1] + color[1] + color[2] + color[2];
               }
-              circuitIO.paintSelected(selectedElements, color);
+              circuitIO.paintSelected(selectionSets['selection'], color);
               drawingTimer.step();
             }
           })
@@ -1252,7 +1016,64 @@ document.addEventListener('keydown', e => {
 
 
 });
+function switchToolAndMode(isUndo: boolean) {
+  const action = isUndo ? historyManager.peekUndoAction() : historyManager.peekRedoAction();
+  if (action === undefined) return;
+  let desiredToolMode: ToolMode | undefined;
+  let desiredToolConfig: ConnectMode | undefined;
 
+  function configureForSelection(key: SelectionSets) {
+    switch (key) {
+      case 'selection':
+        desiredToolMode = ToolMode.Cursor;
+        break;
+      case 'source':
+      case 'target':
+        desiredToolMode = ToolMode.Connect;
+        desiredToolConfig = ConnectMode.NtoN;
+        break;
+    }
+  }
+
+  switch (action.type) {
+    case 'SELECTION_CLICK_CHANGE':
+    case 'SELECTION_CLICK_CLEAR':
+      configureForSelection((action as HistoryAction<typeof action.type>).data.key);
+      break;
+    case 'SELECTIONS_CHANGE':
+      for (const data of (action as HistoryAction<typeof action.type>).data) {
+        if (data.removed.length > 0) {
+          configureForSelection(data.key);
+          break;
+        }
+      }
+      break;
+    case 'SELECTIONS_CLEAR':
+      for (const data of (action as HistoryAction<typeof action.type>).data) {
+        desiredToolMode = data.tool;
+        break;
+      }
+      break;
+    case 'CONNECT_TARGET_CHANGE':
+    case 'CONNECT_TARGETS_CLEAR':
+      desiredToolMode = ToolMode.Connect;
+      desiredToolConfig = (action as HistoryAction<typeof action.type>).data.mode;
+      break;
+
+  }
+
+  if (desiredToolMode === undefined) return;
+
+  switch (desiredToolMode) {
+    case ToolMode.Cursor: document.getElementById('tool-move')?.click(); break;
+    case ToolMode.Paint: document.getElementById('tool-paint')?.click(); break;
+    case ToolMode.Connect:
+      document.getElementById('tool-connect')?.click();
+      if (desiredToolConfig === undefined) break;
+      updateConnectMode(desiredToolConfig);
+      break;
+  }
+}
 // Обновление кнопок инструментов
 function updateToolButtons(pressedBtn?: HTMLElement) {
   document.querySelectorAll('.tool-button').forEach(btn => {

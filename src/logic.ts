@@ -3,38 +3,6 @@ import { BitArray, LRU, Pair, Queue } from "./dataStructs";
 import { getChunkKey } from "./utils/utils";
 
 // logic.js
-export type ComparatorFunc<T> = (params: T) => boolean;
-
-export function countInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
-    let count = 0;
-    for (const el of iterable) {
-        if (query(el)) {
-            count++;
-        }
-    }
-    return count;
-}
-
-export function everyInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
-    for (const el of iterable) {
-        if (!query(el)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-export function someInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
-    for (const el of iterable) {
-        if (query(el)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-
-
 let nextId = 1;
 
 export class LogicElement {

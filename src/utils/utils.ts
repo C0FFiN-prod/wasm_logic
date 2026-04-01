@@ -44,6 +44,15 @@ export function setupEvent(id: string, event: string, handler: (e: Event) => voi
   }
 }
 
+export function cameraViewportRect(camera: Camera, canvasWidth: number, canvasHeight: number): Rect {
+  return {
+    x0: camera.x / camera.zoom, 
+    x1: (camera.x + canvasWidth) / camera.zoom, 
+    y0: camera.y / camera.zoom, 
+    y1: (camera.y + canvasHeight) / camera.zoom
+  }
+}
+
 export function screenToWorld(camera: Camera, sx: number, sy: number) {
   const h = camera.zoom * gridSize;
   return {
@@ -214,4 +223,34 @@ export function getSetDifference<T>(from: Set<T>, exclude: Set<T>): T[] {
     }
   }
   return result;
+}
+
+export type ComparatorFunc<T> = (params: T) => boolean;
+
+export function countInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
+    let count = 0;
+    for (const el of iterable) {
+        if (query(el)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+export function everyInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
+    for (const el of iterable) {
+        if (!query(el)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+export function someInIterable<T>(iterable: Iterable<T>, query: ComparatorFunc<T>) {
+    for (const el of iterable) {
+        if (query(el)) {
+            return true;
+        }
+    }
+    return false;
 }

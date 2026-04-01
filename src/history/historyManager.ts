@@ -1,8 +1,9 @@
 import { Timer, type Circuit, type LogicElement, type Wire, LogicGate } from '../logic';
 import type { CircuitIO } from '../IOs/circuitIO';
-import { ToolMode, type Point } from '../consts';
-import { selectedElements, selectedTool } from '../main';
-import { getSetDifference } from '../utils/utils';
+import { ConnectMode, SelectionSets, ToolMode, type ElementPDO, type Point } from '../consts';
+import { selectedTool, selectionSets } from '../main';
+import { everyInIterable, getSetDifference, someInIterable } from '../utils/utils';
+import { clearConnectTool, connectTool, handleElementClick, processConnectToolMode, replaceTargetAndProcess, type ConnectToolTarget } from '../utils/connectionTool';
 
 export type InverseData = {
     'ADD_ELEMENTS': { elements: LogicElement[], wires: Wire[] };
@@ -37,16 +38,34 @@ export type InverseData = {
     'PASTE_ELEMENTS': { elements: LogicElement[], wires: Wire[] };
     'DUPLICATE_ELEMENTS': { elements: LogicElement[], wires: Wire[] };
     'ADD_SCHEME_FROM_FILE': { elements: LogicElement[], wires: Wire[] };
-    'SELECTION_CHANGE': {
+    'SELECTION_CLICK_CHANGE': { isAdded: boolean, element: LogicElement, key: SelectionSets };
+    'SELECTION_CLICK_CLEAR': { element: LogicElement, elements: LogicElement[], key: SelectionSets };
+    'SELECTIONS_CHANGE': {
         added: LogicElement[];
         removed: LogicElement[];
-    }
+        key: SelectionSets;
+    }[];
+    'SELECTIONS_CLEAR': {
+        elements: LogicElement[];
+        key: SelectionSets;
+        tool: ToolMode;
+    }[];
+    'CONNECT_TARGET_CHANGE': {
+        mode: ConnectMode;
+        oldTarget: ConnectToolTarget;
+        newTarget: LogicElement | ElementPDO;
+        index: number;
+    };
+    'CONNECT_TARGETS_CLEAR': {
+        targets: ConnectToolTarget[];
+        mode: ConnectMode;
+    };
 }
 export type ActionType = keyof InverseData;
 
 export interface HistoryAction<T extends ActionType> {
     type: T;
-    inverseData: InverseData[T];
+    data: InverseData[T];
     selectionState?: Set<LogicElement>;
     description: string;
 }
@@ -65,7 +84,11 @@ export class HistoryManager {
     private onHistoryChange?: (canUndo: boolean, canRedo: boolean, undoStack: HistoryAction<ActionType>[], redoStack: HistoryAction<ActionType>[]) => void;
     private circuit: Circuit;
     private circuitIO: CircuitIO;
-    private selectionBackup: Set<LogicElement> | null = null;
+    private selectionBackup: Record<SelectionSets, Set<LogicElement> | null> = {
+        'selection': null,
+        'source': null,
+        'target': null
+    };
 
     constructor(
         circuit: Circuit,
@@ -94,7 +117,7 @@ export class HistoryManager {
             case 'PASTE_ELEMENTS':
             case 'DUPLICATE_ELEMENTS':
             case 'ADD_SCHEME_FROM_FILE':
-                inverseDataSize = (action as HistoryAction<typeof action.type>).inverseData.elements.length * 24;
+                inverseDataSize = (action as HistoryAction<typeof action.type>).data.elements.length * 24;
                 break;
 
             case 'MOVE_ELEMENTS':
@@ -110,21 +133,21 @@ export class HistoryManager {
                 break;
 
             case 'CHANGE_COLOR':
-                const { oldColors, newColor } = (action as HistoryAction<typeof action.type>).inverseData;
+                const { oldColors, newColor } = (action as HistoryAction<typeof action.type>).data;
                 inverseDataSize =
                     oldColors.size * 16 + // entry: elementId(8) + color(8)
                     newColor.length;      // HEX-строка
                 break;
 
             case 'CHANGE_GATE_TYPE':
-                const { oldTypes, newType } = (action as HistoryAction<typeof action.type>).inverseData;
+                const { oldTypes, newType } = (action as HistoryAction<typeof action.type>).data;
                 inverseDataSize =
                     oldTypes.size * 16 + // entry: elementId(8) + type(8)
                     8;                   // newType
                 break;
 
             case 'CHANGE_TIMER_DELAY':
-                const { oldDelays, newDelay } = (action as HistoryAction<typeof action.type>).inverseData;
+                const { oldDelays, newDelay } = (action as HistoryAction<typeof action.type>).data;
                 inverseDataSize =
                     oldDelays.size * 16 + // entry: elementId(8) + delay(8)
                     8;                    // newDelay
@@ -132,16 +155,42 @@ export class HistoryManager {
 
             case 'ADD_CONNECTIONS':
             case 'REMOVE_CONNECTIONS':
-                inverseDataSize = (action as HistoryAction<typeof action.type>).inverseData.wires.length * 16;
+                inverseDataSize = (action as HistoryAction<typeof action.type>).data.wires.length * 16;
                 break;
 
-            case 'SELECTION_CHANGE':
-                const { added, removed } = (action as HistoryAction<typeof action.type>).inverseData;
-                inverseDataSize = (added.length + removed.length) * 16;
+            case 'SELECTION_CLICK_CHANGE':
+                inverseDataSize = 8;
                 break;
-            
-            
-            
+
+            case 'SELECTION_CLICK_CLEAR':
+                const { elements } = (action as HistoryAction<typeof action.type>).data;
+                inverseDataSize = 8 + elements.length * 8;
+                break;
+
+            case 'SELECTIONS_CHANGE':
+                inverseDataSize = 8;
+                for (const data of (action as HistoryAction<typeof action.type>).data) {
+                    const { added, removed } = data;
+                    inverseDataSize += (added.length + removed.length) * 8;
+                }
+                break;
+
+            case 'SELECTIONS_CLEAR':
+                inverseDataSize = 16;
+                for (const data of (action as HistoryAction<typeof action.type>).data) {
+                    const { elements } = data;
+                    inverseDataSize += elements.length * 8;
+                }
+                break;
+
+            case 'CONNECT_TARGET_CHANGE':
+                inverseDataSize = 24;
+                break;
+
+            case 'CONNECT_TARGETS_CLEAR':
+                inverseDataSize = (action as HistoryAction<typeof action.type>).data.targets.length * 8;
+                break;
+
             // ── Защита от необработанных типов ──
             default: {
                 const _exhaustive: never = action.type;
@@ -183,7 +232,12 @@ export class HistoryManager {
             PASTE_ELEMENTS: 'Вставка элементов',
             DUPLICATE_ELEMENTS: 'Дублирование элементов',
             ADD_SCHEME_FROM_FILE: 'Добавление схемы из файла',
-            SELECTION_CHANGE: 'Изменение выделения',
+            SELECTION_CLICK_CHANGE: 'Изменение выделения кликом',
+            SELECTION_CLICK_CLEAR: 'Очистка выделения кликом',
+            SELECTIONS_CHANGE: 'Изменение выделения',
+            SELECTIONS_CLEAR: 'Очистка выделения',
+            CONNECT_TARGET_CHANGE: 'Изменение при векторном соединении',
+            CONNECT_TARGETS_CLEAR: 'Очистка при векторном соединении',
         };
         return descriptions[type];
     }
@@ -197,7 +251,7 @@ export class HistoryManager {
 
         const action: HistoryAction<T> = {
             type,
-            inverseData,
+            data: inverseData,
             description: this.getDescription(type),
         };
 
@@ -233,7 +287,12 @@ export class HistoryManager {
 
     recordMoveElements(deltaX: number, deltaY: number): void {
         if (deltaX === 0 && deltaY === 0) return;
-        this.pushAction('MOVE_ELEMENTS', { deltaX, deltaY });
+        const prevMove = this.peekUndoAction();
+        if (prevMove?.type === 'MOVE_ELEMENTS') {
+            (prevMove as HistoryAction<'MOVE_ELEMENTS'>).data.deltaX += deltaX;
+            (prevMove as HistoryAction<'MOVE_ELEMENTS'>).data.deltaY += deltaY;
+        }
+        else this.pushAction('MOVE_ELEMENTS', { deltaX, deltaY });
     }
 
     recordRotateElements(center: Point, clockwise: boolean): void {
@@ -249,7 +308,7 @@ export class HistoryManager {
     }
 
     recordChangeGateType(oldTypes: Map<LogicGate, number>, newType: number): void {
-        if(oldTypes.size === 0) return;
+        if (oldTypes.size === 0) return;
         this.pushAction('CHANGE_GATE_TYPE', { oldTypes, newType });
     }
 
@@ -301,30 +360,68 @@ export class HistoryManager {
         this.pushAction('ADD_SCHEME_FROM_FILE', { elements, wires });
     }
 
-    recordSelectionChange(selection: Set<LogicElement>): void {
-        let added: LogicElement[];
-        let removed: LogicElement[];
-        if (selection.size === 0) {
-            if (this.selectionBackup && this.selectionBackup.size > 0) {
-                added = [];
-                removed = [...this.selectionBackup];
-            } else return;
-        } else if (!this.selectionBackup || this.selectionBackup.size === 0) {
-            added = [...selection];
-            removed = [];
-        } else {
-            added = getSetDifference(selection, this.selectionBackup);
-            removed = getSetDifference(this.selectionBackup, selection);
-        }
+    recordSelectionClickChange(isAdded: boolean, element: LogicElement, key: SelectionSets): void {
+        this.pushAction('SELECTION_CLICK_CHANGE', { isAdded, element, key });
+    }
 
-        if (added.length === 0 && removed.length === 0) return;
-        this.pushAction('SELECTION_CHANGE', { added, removed });
+    recordSelectionClickClear(element: LogicElement, key: SelectionSets): void {
+        this.pushAction('SELECTION_CLICK_CLEAR', { element, elements: [...selectionSets[key]], key });
+    }
+
+    recordSelectionsChange(keys: SelectionSets[]): void {
+        const data = [];
+        for (const key of keys) {
+            const selection = selectionSets[key];
+            const selectionBackup = this.selectionBackup[key];
+            let added: LogicElement[];
+            let removed: LogicElement[];
+            if (selection.size === 0) {
+                if (selectionBackup && selectionBackup.size > 0) {
+                    added = [];
+                    removed = [...selectionBackup];
+                } else continue;
+            } else if (!selectionBackup || selectionBackup.size === 0) {
+                added = [...selection];
+                removed = [];
+            } else {
+                added = getSetDifference(selection, selectionBackup);
+                removed = getSetDifference(selectionBackup, selection);
+            }
+
+            if (added.length === 0 && removed.length === 0) continue;
+            data.push({ added, removed, key });
+        }
+        if (data.length === 0) return;
+        this.pushAction('SELECTIONS_CHANGE', data);
+    }
+
+    recordSelectionsClear(tool: ToolMode, keys: SelectionSets[]): void {
+        const data = [];
+        for (const key of keys) {
+            const selection = selectionSets[key];
+            if (selection.size === 0) continue;
+            data.push({ elements: [...selection], key, tool });
+        }
+        if (data.length === 0) return;
+        this.pushAction('SELECTIONS_CLEAR', data);
+    }
+
+    recordConnectTargetChange(oldTarget: ConnectToolTarget, newTarget: LogicElement, index: number, mode: ConnectMode): void {
+        if (oldTarget === newTarget) return;
+        this.pushAction('CONNECT_TARGET_CHANGE', { oldTarget, newTarget, index, mode });
+    }
+
+    recordConnectTargetsClear(targets: ConnectToolTarget[], mode: ConnectMode): void {
+        if (!someInIterable(targets, (el) => el !== null)) return;
+        this.pushAction('CONNECT_TARGETS_CLEAR', { targets: new Array(...targets), mode });
     }
 
 
     // === Selection ===
-    pushSelectionState(selection: Set<LogicElement>): void {
-        this.selectionBackup = new Set(selection);
+    pushSelectionsState(keys: SelectionSets[]): void {
+        for (const key of keys) {
+            this.selectionBackup[key] = selectionSets[key].size > 0 ? new Set(selectionSets[key]) : null;
+        }
     }
 
     // === Undo/Redo ===
@@ -394,9 +491,28 @@ export class HistoryManager {
             case 'REMOVE_CONNECTIONS':
                 this.executeConnections(action as HistoryAction<typeof action.type>, isUndo);
                 break;
-            case 'SELECTION_CHANGE':
-                this.executeSelectionChange(action as HistoryAction<typeof action.type>, isUndo);
+            case 'SELECTION_CLICK_CHANGE':
+                this.executeSelectionClickChange(action as HistoryAction<typeof action.type>, isUndo);
                 break;
+            case 'SELECTION_CLICK_CLEAR':
+                this.executeSelectionClickClear(action as HistoryAction<typeof action.type>, isUndo);
+                break;
+            case 'SELECTIONS_CHANGE':
+                this.executeSelectionsChange(action as HistoryAction<typeof action.type>, isUndo);
+                break;
+            case 'SELECTIONS_CLEAR':
+                this.executeSelectionsClear(action as HistoryAction<typeof action.type>, isUndo);
+                break;
+            case 'CONNECT_TARGET_CHANGE':
+                this.executeConnectTargetChange(action as HistoryAction<typeof action.type>, isUndo);
+                break;
+            case 'CONNECT_TARGETS_CLEAR':
+                this.executeConnectTargetsClear(action as HistoryAction<typeof action.type>, isUndo);
+                break;
+            default: {
+                const _exhaustive: never = action.type;
+                console.warn(`Unknown action type in executeAction: ${_exhaustive}`);
+            }
         }
     }
 
@@ -404,15 +520,15 @@ export class HistoryManager {
         action: HistoryAction<T>, isUndo: boolean): void {
         if ((action.type === 'REMOVE_ELEMENTS') === isUndo) {
             // Сначала добавляем элементы обратно в чанки
-            for (const el of action.inverseData.elements) {
+            for (const el of action.data.elements) {
                 this.circuit.addExitstingElement(el);
             }
             // Затем восстанавливаем провода
-            for (const wire of action.inverseData.wires) {
+            for (const wire of action.data.wires) {
                 this.circuit.addWire(wire.src, wire.dst);
             }
         } else {
-            for (const el of action.inverseData.elements) {
+            for (const el of action.data.elements) {
                 this.circuit.removeWiresForElement(el);
                 this.circuit.deleteElement(el);
             }
@@ -420,29 +536,29 @@ export class HistoryManager {
     }
 
     private executeMoveElements(action: HistoryAction<'MOVE_ELEMENTS'>, isUndo: boolean): void {
-        const { deltaX, deltaY } = action.inverseData;
+        const { deltaX, deltaY } = action.data;
 
         const mul = isUndo ? -1 : 1;
-        for (const el of selectedElements) {
+        for (const el of selectionSets['selection']) {
             this.circuit.moveElementBy(el, { x: deltaX * mul, y: deltaY * mul });
         }
     }
 
     private executeRotateElements<T extends 'ROTATE_ELEMENTS'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { center, clockwise } = action.inverseData;
+        const { center, clockwise } = action.data;
 
         const actualClockwise = isUndo ? !clockwise : clockwise;
-        this.circuitIO.rotateSelected(selectedElements, actualClockwise, center);
+        this.circuitIO.rotateSelected(selectionSets['selection'], actualClockwise, center);
     }
 
     private executeFlipElements<T extends 'FLIP_ELEMENTS'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { center, vertical } = action.inverseData;
+        const { center, vertical } = action.data;
 
-        this.circuitIO.flipSelected(selectedElements, vertical, center);
+        this.circuitIO.flipSelected(selectionSets['selection'], vertical, center);
     }
 
     private executeChangeColor<T extends 'CHANGE_COLOR'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { oldColors, newColor } = action.inverseData;
+        const { oldColors, newColor } = action.data;
 
         for (const [el, oldColor] of oldColors.entries()) {
             el.color = isUndo ? oldColor : newColor;
@@ -450,7 +566,7 @@ export class HistoryManager {
     }
 
     private executeChangeGateType<T extends 'CHANGE_GATE_TYPE'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { oldTypes, newType } = action.inverseData;
+        const { oldTypes, newType } = action.data;
 
         for (const [el, oldType] of oldTypes.entries()) {
             el.gateType = isUndo ? oldType : newType;
@@ -458,7 +574,7 @@ export class HistoryManager {
     }
 
     private executeChangeTimerDelay<T extends 'CHANGE_TIMER_DELAY'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { oldDelays, newDelay } = action.inverseData;
+        const { oldDelays, newDelay } = action.data;
 
         for (const [el, oldDelay] of oldDelays.entries()) {
             el.setDelay(isUndo ? oldDelay : newDelay);
@@ -466,7 +582,7 @@ export class HistoryManager {
     }
 
     private executeConnections<T extends 'ADD_CONNECTIONS' | 'REMOVE_CONNECTIONS'>(action: HistoryAction<T>, isUndo: boolean): void {
-        for (const wire of action.inverseData.wires) {
+        for (const wire of action.data.wires) {
             if (action.type === 'ADD_CONNECTIONS') {
                 if (isUndo) {
                     this.circuit.removeWire(wire.src, wire.dst);
@@ -483,24 +599,75 @@ export class HistoryManager {
         }
     }
 
-    private executeSelectionChange<T extends 'SELECTION_CHANGE'>(action: HistoryAction<T>, isUndo: boolean): void {
-        const { added, removed } = action.inverseData;
-        const toRemove = isUndo ? added : removed;
-        const toAdd = isUndo ? removed : added;
+    private executeSelectionClickChange<T extends 'SELECTION_CLICK_CHANGE'>(action: HistoryAction<T>, isUndo: boolean): void {
+        const { isAdded, element, key } = action.data;
+        if (isUndo === isAdded) {
+            selectionSets[key].delete(element);
+        } else {
+            selectionSets[key].add(element);
+        }
+    }
 
-        for (const el of toRemove) {
-            selectedElements.delete(el);
+    private executeSelectionClickClear<T extends 'SELECTION_CLICK_CLEAR'>(action: HistoryAction<T>, isUndo: boolean): void {
+        const { elements, element, key } = action.data;
+        if (isUndo) {
+            selectionSets[key].delete(element);
+            elements.forEach((el) => selectionSets[key].add(el));
+        } else {
+            selectionSets[key].clear();
+            selectionSets[key].add(element);
         }
-        for (const el of toAdd) {
-            selectedElements.add(el);
+    }
+
+    private executeSelectionsChange<T extends 'SELECTIONS_CHANGE'>(action: HistoryAction<T>, isUndo: boolean): void {
+        for (const data of action.data) {
+            const { added, removed, key } = data;
+            const toRemove = isUndo ? added : removed;
+            const toAdd = isUndo ? removed : added;
+
+            toRemove.forEach((el) => selectionSets[key].delete(el));
+            toAdd.forEach((el) => selectionSets[key].add(el));
         }
+    }
+
+    private executeSelectionsClear<T extends 'SELECTIONS_CLEAR'>(action: HistoryAction<T>, isUndo: boolean): void {
+        for (const data of action.data) {
+            const { elements, key } = data;
+
+            if (isUndo)
+                elements.forEach((el) => selectionSets[key].add(el));
+            else 
+                selectionSets[key].clear();
+        }
+    }
+
+    private executeConnectTargetChange<T extends 'CONNECT_TARGET_CHANGE'>(action: HistoryAction<T>, isUndo: boolean): void {
+        const { oldTarget, newTarget, index } = action.data;
+        const toRemove = isUndo ? newTarget : oldTarget;
+        const toAdd = isUndo ? oldTarget : newTarget;
+        replaceTargetAndProcess(index, toAdd);
+        // connectTool.targets[index] = toAdd;
+        // processConnectToolMode();
+        // if (toRemove !== null) handleElementClick(toRemove, index);
+        // if (toAdd !== null) handleElementClick(toAdd, index);
+    }
+
+    private executeConnectTargetsClear<T extends 'CONNECT_TARGETS_CLEAR'>(action: HistoryAction<T>, isUndo: boolean): void {
+        const { targets } = action.data;
+        if (isUndo) {
+            connectTool.targets.splice(0, targets.length, ...targets);
+        } else {
+            clearConnectTool();
+        }
+        processConnectToolMode();
+
     }
     // === Утилиты ===
 
     clear(): void {
         this.undoStack = [];
         this.redoStack = [];
-        this.selectionBackup = null;
+        SelectionSets.forEach(key => this.selectionBackup[key] = null);
         this.currentMemoryBytes = 0;
         this.notifyHistoryChange();
     }
@@ -517,11 +684,19 @@ export class HistoryManager {
         return this.redoStack.length;
     }
 
-    getLastUndoActionType(): ActionType | undefined {
+    peekUndoAction(): HistoryAction<ActionType> | undefined {
+        return this.undoStack.at(this.undoStack.length - 1);
+    }
+
+    peekRedoAction(): HistoryAction<ActionType> | undefined {
+        return this.redoStack.at(this.redoStack.length - 1);
+    }
+
+    peekUndoActionType(): ActionType | undefined {
         return this.undoStack.at(this.undoStack.length - 1)?.type;
     }
 
-    getLastRedoActionType(): ActionType | undefined {
-        return this.redoStack.at(0)?.type;
+    peekRedoActionType(): ActionType | undefined {
+        return this.redoStack.at(this.redoStack.length - 1)?.type;
     }
 }

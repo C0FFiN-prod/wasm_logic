@@ -80,6 +80,7 @@ export const locales = {
   en: enLocale,
   pl: plLocale,
 }
+export const SelectionSets = ['selection', 'source' , 'target'] as const;
 export const Themes = ['system', 'light' , 'dark'] as const;
 export const WireDrawings = ['simple', 'dimple' , 'manhattan'] as const;
 export const Drawings = ['webgl', 'canvas'] as const;
@@ -87,6 +88,7 @@ export type LocaleNames = keyof typeof locales
 export type Themes = (typeof Themes)[number];
 export type WireDrawings = (typeof WireDrawings)[number];
 export type Drawings = (typeof Drawings)[number];
+export type SelectionSets = (typeof SelectionSets)[number];
 
 export type ConnectMode = typeof ConnectMode[keyof typeof ConnectMode];
 export type CopyWiresMode = typeof CopyWiresMode[keyof typeof CopyWiresMode];

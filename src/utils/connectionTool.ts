@@ -1,16 +1,24 @@
 import { ConnectMode, type ElementPDO, type Point, type Vector } from "../consts";
 import { isInputElement, isOutputElement, LogicElement, Wire } from "../logic";
-import { circuit, clearSelection, customOverlays, ghostElements } from "../main";
-import { getChunkKey, getPointDelta, getPointFromChunkKey } from "./utils";
-
+import { camera, circuit, clearSelections, customOverlays, ghostElements } from "../main";
+import { fillCoordMapWithElements, getChunkKey, getElementAt, getPointDelta, getPointFromChunkKey } from "./utils";
+export type ConnectToolTarget = LogicElement | ElementPDO | null;
 type ConnectTool = {
   mode: ConnectMode,
-  targets: (LogicElement | ElementPDO | null)[],
+  targets: ConnectToolTarget[],
   sources: Set<(LogicElement | ElementPDO)>[],
   vectors: Vector[],
-  coordMap: Map<string, LogicElement | ElementPDO | null>,
+  coordMap: Map<string, ConnectToolTarget>,
   canConnect: boolean
 }
+const ConnectModeParams = {
+  0: {},
+  1: { vectors: 1, targets: 3 },
+  2: { vectors: 2, targets: 6 },
+  3: { vectors: 3, targets: 9 },
+} as const;
+const OverlayIconNames = ['a0', 'a1', 'an', 'b0', 'b1', 'bn', 'r0', 'r1', 'rn'];
+
 export const connectTool: ConnectTool = {
   mode: ConnectMode.NtoN,
   targets: [],
@@ -20,20 +28,29 @@ export const connectTool: ConnectTool = {
   canConnect: false
 }
 
+/**
+* Инициализация инструмента (вызывается извне)
+*/
 export function initConnectTool(mode: ConnectMode) {
+  connectTool.mode = mode;
   switch (mode) {
+    case ConnectMode.NtoN:
+      connectTool.canConnect = true;
+      break;
     case ConnectMode.Sequence:
-      if (connectTool.targets?.length !== 3) connectTool.targets = Array(3).fill(null)
-      if (connectTool.vectors?.length !== 1) connectTool.vectors = Array(1)
-      break;
     case ConnectMode.Parallel:
-      if (connectTool.targets?.length !== 6) connectTool.targets = Array(6).fill(null)
-      if (connectTool.vectors?.length !== 2) connectTool.vectors = Array(2)
-      break;
     case ConnectMode.Decoder:
-      if (connectTool.targets?.length !== 9) connectTool.targets = Array(9).fill(null)
-      if (connectTool.vectors?.length !== 3) connectTool.vectors = Array(3)
+      connectTool.canConnect = false;
+      if (connectTool.targets?.length !== ConnectModeParams[mode].targets) {
+        connectTool.targets = Array(ConnectModeParams[mode].targets);
+        connectTool.targets.fill(null);
+      }
+      if (connectTool.vectors?.length !== ConnectModeParams[mode].vectors) {
+        connectTool.vectors = Array(ConnectModeParams[mode].vectors);
+        connectTool.vectors.forEach(v => { v.x = 0; v.y = 0; v.length = 0; });
+      }
       break;
+
   }
 }
 export function connectSelected() {
@@ -92,11 +109,7 @@ export function connectSelected() {
       i <<= 1;
     }
   }
-  connectTool.targets.length = 0;
-  connectTool.vectors.length = 0;
-  ghostElements.clear();
-  customOverlays.clear();
-  clearSelection();
+  clearConnectTool();
   return wires;
 }
 export function disconnectSelected() {
@@ -145,11 +158,7 @@ export function disconnectSelected() {
       i <<= 1;
     }
   }
-  connectTool.vectors.length = 0;
-  connectTool.targets.length = 0;
-  ghostElements.clear();
-  customOverlays.clear();
-  clearSelection();
+  clearConnectTool();
   return wires;
 }
 export function makeGhostEl(point: Point): ElementPDO {
@@ -246,4 +255,372 @@ function removeWire(wires: Wire[], source: LogicElement, target: LogicElement) {
   let wire;
   if ((wire = circuit.removeWire(source, target)) !== undefined)
     wires.push(wire);
+}
+
+/**
+* Основной обработчик клика по элементу
+*/
+export function handleElementClick(el: ConnectToolTarget, index?: number) {
+  connectTool.canConnect = false;
+  ghostElements.clear();
+  switch (connectTool.mode) {
+    case ConnectMode.NtoN:
+      return null;
+    case ConnectMode.Sequence:
+      return handleSequence(el, index);
+    case ConnectMode.Parallel:
+      return handleParallel(el, index);
+    case ConnectMode.Decoder:
+      return handleDecoder(el, index);
+  }
+}
+
+export function processConnectToolMode() {
+  clearModeState();
+  ghostElements.clear();
+  for (const [i, el] of connectTool.targets.entries()) setOverlay(i, el);
+  switch (connectTool.mode) {
+    case ConnectMode.NtoN: break;
+    case ConnectMode.Sequence: processSequence(); break;
+    case ConnectMode.Parallel: processParallel(); break;
+    case ConnectMode.Decoder: processDecoder(); break;
+  }
+}
+
+// ==================== Sequence Mode ====================
+
+function handleSequence(el: ConnectToolTarget, targetIndex: number | undefined): { element: ConnectToolTarget, index: number } {
+  const elIndex = resolveTargetIndex(el, targetIndex);
+  clearModeState();
+  let dump;
+  if (elIndex === -1) {
+    // Добавление элемента
+    const nullIndex = findNullIndexForSequence(elIndex);
+    const oldTarget = setTargetWithOverlay(nullIndex, el);
+
+    dump = { element: oldTarget, index: targetIndex ?? nullIndex };
+  } else {
+    // Удаление элемента
+    dump = { element: removeTarget(elIndex), index: elIndex };
+  }
+  processSequence();
+  return dump;
+}
+
+function processSequence() {
+  // Авто-поиск конечного элемента если все 3 точки выбраны
+  if (connectTool.targets[0] && connectTool.targets[1] && connectTool.targets[2]) {
+    autoFindEndElement(0, 1, 2, 'an', 7);
+  }
+
+  updateSequenceSources();
+}
+
+function findNullIndexForSequence(elIndex: number): number {
+  let nullIndex = connectTool.targets.indexOf(null);
+  if (nullIndex === -1 || elIndex === 2) {
+    replaceTarget(2);
+    nullIndex = 2;
+  }
+  return nullIndex;
+}
+
+
+function updateSequenceSources(): void {
+  const rows: (string[] | null)[] = [
+    connectTool.vectors[0]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length)
+      : null
+  ];
+  fillCoordMapWithElements(circuit, connectTool.coordMap);
+
+  const check = (_: number, v: LogicElement) => {
+    return (connectTool.sources[0].size !== 0 && isInputElement(v)) ||
+      (connectTool.sources[0].size !== connectTool.coordMap.size - 1 && isOutputElement(v));
+  };
+  fillCTSources(rows, check);
+}
+
+// ==================== Parallel Mode ====================
+
+function handleParallel(el: ConnectToolTarget, targetIndex: number | undefined): { element: ConnectToolTarget, index: number } {
+  const elIndex = resolveTargetIndex(el, targetIndex);
+  clearModeState();
+  let dump;
+  if (elIndex === -1 || elIndex === 5) {
+    const nullIndex = findNullIndexForParallel(elIndex);
+    const oldTarget = setTargetWithOverlay(nullIndex, el);
+
+    dump = { element: oldTarget, index: targetIndex ?? nullIndex };
+  } else {
+    dump = { element: removeTarget(elIndex), index: elIndex };
+  }
+  processParallel();
+  return dump;
+}
+
+function processParallel() {
+  // Авто-поиск для шины источника
+  if (connectTool.targets[0] && connectTool.targets[1] && connectTool.targets[2]) {
+    autoFindEndElement(0, 1, 2, 'an', 7);
+  }
+
+  // Авто-поиск для шины приемника
+  if (connectTool.targets[3] && connectTool.targets[4]) {
+    autoFindEndElement(3, 4, 5, 'bn', 8, connectTool.vectors[0].length);
+  } else {
+    replaceTarget(5);
+  }
+
+  updateParallelSources();
+}
+
+function findNullIndexForParallel(elIndex: number): number {
+  let nullIndex = connectTool.targets.indexOf(null);
+  if (nullIndex === -1 || nullIndex === 5 || elIndex === 5) {
+    replaceTarget(4);
+    replaceTarget(5);
+    nullIndex = 4;
+  }
+  return nullIndex;
+}
+
+function updateParallelSources(): void {
+  const rows: (string[] | null)[] = [
+    connectTool.vectors[0]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length)
+      : null,
+    connectTool.vectors[1]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[3]!, connectTool.vectors[1], connectTool.vectors[1].length)
+      : null
+  ];
+  fillCoordMapWithElements(circuit, connectTool.coordMap);
+
+  const check = (i: number, v: LogicElement) => {
+    return (i === 0 && isOutputElement(v)) ||
+      (i === 1 && isInputElement(v));
+  };
+  fillCTSources(rows, check);
+}
+
+// ==================== Decoder Mode ====================
+
+function handleDecoder(el: ConnectToolTarget, targetIndex: number | undefined): { element: ConnectToolTarget, index: number } {
+  const elIndex = resolveTargetIndex(el, targetIndex);
+  clearModeState();
+  let dump;
+  if (elIndex === -1 || elIndex === 5 || elIndex === 8) {
+    const nullIndex = findNullIndexForDecoder(elIndex);
+    const oldTarget = setTargetWithOverlay(nullIndex, el);
+
+    dump = { element: oldTarget, index: targetIndex ?? nullIndex };
+  } else {
+    dump = { element: removeTarget(elIndex), index: elIndex };
+  }
+  processDecoder();
+  return dump;
+}
+
+function processDecoder() {
+  // Авто-поиск для 3 линий (A, B, R)
+  if (connectTool.targets[0] && connectTool.targets[1] && connectTool.targets[2]) {
+    autoFindEndElement(0, 1, 2, 'an', 7);
+  }
+  if (connectTool.targets[3] && connectTool.targets[4]) {
+    autoFindEndElement(3, 4, 5, 'bn', 8, connectTool.vectors[0].length);
+  }
+  if (connectTool.targets[6] && connectTool.targets[7]) {
+    autoFindEndElement(6, 7, 8, 'rn', 9, Math.pow(2, connectTool.vectors[0].length + 1) - 1);
+  }
+
+  updateDecoderSources();
+}
+
+function findNullIndexForDecoder(elIndex: number): number {
+  let nullIndex = connectTool.targets.indexOf(null);
+  if (nullIndex === -1 || nullIndex === 8 || elIndex === 8) {
+    replaceTarget(7);
+    replaceTarget(8);
+    nullIndex = 7;
+  } else if (nullIndex === 5 || elIndex === 5) {
+    replaceTarget(4);
+    replaceTarget(5);
+    nullIndex = 4;
+  }
+  return nullIndex;
+}
+
+function updateDecoderSources(): void {
+  const rows: (string[] | null)[] = [
+    connectTool.vectors[0]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[0]!, connectTool.vectors[0], connectTool.vectors[0].length)
+      : null,
+    connectTool.vectors[1]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[3]!, connectTool.vectors[1], connectTool.vectors[1].length)
+      : null,
+    connectTool.vectors[2]?.length
+      ? fillCoordMapWithCoords(connectTool.targets[6]!, connectTool.vectors[2], connectTool.vectors[2].length)
+      : null
+  ];
+  fillCoordMapWithElements(circuit, connectTool.coordMap);
+
+  const check = (i: number, v: LogicElement) => {
+    return (i < 2 && isOutputElement(v)) ||
+      (i === 2 && isInputElement(v));
+  };
+  fillCTSources(rows, check);
+}
+
+// ==================== Общие вспомогательные методы ====================
+
+/**
+* Разрешает индекс элемента. Если targetIndex = -1, ищет в массиве targets.
+*/
+function resolveTargetIndex(el: ConnectToolTarget, targetIndex: number | undefined): number {
+  if (targetIndex !== undefined && targetIndex !== -1) {
+    if (targetIndex >= 0 && targetIndex < connectTool.targets.length)
+      return targetIndex;
+    else throw "targetIndex out of range in resolveTargetIndex"
+  }
+  return connectTool.targets.indexOf(el);
+}
+
+/**
+* Устанавливает элемент в targets и добавляет overlay
+*/
+function setTargetWithOverlay(index: number, el: ConnectToolTarget): ConnectToolTarget {
+  if (index === -1) return el;
+  const oldTarget = connectTool.targets[index];
+  connectTool.targets[index] = el;
+  setOverlay(index, el);
+  return oldTarget;
+}
+
+function setOverlay(index: number, el: ConnectToolTarget) {
+  if (el instanceof LogicElement) {
+    const iconIndex = index;
+    const color = 7 + Math.trunc(index / 3);
+    customOverlays.set(el, { icon: OverlayIconNames[iconIndex], color });
+  }
+}
+/**
+* Удаляет элемент по индексу и сбрасывает связанные векторы
+*/
+function removeTargetAtIndex(index: number, vectorIndicesToReset: number[]): ConnectToolTarget {
+  const el = connectTool.targets[index];
+  if (el instanceof LogicElement) {
+    customOverlays.delete(el);
+  }
+  connectTool.targets[index] = null;
+
+  vectorIndicesToReset.forEach(vi => {
+    connectTool.vectors[vi] = { x: 0, y: 0, length: 0 };
+  });
+
+  // Очистка зависимых конечных элементов
+  if (index < 3) {
+    replaceTarget(5);
+    replaceTarget(8);
+  } else if (index < 5) {
+    replaceTarget(5);
+  } else if (index < 8) {
+    replaceTarget(8);
+  }
+  return el;
+}
+
+/**
+* Очищает overlay и устанавливает null для target
+*/
+function replaceTarget(index: number, target?: ConnectToolTarget): void {
+  if (index >= 0 && index < connectTool.targets.length) {
+    const el = connectTool.targets[index];
+    if (el instanceof LogicElement) {
+      customOverlays.delete(el);
+    }
+    connectTool.targets[index] = target ?? null;
+    if (target) setOverlay(index, target);
+    else removeTarget(index)
+  }
+}
+function removeTarget(index: number) {
+  switch (connectTool.mode) {
+    case ConnectMode.NtoN: return null;
+    case ConnectMode.Sequence: return removeTargetAtIndex(index, [0]);
+    case ConnectMode.Parallel: return removeTargetAtIndex(index, index < 3 ? [0, 1] : [1]);
+    case ConnectMode.Decoder: return removeTargetAtIndex(index, index < 3 ? [0, 1, 2] : index < 5 ? [1, 2] : [2]);
+  }
+}
+
+export function replaceTargetAndProcess(index: number, target?: ConnectToolTarget) {
+  replaceTarget(index, target);
+  processConnectToolMode();
+}
+
+/**
+* Авто-поиск конечного элемента по вектору
+*/
+function autoFindEndElement(
+  startIdx: number,
+  stepIdx: number,
+  endIdx: number,
+  icon: string,
+  color: number,
+  overrideLength?: number
+): void {
+  const start = connectTool.targets[startIdx];
+  const step = connectTool.targets[stepIdx];
+  if (!start || !step) return;
+
+  const vector = overrideLength === undefined
+    ? getVectorFrom3Points(start, step, connectTool.targets[endIdx]!)
+    : getVectorFrom2Points(start, step, overrideLength);
+
+  connectTool.vectors[startIdx === 0 ? 0 : startIdx === 3 ? 1 : 2] = vector;
+
+  if (vector.length !== 0) {
+    const pointN = {
+      x: start.x + vector.x * vector.length,
+      y: start.y + vector.y * vector.length,
+    };
+
+    let targetEl: ConnectToolTarget = getElementAt(circuit, camera, pointN, false);
+    if (!targetEl) {
+      targetEl = makeGhostEl(pointN);
+    }
+
+    const oldEnd = connectTool.targets[endIdx];
+    if (targetEl === start || targetEl === step) {
+      targetEl = null;
+    }
+    if (overrideLength === undefined) return;
+    // Очистка старого overlay
+    if (oldEnd instanceof LogicElement && oldEnd !== targetEl) {
+      customOverlays.delete(oldEnd);
+    }
+
+    if (targetEl instanceof LogicElement) {
+      customOverlays.set(targetEl, { icon, color });
+    }
+    if (targetEl !== null)
+      connectTool.targets[endIdx] = targetEl;
+
+  }
+}
+
+/**
+* Очищает состояние режима (выделение, ghost-элементы)
+*/
+export function clearModeState(): void {
+  for (const s of connectTool.sources) s.clear();
+  connectTool.coordMap.clear();
+
+}
+
+export function clearConnectTool(): void {
+  clearModeState();
+  ghostElements.clear();
+  customOverlays.clear();
+  connectTool.targets.fill(null);
+  connectTool.vectors.forEach(v => { v.x = 0; v.y = 0; v.length = 0; });
 }

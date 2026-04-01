@@ -1,9 +1,9 @@
-import { chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type vec3 } from "../consts";
+import { chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect, type vec3 } from "../consts";
 import { LogicElement, LogicGate } from "../logic";
 import {
     camera,
     isSelecting, selectionEnd, selectionStart,
-    selectedElements,
+    selectionSets,
     selectedTool, circuit, elementUnderCursor,
     showWiresMode,
     selectionColor,
@@ -12,8 +12,9 @@ import {
     ghostElements
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
-import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld } from "../utils/utils";
+import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld, cameraViewportRect } from "../utils/utils";
 import { wireDrawingAlg, overlayIconMap } from ".";
+import { segmentIntersectsRect } from "../utils/geometry";
 
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
@@ -87,15 +88,14 @@ export function draw() {
                 visibleChunks.push(chunk);
         }
     }
-
-    // Draw elements
-    for (const chunk of visibleChunks) {
-        for (const el of chunk) {
-            drawElement(el);
-        }
-    }
     for (const el of ghostElements) {
         drawElement(el);
+    }
+    // Draw elements
+    for (const chunk of visibleChunks) {
+        for (const el of [...chunk].toReversed()) {
+            drawElement(el);
+        }
     }
 
 
@@ -123,6 +123,7 @@ function drawLines(points: number[]) {
     }
 }
 function drawWires() {
+    const screenRect: Rect = cameraViewportRect(camera, canvas.clientWidth, canvas.clientHeight);
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         // Draw wires
@@ -161,7 +162,8 @@ function drawWires() {
                 for (const target of connectTool.sources[1]) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    drawLines(wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        drawLines(wireDrawingAlg(start, end));
                 }
             }
             ctx.stroke();
@@ -173,7 +175,8 @@ function drawWires() {
                 if (prevEl !== null) {
                     const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
                     const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    drawLines(wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        drawLines(wireDrawingAlg(start, end));
                 }
                 prevEl = el;
             }
@@ -190,7 +193,8 @@ function drawWires() {
             ) {
                 const start = worldToTranslatedScreen(camera, source.x, source.y);
                 const end = worldToTranslatedScreen(camera, target.x, target.y);
-                drawLines(wireDrawingAlg(start, end));
+                if(segmentIntersectsRect(start, end, screenRect))
+                        drawLines(wireDrawingAlg(start, end));
             }
             ctx.stroke();
         } else if (connectTool.mode === ConnectMode.Decoder) {
@@ -210,7 +214,8 @@ function drawWires() {
                 for (const target of targets) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    drawLines(wireDrawingAlg(start, end));
+                    if(segmentIntersectsRect(start, end, screenRect))
+                        drawLines(wireDrawingAlg(start, end));
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;
@@ -334,7 +339,7 @@ function drawElement(el: LogicElement | ElementPDO) {
             iconOverlayColor = overlayColorIndexes[iconOverlayIndex] || 0;
         }
 
-        if (connectTool.sources[2].has(el) || selectedElements.has(el))
+        if (connectTool.sources[2].has(el) || selectionSets['selection'].has(el))
             border = selectedTool === ToolMode.Cursor ? 1 : 5;
         else if (connectTool.sources[1].has(el) && connectTool.sources[0].has(el))
             border = 4;
@@ -385,7 +390,7 @@ function drawSvgSymbol(
 function writeTextAt(x: number, y: number, fontSize: number, color: string, ...data: any[]) {
     ctx.save();
     ctx.fillStyle = color;
-    ctx.font = `${fontSize}px sans-serif`;
+    ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = "black";   // цвет тени
