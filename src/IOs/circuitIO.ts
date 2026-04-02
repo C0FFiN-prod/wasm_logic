@@ -45,8 +45,11 @@ export class CircuitIO {
             const isFarAway = (Math.abs(delta.x) > maxDist.x || Math.abs(delta.y) > maxDist.y);
             if (!isFarAway) break;
             if (chunk.size === 0)
-                this.circuit.chunks.delete(key);
-            keysToDelete.push(key);
+                keysToDelete.push(key);
+        }
+        for (const key of keysToDelete) {
+            this.circuit.lruChunkCache.delete(key);
+            this.circuit.chunks.delete(key);
         }
     }
 
