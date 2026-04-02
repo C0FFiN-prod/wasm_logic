@@ -1,4 +1,4 @@
-import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode, type Point, gridSize, minZoom, chunkMargin } from "../consts";
+import { typeToshapeId, shapeIdToType, gateTypeToMode, type Camera, CopyWiresMode, type Point, gridSize, minZoom, chunkMargin, chunkSize } from "../consts";
 import * as LogicGates from "../logic";
 import { getPointDelta, getPointFromChunkKey, getScale, screenToWorld } from "../utils/utils";
 export type Element = { id: string, type: string, inputs: string[], layer: number };
@@ -30,8 +30,8 @@ export class CircuitIO {
             y: (this.camera.y + window.innerHeight * getScale() / 2) / h1
         };
         const maxDist: Point = {
-            x: chunkMargin + window.innerWidth * getScale() / h2,
-            y: chunkMargin + window.innerHeight * getScale() / h2
+            x: chunkMargin * chunkSize + window.innerWidth * getScale() / h2,
+            y: chunkMargin * chunkSize + window.innerHeight * getScale() / h2
         }
         const keysToDelete = [];
         for (const key of this.circuit.lruChunkCache.values()) {
