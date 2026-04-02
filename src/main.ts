@@ -390,11 +390,12 @@ window.onload = (() => {
 
         const layers = logEqParser.buildFromAst(parsed.ast, logEqFlatten.checked);
         // logEqParser.printCircuit(layers);
-        const newEls = circuitIO.fromLayers(layers, logEqInputEl.value);
-        selectionSets['selection'].clear();
-        for (const newEl of newEls) {
-          selectionSets['selection'].add(newEl);
-        }
+        const newEls = circuitIO.fromLayers(layers, logEqInputEl.value).toArray();
+        historyManager.recordAddElements(newEls);
+        historyManager.pushSelectionsState(['selection']);
+        selectionSets['selection'] = new Set(newEls);
+        historyManager.recordSelectionsChange(['selection']);
+        
         if (logEqConsole) {
           logEqConsole.innerHTML = i18n.getValue("dynamic", 'success');
           logEqConsole.style.color = 'green';
