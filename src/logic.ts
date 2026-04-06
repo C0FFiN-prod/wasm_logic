@@ -22,7 +22,6 @@ export class LogicElement {
     value: boolean;
     nextValue: boolean;
     cnt: number;
-    nextCnt: number;
     constructor(type: string, x: number, y: number, z = 0, xaxis = 1, zaxis = 1, color = "222222") {
         this.id = nextId++;
         this.type = type;
@@ -35,7 +34,6 @@ export class LogicElement {
         this.value = false;
         this.nextValue = false;
         this.cnt = 0;
-        this.nextCnt = 0;
         this.inputs = new Set();
         this.outputs = new Set();
     }
@@ -43,13 +41,13 @@ export class LogicElement {
     addInput(element: LogicElement) {
         this.inputs.add(element);
         element.outputs.add(this);
-        if (element.value) { this.cnt++; this.nextCnt++; }
+        if (element.value) { this.cnt++; }
     }
 
     removeInput(element: LogicElement) {
         this.inputs.delete(element);
         element.outputs.delete(this);
-        if (element.value) { this.cnt--; this.nextCnt--; }
+        if (element.value) { this.cnt--; }
     }
 
     applyNextValue() {
@@ -57,7 +55,7 @@ export class LogicElement {
         if (this.value) change = -1;
         else change = 1;
         for (const output of this.outputs) {
-            output.nextCnt += change;
+            output.cnt += change;
         }
         this.value = this.nextValue;
     }
@@ -163,7 +161,6 @@ export class Button extends LogicElement {
             else change = 1;
             for (const output of this.outputs) {
                 output.cnt += change;
-                output.nextCnt += change;
             }
         }
         this.value = val;
@@ -171,7 +168,6 @@ export class Button extends LogicElement {
     }
 
     eval() {
-        // Входные элементы не изменяют свое значение автоматически
         this.nextValue = false;
     }
 
@@ -199,7 +195,6 @@ export class Switch extends LogicElement {
             else change = 1;
             for (const output of this.outputs) {
                 output.cnt += change;
-                output.nextCnt += change;
             }
         }
         this.value = val;
@@ -207,7 +202,6 @@ export class Switch extends LogicElement {
     }
 
     eval() {
-        // Входные элементы не изменяют свое значение автоматически
         this.nextValue = this.value;
     }
     getController() {
@@ -229,7 +223,6 @@ export class OutputElement extends LogicElement {
     }
 
     eval() {
-        // Выход просто отражает первый вход (если есть)
         this.nextValue = this.inputs.size > 0 && this.cnt > 0;
     }
 
@@ -258,13 +251,11 @@ export class Circuit {
     chunks: Map<string, Set<LogicElement>>;
     lruChunkCache: LRU<string>;
     pendingElements: Queue<LogicElement>;
-    affectedElements: Set<LogicElement>;
     wires: Map<string, Wire>;
     constructor() {
         this.chunks = new Map();
         this.lruChunkCache = new LRU();
         this.pendingElements = new Queue();
-        this.affectedElements = new Set();
         this.wires = new Map();
     }
     addExitstingElement(el: LogicElement) {
@@ -378,14 +369,8 @@ export class Circuit {
 
         // Фаза 2: применение новых состояний
         let el: LogicElement | undefined;
-        this.affectedElements.clear();
         while ((el = this.pendingElements.pop()) !== undefined) {
             el.applyNextValue();
-            el.outputs.forEach(output => this.affectedElements.add(output));
-        }
-
-        for (const el of this.affectedElements) {
-            el.cnt = el.nextCnt;
         }
     }
 
@@ -399,7 +384,6 @@ export class Circuit {
     }
     clear() {
         this.pendingElements.resize(16);
-        this.affectedElements.clear();
         this.wires.clear();
         this.chunks.clear();
         this.lruChunkCache.clear();

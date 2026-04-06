@@ -2,10 +2,12 @@
     --font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
     --font-family-ms: ui-monospace, Menlo, Consolas, "Ubuntu Mono", "Roboto Mono", "DejaVu Sans Mono", monospace;
     --text: #070707;
+    --text-disabled: #4e4e4e;
     --bg-color: #e5e5e5;
     --btn-color: #e7e7e7;
     --btn-color-hover: #cdcdcd;
     --btn-color-active: #f3f3f3;
+    --btn-color-disabled: #d6d6d6;
     --btn-color-border: #9e9d9d;
     --hr-color: #313131;
     --fm-bg-color: #eeeeee;
@@ -21,10 +23,12 @@
 
 [data-theme="dark"] {
     --text: #e0e0e0;
+    --text-disabled: #aaa;
     --bg-color: #191919;
     --btn-color: #333;
     --btn-color-hover: #444;
     --btn-color-active: #525252;
+    --btn-color-disabled: #202020;
     --btn-color-border: #444;
     --hr-color: #555;
     --fm-bg-color: #1e1e1e;
@@ -74,6 +78,11 @@ button:hover {
 
 button[active] {
     background-color: var(--btn-color-active);
+}
+
+button[disabled] {
+    color: var(--text-disabled);
+    background-color: var(--btn-color-disabled);
 }
 
 input[type="checkbox"] {

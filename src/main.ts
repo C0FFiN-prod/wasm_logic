@@ -212,16 +212,29 @@ window.onload = (() => {
 
   const colorPicker = document.querySelector("#tool-color-picker") as HTMLInputElement;
   circuitIO = new CircuitIO(circuit, colorPicker, camera);
+  const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement;
+  const redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
+  
   historyManager = new HistoryManager(circuit, circuitIO, {
     maxMemoryMB: 100,
     onHistoryChange: (canUndo, canRedo, undoStack, redoStack) => {
       console.log(undoStack, redoStack);
-      const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement;
-      const redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
       if (undoBtn) undoBtn.disabled = !canUndo;
       if (redoBtn) redoBtn.disabled = !canRedo;
     },
   });
+  undoBtn.addEventListener('click', () => {
+    switchToolAndMode(true);
+    historyManager.undo();
+    drawingTimer.step();
+  });
+  redoBtn.addEventListener('click', () => {
+    switchToolAndMode(false);
+    historyManager.redo();
+    drawingTimer.step();
+  });
+  undoBtn.disabled = true;
+  redoBtn.disabled = true;
   fileIO = new FileIO(i18n, circuitIO, historyManager, document.getElementById("filename-display") as HTMLSpanElement);
   canvases = {
     'canvas': document.getElementById('canvas-canvas') as HTMLCanvasElement,
