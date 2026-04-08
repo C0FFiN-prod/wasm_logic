@@ -141,7 +141,6 @@ export class FileIO {
                 this.currentFileHandle = fileHandle;
                 this.currentFileName = fileHandle.name?.replace(/\.json$/i, "") || this.unnamed;
                 this.updateFilenameDisplay();
-                this.historyManager.clear();
             }
             const file = await fileHandle.getFile();
             this.processLoadedFile(file, add);
@@ -164,14 +163,20 @@ export class FileIO {
     private async processLoadedFile(file: File, add: boolean) {
         const contents = await file.text();
         if (!add) this.circuitIO.clearCircuit();
-        const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
-        if (!add) {
-            this.historyManager.clear();
-        } else {
-            this.historyManager.pushSelectionsState(['selection']);
-            selectionSets['selection'] = new Set(newElements);
-            this.historyManager.recordAddSchemeFromFile(newElements);
-            this.historyManager.recordSelectionsChange(['selection']);
+        try {
+            const newElements = Array.from(this.circuitIO.deserializeCircuit(contents));
+            if (!add) {
+                this.historyManager.clear();
+            } else {
+                this.historyManager.pushSelectionsState(['selection']);
+                selectionSets['selection'] = new Set(newElements);
+                this.historyManager.recordAddSchemeFromFile(newElements);
+                this.historyManager.recordSelectionsChange(['selection']);
+            }
+        } catch (e) {
+            if (!add) {
+                this.clearFileHandle();
+            }
         }
         drawingTimer.step();
     }

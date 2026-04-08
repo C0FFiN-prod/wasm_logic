@@ -217,51 +217,59 @@ export class CircuitIO {
     }
 
     deserializeCircuit(json: string) {
-        const data = JSON.parse(json);
         const idMap = new Map<number, LogicGates.LogicElement>();
-        const version = data.version;
-        const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
-        const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-
-        if (version === 3 || version === 4) {
-            for (const body of data.bodies) {
-                this._fillIdMap(body.childs, idMap, blueprintRect);
-            }
-            const blueprintDelta = this._getBlueprintDeltaToPoint(blueprintRect, center);
-
-            for (const body of data.bodies) {
-                this._wireUpFromIterable(body.childs, idMap, blueprintDelta, true);
-            }
-
-
-        } else {
-            for (const el of data.elements) {
-                let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
-                const obj = this.addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : { pos: { x: el.x, y: el.y } });
-                if (obj) {
-                    idMap.set(el.id, obj);
+        try {
+            const data = JSON.parse(json);
+            const version = data.version;
+            const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
+            const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+    
+            if (version === 3 || version === 4) {
+                for (const body of data.bodies) {
+                    this._fillIdMap(body.childs, idMap, blueprintRect);
                 }
-            }
-
-            if (!version) {
-                for (const w of data.wires) {
-                    const src = idMap.get(w.from);
-                    const dst = idMap.get(w.to);
-                    if (src && dst) {
-                        this.circuit.addWire(src, dst);
+                const blueprintDelta = this._getBlueprintDeltaToPoint(blueprintRect, center);
+    
+                for (const body of data.bodies) {
+                    this._wireUpFromIterable(body.childs, idMap, blueprintDelta, true);
+                }
+    
+    
+            } else {
+                for (const el of data.elements) {
+                    let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
+                    const obj = this.addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : { pos: { x: el.x, y: el.y } });
+                    if (obj) {
+                        idMap.set(el.id, obj);
                     }
                 }
-            } else if (version === 1) {
-                for (const w of data.wires) {
-                    const src = idMap.get(w.src);
-                    const dst = idMap.get(w.dst);
-                    if (src && dst) {
-                        this.circuit.addWire(src, dst);
+    
+                if (!version) {
+                    for (const w of data.wires) {
+                        const src = idMap.get(w.from);
+                        const dst = idMap.get(w.to);
+                        if (src && dst) {
+                            this.circuit.addWire(src, dst);
+                        }
+                    }
+                } else if (version === 1) {
+                    for (const w of data.wires) {
+                        const src = idMap.get(w.src);
+                        const dst = idMap.get(w.dst);
+                        if (src && dst) {
+                            this.circuit.addWire(src, dst);
+                        }
                     }
                 }
             }
+            return idMap.values();
+        } catch (e) {
+            for (const el of idMap.values()) {
+                this.circuit.removeWiresForElement(el);
+                this.circuit.deleteElement(el);
+            }
+            throw e;
         }
-        return idMap.values();
     }
 
     rotateSelected(selectedElements: Set<LogicGates.LogicElement>, clockwise: boolean, center: Point | undefined = undefined) {
