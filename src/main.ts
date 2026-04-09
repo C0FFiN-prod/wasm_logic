@@ -12,6 +12,7 @@ import { drawingTimer } from './drawings';
 import { changeWireDrawingAlg } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 import { HistoryManager, type HistoryAction } from './history';
+import { initElementPalette } from './utils/palette';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -44,9 +45,9 @@ let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по ум�
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
 
-let historyManager: HistoryManager;
+export let historyManager: HistoryManager;
 let fileIO: FileIO;
-let circuitIO: CircuitIO;
+export let circuitIO: CircuitIO;
 let logEqParser: LogEqLangCompiler = new LogEqLangCompiler();
 
 // if (import.meta.env.PROD && 'serviceWorker' in navigator) {
@@ -272,21 +273,7 @@ window.onload = (() => {
   setupEvent('connect-mode-btn', 'click', cycleConnectMode);
 
   // Toolbar buttons
-  ['and', 'or', 'xor', 'nand', 'nor', 'xnor', 't_flop', 'timer', 'button', 'switch', 'output'].forEach(id => {
-    const el = document.getElementById('add-' + id);
-    const type = id.toUpperCase();
-    if (el) {
-      el.onclick = () => {
-        const newEl = circuitIO.addElement(type, {});
-        if (newEl !== null) {
-          historyManager.recordAddElements([newEl]);
-          drawingTimer.step();
-        }
-      };
-    }
-
-
-  });
+  initElementPalette();
   const switchTool = (e: Event, toolMode: ToolMode) => {
     if (selectedTool === toolMode) return;
     switch (toolMode) {
@@ -847,9 +834,7 @@ function onCanvasMouseUp(e: MouseEvent) {
     stopDragging();
     drawingTimer.stop();
     drawingTimer.step();
-    e.stopPropagation();
   }
-
 }
 function stopDragging() {
   if (isDragging) {

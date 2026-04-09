@@ -12,7 +12,7 @@ import {
     ghostElements
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
-import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld, cameraViewportRect } from "../utils/utils";
+import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld, cameraViewportRect, getScale } from "../utils/utils";
 import { wireDrawingAlg, overlayIconMap } from ".";
 import { segmentIntersectsRect } from "../utils/geometry";
 
@@ -93,9 +93,16 @@ export function draw() {
         iconStep = newStep;
         updateIcons();
     }
+    const scale = getScale();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.translate(-camera.x, -camera.y);
-    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(
+        Math.round(-camera.x * scale),
+        Math.round(-camera.y * scale)
+    );
+    ctx.scale(
+        camera.zoom * scale,
+        camera.zoom * scale
+    );
 
     drawGrid();
 

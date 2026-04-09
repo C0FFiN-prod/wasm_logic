@@ -381,7 +381,7 @@ export class CircuitIO {
     }
 
     addElement(type: string, params: Record<string, any>) {
-        const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
+        const center = screenToWorld(this.camera, window.innerWidth / 2, window.innerHeight / 2);
         params.pos = params.pos ?? {};
         params.controller = params.controller ?? {};
         params.pos.x = params.pos.x ?? Math.round(center.x + Math.random() * 4 - 2);
