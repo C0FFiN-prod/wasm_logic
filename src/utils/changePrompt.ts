@@ -1,4 +1,4 @@
-import { LogicElement, Timer, LogicGate } from "../logic";
+import { moveAroundCursor } from "./floatingMenus";
 
 const PromptTypes = ['delay', 'gate'] as const;
 type PromptTypes = (typeof PromptTypes)[number];
@@ -34,7 +34,7 @@ function restore() {
   if (!HTMLPrompt.submit.parentElement) HTMLPrompt.fm.querySelector('.floating-menu-container')?.appendChild(HTMLPrompt.submit);
 }
 
-export function show(type: PromptTypes, currentValue: string, onSubmit: (value: string) => void) {
+export function show(e: MouseEvent, type: PromptTypes, currentValue: string, onSubmit: (value: string) => void) {
   restore();
   HTMLPrompt.submit.onclick = null;
 
@@ -47,6 +47,7 @@ export function show(type: PromptTypes, currentValue: string, onSubmit: (value: 
   HTMLPrompt.hide.onclick = cancel;
 
   HTMLPrompt.fm.classList.toggle('hidden', false);
+  moveAroundCursor({ x: e.offsetX, y: e.offsetY }, HTMLPrompt.fm);
 }
 
 export function cancel() {

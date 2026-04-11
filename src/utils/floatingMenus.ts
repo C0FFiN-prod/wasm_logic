@@ -1,8 +1,9 @@
-import { clamp } from './utils.ts';    
+import { gridSize, type Point } from '../consts.ts';
+import { clamp } from './utils.ts';
 
 const lsKey = 'floating-menus';
 
-type FloatingMenu = { x: number, y: number, isHidden: boolean, isContainerHidden?: boolean};
+type FloatingMenu = { x: number, y: number, isHidden: boolean, isContainerHidden?: boolean };
 
 export let floatingMenus: NodeListOf<HTMLElement>;
 export function saveFMsToLS() {
@@ -117,3 +118,13 @@ export function resizeFMs() {
     }
 }
 
+export function moveAroundCursor(p: Point, floatingMenu: HTMLElement) {
+    const getStyleFM = window.getComputedStyle(floatingMenu);
+    const centerX = parseInt(getStyleFM.width) / 2;
+    const height = parseInt(getStyleFM.height) + 4 * gridSize;
+    const pos = { x: p.x - centerX, y: p.y + 2 * gridSize };
+    if (p.y + height > window.innerHeight) pos.y -= height;
+    floatingMenu.style.left = `${pos.x}px`;
+    floatingMenu.style.top = `${pos.y}px`;
+    clampFMCoords(floatingMenu);
+}

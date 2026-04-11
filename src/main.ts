@@ -6,8 +6,8 @@ import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
 import * as ChangePrompt from './utils/changePrompt';
 import { LogEqLangCompiler, BuildError } from './logeqCompiler';
-import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, fillCoordMapWithElements, getScale, countSubstr, getSelectionCenter, getPointDelta } from './utils/utils';
-import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, fillCoordMapWithCoords, fillCTSources, getVectorFrom2Points, getVectorFrom3Points, handleElementClick, initConnectTool, makeGhostEl, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
+import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, getScale, countSubstr, getSelectionCenter } from './utils/utils';
+import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, handleElementClick, initConnectTool, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
 import { changeWireDrawingAlg } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
@@ -662,7 +662,7 @@ function onCanvasMouseDown(e: MouseEvent) {
         } else if (el instanceof LogicGates.Button) {
           el.setValue(true);
         } else if (el instanceof LogicGates.Timer) {
-          ChangePrompt.show('delay', el.delay.toString(),
+          ChangePrompt.show(e, 'delay', el.delay.toString(),
             (value) => {
               const delay = value;
               const newDelay = Math.round(Number(delay));
@@ -683,7 +683,7 @@ function onCanvasMouseDown(e: MouseEvent) {
               }
             });
         } else if (el instanceof LogicGates.LogicGate) {
-          ChangePrompt.show('gate', gateModeToType.get(el.gateType)!,
+          ChangePrompt.show(e, 'gate', gateModeToType.get(el.gateType)!,
             (value) => {
               const mode = value.toUpperCase();
               if (gateTypeToMode.has(mode)) {
