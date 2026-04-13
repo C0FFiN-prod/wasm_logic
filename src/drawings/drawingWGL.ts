@@ -147,8 +147,7 @@ export function initContext(_canvas: HTMLCanvasElement) {
         icons: gl.createTexture(),
         overlays: gl.createTexture(),
     }
-    // textures.colorPalette = gl.createTexture();
-    texture = gl.createTexture();
+
     vaos.allInOne = initAllInOne();
     vaos.pos2only = initPos2Only();
 
@@ -167,7 +166,7 @@ function initPos2Only() {
 
     // position
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(program.attributes.position, 2, gl.HALF_FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(program.attributes.position);
     gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
 
@@ -332,7 +331,7 @@ export function draw() {
         gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float16Array([
             selectionStart.x, selectionStart.y,
             selectionStart.x, selectionEnd.y,
             selectionEnd.x, selectionEnd.y,

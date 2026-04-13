@@ -2,7 +2,7 @@ import { gridSize, WireDrawings, type Point } from "../consts";
 import { settings } from "../main";
 
 
-export let buffer = new Float32Array(1_000_000);
+export let buffer = new Float16Array(1_000_000);
 export let offset = 0;
 export let mode: WireDrawings = 'simple';
 export let resized = false;
@@ -107,7 +107,7 @@ export function writePair(x1: number, y1: number, x2: number, y2: number) {
 
 function resize(requiredFloats: number) {
     const newSize = Math.max(requiredFloats, buffer.length * 1.5) | 0;
-    const newArr = new Float32Array(newSize);
+    const newArr = new Float16Array(newSize);
     newArr.set(buffer);
     buffer = newArr;
     resized = true;

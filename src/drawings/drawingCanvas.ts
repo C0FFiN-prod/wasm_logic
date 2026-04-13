@@ -153,7 +153,7 @@ export function draw() {
         ctx.strokeRect(x, y, w, h);
     }
 }
-function drawLines(points: number[] | Float32Array, length?: number) {
+function drawLines(points: ArrayLike<number>, length?: number) {
     const n = Math.trunc(length ?? (points.length / 4));
     if (n === 0) return; 
     for (let i = 0; i < n; ++i) {
@@ -168,11 +168,12 @@ function drawWires() {
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         // Draw wires
-        ctx.strokeStyle = rgbToHex(
-            Math.trunc(colors.wires[0] * 255),
-            Math.trunc(colors.wires[1] * 255),
-            Math.trunc(colors.wires[2] * 255)
-        );
+        ctx.strokeStyle = `rgba(
+            ${Math.trunc(colors.wires[0] * 255)},
+            ${Math.trunc(colors.wires[1] * 255)},
+            ${Math.trunc(colors.wires[2] * 255)},
+            ${colors.wires[3]}    
+        )`;
         ctx.lineWidth = 1 / camera.zoom;
         
 
@@ -194,11 +195,11 @@ function drawWires() {
             showWiresMode === ShowWiresMode.Temporary) && selectedTool === ToolMode.Connect
     ) {
         WireDrawing.reset();
-        ctx.strokeStyle = rgbToHex(
-            Math.trunc(colors.tempWires[0] * 255),
-            Math.trunc(colors.tempWires[1] * 255),
-            Math.trunc(colors.tempWires[2] * 255)
-        );
+        ctx.strokeStyle = `rgb(
+            ${Math.trunc(colors.tempWires[0] * 255)},
+            ${Math.trunc(colors.tempWires[1] * 255)},
+            ${Math.trunc(colors.tempWires[2] * 255)}
+        )`;
         ctx.lineWidth = 1 / camera.zoom;
         if (connectTool.mode === ConnectMode.NtoN) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
