@@ -11,10 +11,10 @@ import {
 } from "../main";
 import m3 from '../utils/m3';
 import { type LogicGate } from "../logic";
-import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, WireDrawings, type Point, type Rect, type vec3 } from "../consts";
+import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type Rect, type vec3 } from "../consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, cameraViewportRect } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
-import { wireDrawingAlg, overlayIconMap } from ".";
+import { overlayIconMap, WireDrawing } from ".";
 import { segmentIntersectsRect } from "../utils/geometry";
 
 
@@ -26,7 +26,6 @@ type Program = {
 };
 let gl: WebGL2RenderingContext;
 let program: Program;
-let texture: WebGLTexture;
 let textures: Record<string, WebGLTexture>;
 
 const programs: Record<string, Program> = {};
@@ -170,6 +169,7 @@ function initPos2Only() {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
     gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(program.attributes.position);
+    gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
 
     gl.bindVertexArray(null);
     return vao;
@@ -258,6 +258,7 @@ function initAllInOne() {
     return vao;
 }
 let frameCnt = 0;
+let maxDrawedElementsCnt = 0;
 export function draw() {
     if (++frameCnt === 10000) {
         colorMap.clear();
@@ -296,13 +297,22 @@ export function draw() {
     gl.uniform1f(program.uniforms.screenPxRange, Math.max(gridSize * camera.zoom / 24 * 1, 1));
     isColorMapUpdated = false;
     const paked = packElements();
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance);
-    gl.bufferData(gl.ARRAY_BUFFER, paked.positions, gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceAttribs);
-    gl.bufferData(gl.ARRAY_BUFFER, paked.attributes, gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
-    gl.bufferData(gl.ARRAY_BUFFER, paked.colorIndices, gl.DYNAMIC_DRAW);
+    if (paked.positions.length > maxDrawedElementsCnt) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance);
+        gl.bufferData(gl.ARRAY_BUFFER, paked.positions, gl.DYNAMIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceAttribs);
+        gl.bufferData(gl.ARRAY_BUFFER, paked.attributes, gl.DYNAMIC_DRAW);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
+        gl.bufferData(gl.ARRAY_BUFFER, paked.colorIndices, gl.DYNAMIC_DRAW);
+        maxDrawedElementsCnt = paked.positions.length;
+    } else {
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instance);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, paked.positions);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceAttribs);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, paked.attributes);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.instanceFillColorIdx);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, paked.colorIndices);
+    }
 
     if (isColorMapUpdated) {
         gl.activeTexture(gl.TEXTURE1);
@@ -322,12 +332,12 @@ export function draw() {
         gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([
             selectionStart.x, selectionStart.y,
             selectionStart.x, selectionEnd.y,
             selectionEnd.x, selectionEnd.y,
             selectionEnd.x, selectionStart.y,
-        ]), gl.DYNAMIC_DRAW);
+        ]));
 
         gl.drawArrays(gl.LINE_LOOP, 0, 4);
     }
@@ -426,7 +436,7 @@ function packElements(): {
     const colorIndices = new Uint32Array(visibleCount);
 
     let nextColorIndex = colorData.length / 3;
-    let i = visibleCount-1;
+    let i = visibleCount - 1;
 
 
 
@@ -484,7 +494,7 @@ function packElements(): {
             --i;
         }
     }
-    
+
     for (const el of ghostElements) {
         const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
         positions[i * 2] = x;
@@ -552,25 +562,18 @@ function drawGrid() {
 
     const startX = Math.floor(left / gridSize) * gridSize;
     const startY = Math.floor(top / gridSize) * gridSize;
-    const lines = new Float32Array(
-        Math.ceil((right - startX) / gridSize) * 4 +
-        Math.ceil((bottom - startY) / gridSize) * 4);
-    let i = 0;
-    for (let x = startX; x <= right; x += gridSize, ++i) {
-        lines[i * 4 + 0] = x;
-        lines[i * 4 + 1] = top;
-        lines[i * 4 + 2] = x;
-        lines[i * 4 + 3] = bottom;
+    WireDrawing.reset();
+    for (let x = startX; x <= right; x += gridSize) {
+        WireDrawing.writePair(x, top, x, bottom);
     }
 
-    for (let y = startY; y <= bottom; y += gridSize, ++i) {
-        lines[i * 4 + 0] = left;
-        lines[i * 4 + 1] = y;
-        lines[i * 4 + 2] = right;
-        lines[i * 4 + 3] = y;
+    for (let y = startY; y <= bottom; y += gridSize) {
+        WireDrawing.writePair(left, y, right, y);
     }
-    gl.bufferData(gl.ARRAY_BUFFER, lines, gl.DYNAMIC_DRAW);
-    gl.drawArrays(gl.LINES, 0, lines.length / 2);
+    if (WireDrawing.resized)
+        gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
+    gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
 }
 
 function drawWires() {
@@ -579,18 +582,20 @@ function drawWires() {
     const screenRect: Rect = cameraViewportRect(camera, canvas.clientWidth, canvas.clientHeight);
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
-        const lines: number[] = [];
+        WireDrawing.reset();
 
         for (const [_, wire] of circuit.wires) {
             const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
             const end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
-            
-            if(segmentIntersectsRect(start, end, screenRect)) {
-                lines.push(...wireDrawingAlg(start, end));
+
+            if (segmentIntersectsRect(start, end, screenRect)) {
+                WireDrawing.writeWire(start, end);
             }
         }
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-        gl.drawArrays(gl.LINES, 0, lines.length / 2);
+        if (WireDrawing.resized)
+            gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
+        gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
     }
 
     if (
@@ -600,7 +605,7 @@ function drawWires() {
     ) {
         gl.uniform4fv(program.uniforms.color, colors.tempWires);
 
-        const lines: number[] = [];
+        WireDrawing.reset();
         if (connectTool.mode === ConnectMode.NtoN) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
 
@@ -608,8 +613,8 @@ function drawWires() {
                 for (const target of connectTool.sources[1]) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if(segmentIntersectsRect(start, end, screenRect))
-                        lines.push(...wireDrawingAlg(start, end));
+                    if (segmentIntersectsRect(start, end, screenRect))
+                        WireDrawing.writeWire(start, end);
                 }
             }
         } else if (connectTool.mode === ConnectMode.Sequence) {
@@ -619,8 +624,8 @@ function drawWires() {
                 if (prevEl !== null) {
                     const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
                     const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    if(segmentIntersectsRect(start, end, screenRect))
-                        lines.push(...wireDrawingAlg(start, end));
+                    if (segmentIntersectsRect(start, end, screenRect))
+                        WireDrawing.writeWire(start, end);
                 }
                 prevEl = el;
             }
@@ -635,8 +640,8 @@ function drawWires() {
             ) {
                 const start = worldToTranslatedScreen(camera, source.x, source.y);
                 const end = worldToTranslatedScreen(camera, target.x, target.y);
-                if(segmentIntersectsRect(start, end, screenRect))
-                    lines.push(...wireDrawingAlg(start, end));
+                if (segmentIntersectsRect(start, end, screenRect))
+                    WireDrawing.writeWire(start, end);
             }
         } else if (connectTool.mode === ConnectMode.Decoder) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0 || connectTool.sources[2].size === 0) return;
@@ -654,8 +659,8 @@ function drawWires() {
                 for (const target of targets) {
                     const start = worldToTranslatedScreen(camera, source.x, source.y);
                     const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if(segmentIntersectsRect(start, end, screenRect))
-                        lines.push(...wireDrawingAlg(start, end));
+                    if (segmentIntersectsRect(start, end, screenRect))
+                        WireDrawing.writeWire(start, end);
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;
@@ -665,8 +670,10 @@ function drawWires() {
                 k <<= 1;
             }
         } else return;
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-        gl.drawArrays(gl.LINES, 0, lines.length / 2);
+        if (WireDrawing.resized)
+            gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
+        gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
     }
 }
 

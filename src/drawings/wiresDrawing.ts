@@ -1,151 +1,114 @@
-import { gridSize, type Point } from "../consts";
+import { gridSize, WireDrawings, type Point } from "../consts";
+import { settings } from "../main";
 
-const halv = gridSize * .5
-const quater = gridSize * .25;
-const oneAndQuater = gridSize * 1.25;
-const oneAndHalv = gridSize * 1.5;
 
-function sameY(src: Point, dst: Point) {
-    if (dst.x >= src.x) return simple(src, dst);
+export let buffer = new Float32Array(1_000_000);
+export let offset = 0;
+export let mode: WireDrawings = 'simple';
+export let resized = false;
+const HALF = gridSize * 0.5;
+const QUARTER = gridSize * 0.25;
+const ONE_Q = gridSize * 1.25;
+const ONE_H = gridSize * 1.5;
 
-    return [
-        src.x + gridSize,
-        src.y + halv,
+export function reset() { offset = 0; resized = false; }
 
-        src.x + oneAndQuater,
-        src.y + halv,
-        src.x + oneAndQuater,
-        src.y + halv,
-
-        src.x + oneAndQuater,
-        src.y - halv,
-        src.x + oneAndQuater,
-        src.y - halv,
-
-        dst.x - quater,
-        src.y - halv,
-        dst.x - quater,
-        src.y - halv,
-
-        dst.x - quater,
-        dst.y + halv,
-        dst.x - quater,
-        dst.y + halv,
-
-        dst.x,
-        dst.y + halv,
-    ]
+export function changeWireDrawingAlg() {
+    mode = settings.wireDrawing;
 }
 
-export function simple(src: Point, dst: Point) {
-    return [
-        src.x + gridSize,
-        src.y + halv,
+export function writeWire(src: Point, dst: Point) {
+    if (offset > buffer.length - 100) resize(buffer.length + 100);
 
-        dst.x,
-        dst.y + halv
-    ]
-}
+    const sx = src.x + gridSize;
+    const sy = src.y + HALF;
+    const dx = dst.x;
+    const dy = dst.y + HALF;
 
-export function dimple(src: Point, dst: Point) {
-    if (dst.y === src.y) return sameY(src, dst);
-    if (dst.x - gridSize <= src.x) {
-        const dy = Math.sign(dst.y - src.y) * halv;
-        return [
-            src.x + gridSize,
-            src.y + halv,
 
-            src.x + oneAndQuater,
-            src.y + halv,
-            src.x + oneAndQuater,
-            src.y + halv,
 
-            src.x + oneAndQuater,
-            src.y + halv + dy,
-            src.x + oneAndQuater,
-            src.y + halv + dy,
-
-            dst.x - quater,
-            dst.y + halv - dy,
-            dst.x - quater,
-            dst.y + halv - dy,
-
-            dst.x - quater,
-            dst.y + halv,
-            dst.x - quater,
-            dst.y + halv,
-
-            dst.x,
-            dst.y + halv,
-        ]
+    if (mode === "simple") {
+        writePair(sx, sy, dx, dy);
+        return;
     }
-    return [
-        src.x + gridSize,
-        src.y + halv,
 
-        src.x + oneAndHalv,
-        src.y + halv,
-        src.x + oneAndHalv,
-        src.y + halv,
+    const isBack = dst.x - gridSize <= src.x;
+    const sameY = dst.y === src.y;
+    if (sameY && (!isBack || dst.x >= src.x)) {
+        writePair(sx, sy, dx, dy);
+        return;
+    } else if (sameY) {
+        const mx = src.x + ONE_Q;
+        const nx = dst.x - QUARTER;
+        const hy = src.y - HALF;
 
-        dst.x - halv,
-        dst.y + halv,
-        dst.x - halv,
-        dst.y + halv,
+        writePair(sx, sy, mx, sy);
+        writePair(mx, sy, mx, hy);
+        writePair(mx, hy, nx, hy);
+        writePair(nx, hy, nx, dy);
+        writePair(nx, dy, dx, dy);
+        return;
+    }
 
-        dst.x,
-        dst.y + halv,
-    ]
+    if (mode === "dimple") {
+        if (isBack) {
+            const s = Math.sign(dst.y - src.y) * HALF;
+            const mx = src.x + ONE_Q;
+            const my = src.y + HALF + s;
+            const nx = dst.x - QUARTER;
+            const ny = dst.y + HALF - s;
+
+            writePair(sx, sy, mx, sy);
+            writePair(mx, sy, mx, my);
+            writePair(mx, my, nx, ny);
+            writePair(nx, ny, nx, dy);
+            writePair(nx, dy, dx, dy);
+        } else {
+            const mx = src.x + ONE_H;
+            const nx = dst.x - HALF;
+
+            writePair(sx, sy, mx, sy);
+            writePair(mx, sy, nx, dy);
+            writePair(nx, dy, dx, dy);
+        }
+        return;
+    }
+
+    // manhattan
+    if (isBack) {
+        const diff = Math.abs(dst.y - src.y);
+        const yStep = Math.sign(dst.y - src.y) * (diff > gridSize ? gridSize : HALF);
+        const yMid = sy + yStep;
+        const mx = sx + QUARTER;
+        const nx = dx - QUARTER;
+
+        writePair(sx, sy, mx, sy);
+        writePair(mx, sy, mx, yMid);
+        writePair(mx, yMid, nx, yMid);
+        writePair(nx, yMid, nx, dy);
+        writePair(nx, dy, dx, dy);
+        return;
+    }
+
+    // manhattan forward
+    const midX = src.x + (dst.x - src.x + gridSize) * 0.5;
+    writePair(sx, sy, midX, sy);
+    writePair(midX, sy, midX, dy);
+    writePair(midX, dy, dx, dy);
 }
 
-export function manhattan(src: Point, dst: Point) {
-    if (dst.y === src.y) return sameY(src, dst);
-    if (dst.x - gridSize <= src.x) {
-        const dy = Math.sign(dst.y - src.y) * (Math.abs(dst.y - src.y) > gridSize ? gridSize : halv);
-        return [
-            src.x + gridSize,
-            src.y + halv,
+export function writePair(x1: number, y1: number, x2: number, y2: number) {
+    buffer[offset + 0] = x1;
+    buffer[offset + 1] = y1;
+    buffer[offset + 2] = x2;
+    buffer[offset + 3] = y2;
+    offset += 4;
+}
 
-            src.x + oneAndQuater,
-            src.y + halv,
-            src.x + oneAndQuater,
-            src.y + halv,
-
-            src.x + oneAndQuater,
-            src.y + halv + dy,
-            src.x + oneAndQuater,
-            src.y + halv + dy,
-
-            dst.x - quater,
-            src.y + halv + dy,
-            dst.x - quater,
-            src.y + halv + dy,
-
-            dst.x - quater,
-            dst.y + halv,
-            dst.x - quater,
-            dst.y + halv,
-
-            dst.x,
-            dst.y + halv,
-        ]
-    }
-    const centerX = (dst.x - src.x + gridSize) / 2;
-    return [
-        src.x + gridSize,
-        src.y + halv,
-
-        src.x + centerX,
-        src.y + halv,
-        src.x + centerX,
-        src.y + halv,
-
-        src.x + centerX,
-        dst.y + halv,
-        src.x + centerX,
-        dst.y + halv,
-
-        dst.x,
-        dst.y + halv,
-    ]
+function resize(requiredFloats: number) {
+    const newSize = Math.max(requiredFloats, buffer.length * 1.5) | 0;
+    const newArr = new Float32Array(newSize);
+    newArr.set(buffer);
+    buffer = newArr;
+    resized = true;
 }

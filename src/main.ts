@@ -9,7 +9,7 @@ import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, getScale, countSubstr, getSelectionCenter } from './utils/utils';
 import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, handleElementClick, initConnectTool, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
-import { changeWireDrawingAlg } from "./drawings";
+import { WireDrawing } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 import { HistoryManager, type HistoryAction } from './history';
 import { initElementPalette } from './utils/palette';
@@ -162,7 +162,7 @@ window.onload = (() => {
     if (WireDrawings.includes(<WireDrawings>wireDrawing)) {
       settings.wireDrawing = <WireDrawings>wireDrawing;
       pushSettingsToLS();
-      changeWireDrawingAlg();
+      WireDrawing.changeWireDrawingAlg();
       drawingTimer.step();
     }
   });
@@ -260,7 +260,7 @@ window.onload = (() => {
   updateConnectModeButtonText();
   drawingTimer.changeMaxFPS();
   drawingTimer.changeDrawing();
-  changeWireDrawingAlg();
+  WireDrawing.changeWireDrawingAlg();
   toggleThemeOnChange();
   toggleLocale();
 
