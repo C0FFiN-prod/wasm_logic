@@ -15,6 +15,7 @@ import { connectTool } from "../utils/connectionTool";
 import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld, cameraViewportRect, getScale } from "../utils/utils";
 import { WireDrawing, overlayIconMap } from ".";
 import { segmentIntersectsRect } from "../utils/geometry";
+import { offset } from "./wiresDrawing";
 
 const pathMap = new Map<string, string>(Object.entries(
     {
@@ -39,8 +40,11 @@ const activePathMap = new Map<string, string>(Object.entries({
 const iconCount = pathMap.size;
 const iconStates = 4; // 2bit: [Light|Dark][On|Off]
 let iconStep = gridSize;
-const offscreenIcons = new OffscreenCanvas(iconStates * iconStep, iconCount * iconStep);
+const offscreenIcons: { ctx: OffscreenCanvasRenderingContext2D, data: ImageBitmap | null } = { ctx: new OffscreenCanvas(iconStates * iconStep, iconCount * iconStep).getContext('2d')!, data: null };
 const iconMap = new Map<string, number>();
+const offscreenElements = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
+const elementMap = new Map<string, { img0: ImageBitmap | null, img1: ImageBitmap | null, batch: (LogicElement | ElementPDO)[], offset: 0 }>(); // TYPE|COLOR|VALUE
+
 
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
@@ -49,7 +53,7 @@ export function initContext(_canvas: HTMLCanvasElement) {
     canvas = _canvas;
     ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     ctx.imageSmoothingEnabled = false;
-    iconStep = 0;
+    updateIcons();
 }
 
 function drawGrid() {
@@ -83,17 +87,20 @@ function drawGrid() {
 }
 
 export function draw() {
-    if (++frameCnt === 1000) {
+    if (++frameCnt === 10000) {
         frameCnt = 0;
         colorMap.clear();
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const newStep = gridSize * Math.round(camera.zoom * 10) / 10;
+    const scale = getScale();
+    const newStep = Math.round(gridSize * camera.zoom * scale);
     if (iconStep !== newStep) {
         iconStep = newStep;
+        offscreenElements.canvas.height = iconStep;
+        offscreenElements.canvas.width = iconStep;
         updateIcons();
     }
-    const scale = getScale();
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.translate(
         Math.round(-camera.x * scale),
@@ -126,16 +133,45 @@ export function draw() {
                 visibleChunks.push(chunk);
         }
     }
-    for (const el of ghostElements) {
-        drawElement(el);
-    }
-    // Draw elements
-    for (const chunk of visibleChunks) {
-        for (const el of [...chunk].toReversed()) {
-            drawElement(el);
+
+    if (settings.drawIcons) {
+        for (const el of ghostElements) {
+            saveElement(el);
+        }
+        // Draw elements
+        for (const chunk of visibleChunks) {
+            for (const el of [...chunk]) {
+                saveElement(el);
+            }
+        }
+
+        for (const [k, v] of elementMap.entries()) {
+            const { img0, img1, batch, offset } = v;
+            if (img0 === null || img1 === null) continue;
+            for (let i = 0; i < offset; ++i) {
+                const p = batch[i];
+                ctx.drawImage(p.value ? img1 : img0, 0, 0, iconStep, iconStep, p.x * gridSize, p.y * gridSize, gridSize, gridSize);
+            }
+            if (offset === 0) console.log(elementMap.delete(k));
+            v.offset = 0;
+        }
+    } else {
+        ctx.strokeStyle = textColors[0];
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.shadowBlur = 0;
+        for (const el of ghostElements) {
+            drawFlatElement(el);
+        }
+        // Draw elements
+        for (const chunk of visibleChunks) {
+            for (const el of [...chunk]) {
+                drawFlatElement(el);
+            }
         }
     }
 
+    drawBorders();
+    drawOverlays();
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -155,7 +191,7 @@ export function draw() {
 }
 function drawLines(points: ArrayLike<number>, length?: number) {
     const n = Math.trunc(length ?? (points.length / 4));
-    if (n === 0) return; 
+    if (n === 0) return;
     for (let i = 0; i < n; ++i) {
         ctx.moveTo(points[i * 4 + 0], points[i * 4 + 1]);
         ctx.lineTo(points[i * 4 + 2], points[i * 4 + 3]);
@@ -175,7 +211,6 @@ function drawWires() {
             ${colors.wires[3]}    
         )`;
         ctx.lineWidth = 1 / camera.zoom;
-        
 
         for (const wire of circuit.wires.values()) {
             const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
@@ -187,7 +222,7 @@ function drawWires() {
         drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
         ctx.stroke();
     }
-    
+
     // Draw temporary connections between selected sources and targets
     if (
         showWiresMode === ShowWiresMode.Always ||
@@ -286,7 +321,8 @@ const colorMap: Map<string, {
 }> = new Map();
 
 function addColorToColorMap(color: string) {
-    if (colorMap.has(color)) return;
+    let colorValues = colorMap.get(color);
+    if (colorValues !== undefined) return colorValues;
     let fillV0: string;
     let fillV1D0: string;
     let fillV1D1: string;
@@ -310,82 +346,176 @@ function addColorToColorMap(color: string) {
         fillV1D0 = rgbToHex(sR + L, sG + L, sB + L);
         fillV1D1 = rgbToHex(sR, sG, sB);
     }
-    colorMap.set(color, {
+    colorMap.set(color, colorValues = {
         fillV0,
         fillV1D0,
         fillV1D1,
         isLuminant
     });
+    return colorValues;
 }
 
-function drawElement(el: LogicElement | ElementPDO) {
+function drawFlatElement(el: LogicElement | ElementPDO) {
     const wx = el.x * gridSize;
     const wy = el.y * gridSize;
-    ctx.shadowBlur = 0;
-    addColorToColorMap(el.color);
-    const elColors = colorMap.get(el.color)!;
+    const elColors = addColorToColorMap(el.color);
 
-    if (!el.value) ctx.fillStyle = elColors.fillV0;
-    else ctx.fillStyle = (settings.drawIcons) ? elColors.fillV1D1 : elColors.fillV1D0;
+    ctx.fillStyle = el.value ? elColors.fillV1D0 : elColors.fillV0;
+    ctx.beginPath();
+    ctx.rect(wx, wy, gridSize, gridSize);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
 
-    ctx.fillRect(wx, wy, gridSize, gridSize);
+function saveElement(el: LogicElement | ElementPDO) {
+    const icon = (el instanceof LogicElement) ? (el.type == 'GATE' ? gateModeToType.get((el as LogicGate).gateType)! : el.type).toLowerCase() : el.icon;
+    const key = `${icon}|${el.color}`;
+    let elementCache = elementMap.get(key);
 
-    if (settings.drawIcons) {
-        let iconRow;
-        if (el instanceof LogicElement) {
-            const type = (el.type == 'GATE' ? gateModeToType.get((el as LogicGate).gateType)! : el.type).toLowerCase();
-            iconRow = iconMap.get(type);
-        } else {
-            iconRow = iconMap.get(el.icon);
-        }
-        if (iconRow !== undefined) {
-            const iconCol = (Number(el.value) | (Number(elColors.isLuminant) << 1) & 0b11) * iconStep;
-            ctx.drawImage(offscreenIcons, iconCol, iconRow * iconStep, iconStep, iconStep, wx, wy, gridSize, gridSize);
-        }
+    if (elementCache === undefined) {
+        elementCache = { img0: null, img1: null, batch: [], offset: 0 };
+        elementMap.set(key, elementCache);
     }
 
-    let border = 0;
+    if (elementCache.img0?.height !== iconStep || elementCache.img1?.height !== iconStep) {
+        const ctx = offscreenElements!;
+        const elColors = addColorToColorMap(el.color);
+
+        const prep = (value: boolean) => {
+            ctx.fillStyle = value ? elColors.fillV1D1 : elColors.fillV0;
+            ctx.fillRect(0, 0, iconStep, iconStep);
+
+            const iconRow = iconMap.get(icon);
+            const iconCol = (Number(value) | (Number(elColors.isLuminant) << 1) & 0b11) * iconStep;
+            if (iconRow !== undefined)
+                ctx.drawImage(offscreenIcons.data!, iconCol, iconRow * iconStep, iconStep, iconStep, 0, 0, iconStep, iconStep);
+
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = textColors[0];
+            ctx.strokeRect(0, 0, iconStep, iconStep);
+            return ctx.canvas.transferToImageBitmap();
+        }
+
+        elementCache.img0 = prep(false);
+        elementCache.img1 = prep(true);
+    }
+    if (elementCache.batch.length <= elementCache.offset) elementCache.batch.length = (elementCache.offset + 1) * 2;
+    elementCache.batch[elementCache.offset] = el;
+    ++elementCache.offset;
+}
+
+function drawBorders() {
+    const drawBorder = (p: Point) => {
+        const wx = p.x * gridSize;
+        const wy = p.y * gridSize;
+        ctx.rect(wx, wy, gridSize, gridSize);
+    }
+    ctx.lineWidth = 1 / camera.zoom;
+
+    ctx.strokeStyle = textColors[selectedTool === ToolMode.Cursor ? 1 : 5];
+    ctx.beginPath();
+    for (const el of connectTool.sources[2])
+        drawBorder(el);
+    for (const el of selectionSets['selection'])
+        drawBorder(el);
+    ctx.stroke();
+
+    const sw = connectTool.sources[0].intersection(connectTool.sources[1]);
+    ctx.strokeStyle = textColors[2];
+    ctx.beginPath();
+    for (const el of connectTool.sources[0]) {
+        if (sw.has(el)) continue;
+        drawBorder(el);
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = textColors[3];
+    for (const el of connectTool.sources[1]) {
+        if (sw.has(el)) continue;
+        drawBorder(el);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = textColors[4];
+    ctx.beginPath();
+    for (const el of sw)
+        drawBorder(el);
+    ctx.stroke();
+
+    for (const el of ghostElements) {
+        ctx.strokeStyle = textColors[el.borderColor];
+        const wx = el.x * gridSize;
+        const wy = el.y * gridSize;
+        ctx.strokeRect(wx, wy, gridSize, gridSize);
+    }
+}
+
+function drawOverlays() {
+    if (elementUnderCursor === null && ghostElements.size === 0) return;
     let iconOverlayIndex = 0;
     let iconOverlayColor = 0;
-    if (el instanceof LogicElement) {
-        if (customOverlays.has(el)) {
-            const { icon, color } = customOverlays.get(el)!;
-            iconOverlayIndex = overlayIconMap.get(icon)!;
-            iconOverlayColor = color;
-        } else if (elementUnderCursor) {
-            if (elementUnderCursor.inputs.has(el) && elementUnderCursor === el) {
-                iconOverlayIndex = overlayIconMap.get('sw')!;
-            } else if (elementUnderCursor == el) {
-                iconOverlayIndex = overlayIconMap.get('x')!;
-            } else if (elementUnderCursor.inputs.has(el) && elementUnderCursor.outputs.has(el)) {
-                iconOverlayIndex = overlayIconMap.get('vv')!;
-            } else if (elementUnderCursor.inputs.has(el)) {
-                iconOverlayIndex = overlayIconMap.get('in')!;
-            } else if (elementUnderCursor.outputs.has(el)) {
-                iconOverlayIndex = overlayIconMap.get('out')!;
-            }
-            iconOverlayColor = overlayColorIndexes[iconOverlayIndex] || 0;
+    const vv: Point[] = [];
+
+    ctx.font = `bold ${gridSize * 0.5}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    const drawOverlay = (p: Point) => {
+        const wx = p.x * gridSize;
+        const wy = p.y * gridSize;
+        ctx.fillText(texts[iconOverlayIndex - 1], wx + gridSize * 0.5, wy + gridSize * 0.55);
+    }
+
+    if (elementUnderCursor) {
+        iconOverlayIndex = overlayIconMap.get(elementUnderCursor.inputs.has(elementUnderCursor) ? 'sw' : 'x')!;
+        ctx.fillStyle = textColors[overlayColorIndexes[iconOverlayIndex] || 0];
+        drawOverlay(elementUnderCursor);
+
+        iconOverlayIndex = overlayIconMap.get('in')!;
+        ctx.fillStyle = textColors[overlayColorIndexes[iconOverlayIndex] || 0];
+        for (const el of elementUnderCursor.inputs) {
+            if (elementUnderCursor === el) continue;
+            if (elementUnderCursor.outputs.has(el)) { vv.push(el); continue; }
+            drawOverlay(el);
         }
 
-        if (connectTool.sources[2].has(el) || selectionSets['selection'].has(el))
-            border = selectedTool === ToolMode.Cursor ? 1 : 5;
-        else if (connectTool.sources[1].has(el) && connectTool.sources[0].has(el))
-            border = 4;
-        else if (connectTool.sources[0].has(el))
-            border = 2;
-        else if (connectTool.sources[1].has(el))
-            border = 3;
+        iconOverlayIndex = overlayIconMap.get('out')!;
+        ctx.fillStyle = textColors[overlayColorIndexes[iconOverlayIndex] || 0];
+        for (const el of elementUnderCursor.outputs) {
+            if (elementUnderCursor === el) continue;
+            if (elementUnderCursor.inputs.has(el)) continue;
+            drawOverlay(el);
+        }
 
-    } else {
-        iconOverlayIndex = overlayIconMap.get(el.overlay)!;
-        iconOverlayColor = el.overlayColor;
-        border = el.borderColor;
+        iconOverlayIndex = overlayIconMap.get('vv')!;
+        ctx.fillStyle = textColors[overlayColorIndexes[iconOverlayIndex] || 0];
+        for (const el of vv) {
+            drawOverlay(el);
+        }
     }
-    ctx.strokeStyle = textColors[border];
-    ctx.lineWidth = 1 / camera.zoom;
-    ctx.strokeRect(wx, wy, gridSize, gridSize);
-    if (iconOverlayIndex !== 0)
-        writeTextAt(wx + gridSize * 0.55, wy + gridSize * 0.55, gridSize * 0.5, textColors[iconOverlayColor], texts[iconOverlayIndex - 1]);
+
+    for (const [el, v] of customOverlays) {
+        iconOverlayIndex = overlayIconMap.get(v.icon) || 0;
+        if (iconOverlayIndex === 0) continue;
+        ctx.fillStyle = textColors[v.color];
+        drawOverlay(el);
+    }
+
+    for (const el of ghostElements) {
+        iconOverlayIndex = overlayIconMap.get(el.overlay) || 0;
+        if (iconOverlayIndex === 0) continue;
+        iconOverlayColor = el.overlayColor;
+        ctx.fillStyle = textColors[iconOverlayColor];
+        drawOverlay(el);
+    }
+
+    ctx.shadowBlur = 0;
 }
 
 function writeTextAt(x: number, y: number, fontSize: number, color: string, ...data: any[]) {
@@ -407,12 +537,12 @@ function writeTextAt(x: number, y: number, fontSize: number, color: string, ...d
 }
 
 function updateIcons() {
-    const ctx = offscreenIcons.getContext('2d');
+    const ctx = offscreenIcons.ctx;
     if (!ctx) throw "Could not get offscreen canvas ctx";
     let row = 0;
 
-    offscreenIcons.width = iconStates * iconStep;
-    offscreenIcons.height = iconCount * iconStep;
+    ctx.canvas.width = iconStates * iconStep;
+    ctx.canvas.height = iconCount * iconStep;
     const drawSvg = (path: Path2D, fillColor: string, shadow: boolean) => {
         ctx.save();
         ctx.translate(2.1, 2.1);
@@ -428,15 +558,16 @@ function updateIcons() {
     ctx.beginPath();
     for (let i = 0; i <= iconStates; ++i) {
         ctx.moveTo(i * iconStep, 0);
-        ctx.lineTo(i * iconStep, offscreenIcons.height);
+        ctx.lineTo(i * iconStep, ctx.canvas.height);
     }
     for (let i = 0; i <= iconCount; ++i) {
         ctx.moveTo(0, i * iconStep);
-        ctx.lineTo(offscreenIcons.width, i * iconStep);
+        ctx.lineTo(ctx.canvas.width, i * iconStep);
     }
     ctx.stroke();
     ctx.save();
-    ctx.scale(Math.round(camera.zoom * 10) / 10, Math.round(camera.zoom * 10) / 10);
+    const scale = getScale();
+    ctx.scale(Math.round(camera.zoom * gridSize * scale) / gridSize, Math.round(camera.zoom * gridSize * scale) / gridSize);
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
@@ -453,4 +584,5 @@ function updateIcons() {
         ++row;
     }
     ctx.restore();
+    offscreenIcons.data = ctx.canvas.transferToImageBitmap();// await window.createImageBitmap(ctx.canvas);
 }
