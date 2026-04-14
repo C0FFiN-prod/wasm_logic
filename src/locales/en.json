@@ -86,7 +86,11 @@
     "theme-system": "System",
     "theme-light": "Light",
     "theme-dark": "Dark",
-    "draw-icons": "Draw icons"
+    "draw-icons": "Draw icons",
+    "grid": "Grid style",
+    "grid-grid": "Grid",
+    "grid-dotted": "Dotted",
+    "grid-none": "None"
   },
   "floating-menu-tools": {
     "header": "Tools",

@@ -86,7 +86,11 @@
     "theme-system": "Jak w systemie",
     "theme-light": "Jasny",
     "theme-dark": "Ciemny",
-    "draw-icons": "Rysuj ikony"
+    "draw-icons": "Rysuj ikony",
+    "grid": "Styl siatki",
+    "grid-grid": "Siatka",
+    "grid-dotted": "Kropki",
+    "grid-none": "Brak"
   },
   "floating-menu-tools": {
     "header": "Narzędzia",

@@ -1,26 +1,24 @@
-import { gridSize, WireDrawings, type Point } from "../consts";
+import { gridSize, type Point } from "../consts";
 import { settings } from "../main";
+import { clamp } from "../utils/utils";
 
 
 export let buffer = new Float16Array(1_000_000);
 export let offset = 0;
-export let mode: WireDrawings = 'simple';
 export let resized = false;
-const HALF = gridSize * 0.5;
-const QUARTER = gridSize * 0.25;
-const ONE_Q = gridSize * 1.25;
-const ONE_H = gridSize * 1.5;
+
 
 export function reset() { offset = 0; resized = false; }
 
-export function changeWireDrawingAlg() {
-    mode = settings.wireDrawing;
-}
-
-export function writeWire(src: Point, dst: Point) {
+export function writeWire(src: Point, dst: Point, zoom: number = 1) {
     if (offset > buffer.length - 100) resize(buffer.length + 100);
-
-    const sx = src.x + gridSize;
+    const mode = settings.wireDrawing;
+    const h = gridSize * zoom;
+    const HALF = h * 0.5;
+    const QUARTER = h * 0.25;
+    const ONE_Q = h * 1.25;
+    const ONE_H = h * 1.5;
+    const sx = src.x + h;
     const sy = src.y + HALF;
     const dx = dst.x;
     const dy = dst.y + HALF;
@@ -32,7 +30,7 @@ export function writeWire(src: Point, dst: Point) {
         return;
     }
 
-    const isBack = dst.x - gridSize <= src.x;
+    const isBack = dst.x - h <= src.x;
     const sameY = dst.y === src.y;
     if (sameY && (!isBack || dst.x >= src.x)) {
         writePair(sx, sy, dx, dy);
@@ -77,7 +75,7 @@ export function writeWire(src: Point, dst: Point) {
     // manhattan
     if (isBack) {
         const diff = Math.abs(dst.y - src.y);
-        const yStep = Math.sign(dst.y - src.y) * (diff > gridSize ? gridSize : HALF);
+        const yStep = Math.sign(dst.y - src.y) * (diff > h ? h : HALF);
         const yMid = sy + yStep;
         const mx = sx + QUARTER;
         const nx = dx - QUARTER;
@@ -91,7 +89,7 @@ export function writeWire(src: Point, dst: Point) {
     }
 
     // manhattan forward
-    const midX = src.x + (dst.x - src.x + gridSize) * 0.5;
+    const midX = src.x + (dst.x - src.x + h) * 0.5;
     writePair(sx, sy, midX, sy);
     writePair(midX, sy, midX, dy);
     writePair(midX, dy, dx, dy);

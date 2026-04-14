@@ -12,9 +12,9 @@ import {
 import m3 from '../utils/m3';
 import { type LogicGate } from "../logic";
 import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type Rect, type vec3 } from "../consts";
-import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, cameraViewportRect } from "../utils/utils";
+import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, worldToScreen, clipSegmentToRect } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
-import { overlayIconMap, WireDrawing } from ".";
+import { isClampNeeded, overlayIconMap, WireDrawing } from ".";
 import { segmentIntersectsRect } from "../utils/geometry";
 
 
@@ -61,7 +61,7 @@ export function initContext(_canvas: HTMLCanvasElement) {
     const translatedVertexShader = createShader(gl, gl.VERTEX_SHADER, translatedVertexShaderSource);
     // const iconVertexShader = createShader(gl, gl.VERTEX_SHADER, iconVertexShaderSource);
     const plainVertexShader = createShader(gl, gl.VERTEX_SHADER, plainVertexShaderSource);
-    // const iconFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, iconFragmentShaderSource);
+    const gridFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, gridFragmentShaderSource);
     const plainFragmentShader = createShader(gl, gl.FRAGMENT_SHADER, plainFragmentShaderSource);
 
     const allInOneVertexShader = createShader(gl, gl.VERTEX_SHADER, allInOneVertexShaderSource);
@@ -135,6 +135,25 @@ export function initContext(_canvas: HTMLCanvasElement) {
         },
     };
 
+    if (!(program = createProgram(gl, plainVertexShader, gridFragmentShader)))
+        throw "Grid program wasn't created";
+
+    programs.grid = {
+        program: program,
+        attributes: {
+            position: gl.getAttribLocation(program, "a_position"),
+        },
+        uniforms: {
+            colorGrid: gl.getUniformLocation(program, "u_colorGrid"),
+            colorBg: gl.getUniformLocation(program, "u_colorBg"),
+            cellSize: gl.getUniformLocation(program, "u_cellSize"),
+            offset: gl.getUniformLocation(program, "u_offset"),
+            line: gl.getUniformLocation(program, "u_lineWidth"),
+            style: gl.getUniformLocation(program, "u_style"),
+
+        },
+    };
+
     buffers.elementMesh = gl.createBuffer();
     buffers.position = gl.createBuffer();
     buffers.color = gl.createBuffer();
@@ -142,12 +161,14 @@ export function initContext(_canvas: HTMLCanvasElement) {
     buffers.instanceAttribs = gl.createBuffer();
     buffers.instanceFillColorIdx = gl.createBuffer();
     buffers.texcoord = gl.createBuffer();
+    buffers.screenRect = gl.createBuffer();
     textures = {
         colorPalette: gl.createTexture(),
         icons: gl.createTexture(),
         overlays: gl.createTexture(),
     }
 
+    vaos.grid = initGrid();
     vaos.allInOne = initAllInOne();
     vaos.pos2only = initPos2Only();
 
@@ -156,6 +177,22 @@ export function initContext(_canvas: HTMLCanvasElement) {
 
     updateIcons();
     requestAnimationFrame(draw);
+}
+
+function initGrid() {
+    const vao = gl.createVertexArray();
+    const program = programs.grid;
+    if (!program) throw "Could not init Grid VAO";
+    gl.bindVertexArray(vao);
+
+    // position
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.screenRect);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(program.attributes.position);
+    gl.vertexAttribPointer(program.attributes.position, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindVertexArray(null);
+    return vao;
 }
 
 function initPos2Only() {
@@ -271,18 +308,38 @@ export function draw() {
     const h = gridSize * camera.zoom;
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(...colors.background);
-    gl.clear(gl.COLOR_BUFFER_BIT);
 
-    if (!programs.translated) return;
-    program = programs.translated;
-    gl.useProgram(program.program);
-    gl.bindVertexArray(vaos.pos2only);
 
-    gl.uniformMatrix3fv(program.uniforms.matrix, false, matrix);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    drawGrid();
-    if (showWiresMode !== ShowWiresMode.None) drawWires();
+    if (settings.grid !== 'none') {
+        if (!programs.grid) return;
+        program = programs.grid;
+        gl.useProgram(program.program);
+        gl.bindVertexArray(vaos.grid);
+        let style, lineWidth, shift;
+        switch (settings.grid) {
+            case "grid": style = 0; lineWidth = 1.5; shift = 1.0; break;
+            case "dotted": style = 1; lineWidth = 2; shift = 1.5; break;
+        }
+        gl.uniform4f(program.uniforms.colorGrid, ...colors.grid);
+        gl.uniform4f(program.uniforms.colorBg, ...colors.background);
+        gl.uniform1f(program.uniforms.style, style);
+        gl.uniform1f(program.uniforms.cellSize, h);
+        gl.uniform1f(program.uniforms.line, lineWidth);
+        gl.uniform2f(program.uniforms.offset, camera.x - shift, canvas.height + camera.y - shift);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    } else {
+        gl.clearColor(...colors.background);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+
+    if (showWiresMode !== ShowWiresMode.None) {
+        if (!programs.translated) return;
+        program = programs.translated;
+        gl.useProgram(program.program);
+        gl.bindVertexArray(vaos.pos2only);
+        gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
+        drawWires();
+    }
 
     if (!programs.allInOne) return;
     program = programs.allInOne;
@@ -322,8 +379,8 @@ export function draw() {
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, paked.positions.length / 2);
 
     if (isSelecting) {
-        if (!programs.plain) return;
-        program = programs.plain;
+        if (!programs.translated) return;
+        program = programs.translated;
         gl.useProgram(program.program);
         gl.bindVertexArray(vaos.pos2only);
 
@@ -550,46 +607,26 @@ function addElementToColorMap(el: { color: string }, nextColorIndex: number) {
     return { isLuminant, isBright, nextColorIndex };
 }
 
-function drawGrid() {
-    gl.uniform4fv(program.uniforms.color, colors.grid);
-    gl.lineWidth(1 / camera.zoom);
-
-    const left = camera.x / camera.zoom;
-    const top = camera.y / camera.zoom;
-    const right = (camera.x + canvas.width) / camera.zoom;
-    const bottom = (camera.y + canvas.height) / camera.zoom;
-
-    const startX = Math.floor(left / gridSize) * gridSize;
-    const startY = Math.floor(top / gridSize) * gridSize;
-    WireDrawing.reset();
-    for (let x = startX; x <= right; x += gridSize) {
-        WireDrawing.writePair(x, top, x, bottom);
-    }
-
-    for (let y = startY; y <= bottom; y += gridSize) {
-        WireDrawing.writePair(left, y, right, y);
-    }
-    if (WireDrawing.resized)
-        gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
-    gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
-}
-
 function drawWires() {
     gl.uniform4fv(program.uniforms.color, colors.wires);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
     gl.lineWidth(2 / camera.zoom);
-    const screenRect: Rect = cameraViewportRect(camera, canvas.clientWidth, canvas.clientHeight);
+    const h = gridSize * camera.zoom;
+    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
+    const drawWire = (source: Point, target: Point) => {
+        const start = worldToScreen(camera, source.x, source.y);
+        const end = worldToScreen(camera, target.x, target.y);
+        if (segmentIntersectsRect(start, end, screenRect)) {
+            const [s, e] = isClampNeeded(start, end) ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h) : [start, end];
+            WireDrawing.writeWire(s, e, camera.zoom);
+        }
+    }
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         WireDrawing.reset();
 
         for (const [_, wire] of circuit.wires) {
-            const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
-            const end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
-
-            if (segmentIntersectsRect(start, end, screenRect)) {
-                WireDrawing.writeWire(start, end);
-            }
+            drawWire(wire.src, wire.dst);
         }
         if (WireDrawing.resized)
             gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
@@ -610,10 +647,7 @@ function drawWires() {
 
             for (const source of connectTool.sources[0]) {
                 for (const target of connectTool.sources[1]) {
-                    const start = worldToTranslatedScreen(camera, source.x, source.y);
-                    const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(source, target);
                 }
             }
         } else if (connectTool.mode === ConnectMode.Sequence) {
@@ -621,10 +655,7 @@ function drawWires() {
             let prevEl: Point | null = null;
             for (const el of connectTool.sources[0]) {
                 if (prevEl !== null) {
-                    const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
-                    const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(prevEl, el);
                 }
                 prevEl = el;
             }
@@ -637,10 +668,7 @@ function drawWires() {
                 (source = sources.next().value) !== undefined &&
                 (target = targets.next().value) !== undefined
             ) {
-                const start = worldToTranslatedScreen(camera, source.x, source.y);
-                const end = worldToTranslatedScreen(camera, target.x, target.y);
-                if (segmentIntersectsRect(start, end, screenRect))
-                    WireDrawing.writeWire(start, end);
+                drawWire(source, target);
             }
         } else if (connectTool.mode === ConnectMode.Decoder) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0 || connectTool.sources[2].size === 0) return;
@@ -656,10 +684,7 @@ function drawWires() {
             ) {
                 let j = k, flag = false, source = negative;
                 for (const target of targets) {
-                    const start = worldToTranslatedScreen(camera, source.x, source.y);
-                    const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(source, target);
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;
@@ -827,7 +852,7 @@ const plainVertexShaderSource = `#version 300 es
     uniform mat3 u_matrix;
 
     void main() {
-        gl_Position =  vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
+        gl_Position =  vec4(a_position, 0, 1);
     }
 `;
 const plainFragmentShaderSource = `#version 300 es
@@ -842,6 +867,39 @@ const plainFragmentShaderSource = `#version 300 es
     void main() {
         fragColor = u_color;
     }
+`;
+
+const gridFragmentShaderSource = `#version 300 es
+  #pragma vscode_glsllint_stage : frag
+  precision mediump float;
+  uniform vec4 u_colorGrid;
+  uniform vec4 u_colorBg;
+  uniform float u_style;
+  uniform float u_cellSize;   // Размер ячейки в пикселях
+  uniform vec2 u_offset;      // Сдвиг сетки
+  uniform float u_lineWidth;  // Толщина линий
+  
+  out vec4 FragColor;
+  void main() {
+    float feather = 0.5;
+    // Координаты пикселя + сдвиг
+    vec2 pos = vec2(gl_FragCoord.x + u_offset.x, u_offset.y - gl_FragCoord.y);
+    
+    // Остаток от деления даёт локальные координаты внутри ячейки [0, cellSize)
+    vec2 cell = mod(pos, u_cellSize);
+    
+    // Проверяем, находится ли пиксель в "безопасной" зоне (не на линии)
+    vec2 safe = mix(
+        smoothstep(u_lineWidth - feather, u_lineWidth + feather, cell) * smoothstep(u_cellSize - u_lineWidth - feather, u_cellSize - u_lineWidth + feather, cell),
+        step(u_lineWidth, cell) * step(u_cellSize - u_lineWidth, cell),
+        u_style
+    );
+    
+    // Если safe.x * safe.y == 1 -> центр ячейки, иначе -> линия
+    float isLine = 1.0 - mix(step(1., safe.x + safe.y), safe.x * safe.y, u_style);
+    
+    FragColor = mix(u_colorGrid, u_colorBg, isLine);
+  }
 `;
 
 function createShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader {

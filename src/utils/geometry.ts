@@ -23,17 +23,6 @@ export function segmentIntersectsRect(p1: Point, p2: Point, rect: Rect): boolean
         }
     }
 
-    // Случай 3: Прямоугольник полностью внутри отрезка (редкий случай)
-    // Проверяем, лежит ли центр прямоугольника на отрезке
-    const center = {
-        x: (rect.x0 + rect.x1) / 2,
-        y: (rect.y0 + rect.y1) / 2
-    };
-
-    if (pointOnSegment(center, p1, p2)) {
-        return true;
-    }
-
     return false;
 }
 
@@ -71,9 +60,9 @@ export function getRectEdges(rect: Rect): Array<{ p1: Point, p2: Point }> {
  */
 export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
     const orientation = (p: Point, q: Point, r: Point) => {
-        const val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
-        if (Math.abs(val) < 1e-10) return 0; // коллинеарны
-        return val > 0 ? 1 : 2;
+        return (q.y - p.y) * (r.x - q.x) > (q.x - p.x) * (r.y - q.y);
+        // if (Math.abs(val) < 1e-10) return 0; // коллинеарны
+        // return val > 0 ? 1 : 2;
     };
 
     const o1 = orientation(a, b, c);
@@ -82,15 +71,17 @@ export function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boole
     const o4 = orientation(c, d, b);
 
     // Общий случай
-    if (o1 !== o2 && o3 !== o4) return true;
+    return o1 !== o2 && o3 !== o4;
+    // if (o1 !== o2 && o3 !== o4) return true;
+    // if (o1 === o2 || o3 === o4) return false;
 
-    // Специальные случаи коллинеарности
-    if (o1 === 0 && onSegment(a, c, b)) return true;
-    if (o2 === 0 && onSegment(a, d, b)) return true;
-    if (o3 === 0 && onSegment(c, a, d)) return true;
-    if (o4 === 0 && onSegment(c, b, d)) return true;
+    // // Специальные случаи коллинеарности
+    // if (o1 === 0 && onSegment(a, c, b)) return true;
+    // if (o2 === 0 && onSegment(a, d, b)) return true;
+    // if (o3 === 0 && onSegment(c, a, d)) return true;
+    // if (o4 === 0 && onSegment(c, b, d)) return true;
 
-    return false;
+    // return false;
 }
 
 /**

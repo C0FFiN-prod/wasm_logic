@@ -1,7 +1,7 @@
 import * as dWebGl from "./drawingWGL";
 import * as dCanvas from "./drawingCanvas";
 import { isSimulating, settings } from "../main";
-import type { Drawings } from "../consts";
+import type { Drawings, Point } from "../consts";
 export *  as WireDrawing from './wiresDrawing';
 let draw = dWebGl.draw;
 let initContext = dWebGl.initContext;
@@ -83,4 +83,10 @@ export const overlayIconMap = new Map<string, number>(Object.entries({
     rn: 14,
 }));
 
-
+export function isClampNeeded(p1: Point, p2: Point) {
+    const max = 30000;
+    return Math.abs(p1.x) > max
+        || Math.abs(p1.y) > max
+        || Math.abs(p2.x) > max
+        || Math.abs(p2.y) > max  
+}

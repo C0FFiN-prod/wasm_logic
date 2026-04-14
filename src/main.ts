@@ -1,6 +1,6 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, locales, maxZoom, SelectionSets, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
+import { colors, colorsThemed, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, GridStyle, locales, maxZoom, SelectionSets, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
@@ -81,6 +81,7 @@ export const settings = {
   theme: 'system' as Themes,
   locale: 'en' as LocaleNames,
   drawing: 'webgl' as Drawings,
+  grid: 'grid' as GridStyle,
   wireDrawing: 'simple' as WireDrawings,
   maxFPS: 60,
   drawIcons: true
@@ -92,6 +93,7 @@ function getSettingsFromLS() {
   settings.theme = newSettings.theme ?? settings.theme;
   settings.locale = newSettings.locale ?? settings.locale;
   settings.drawing = newSettings.drawing ?? settings.drawing;
+  settings.grid = newSettings.grid ?? settings.grid;
   settings.wireDrawing = newSettings.wireDrawing ?? settings.wireDrawing;
   settings.maxFPS = newSettings.maxFPS ?? settings.maxFPS;
   settings.drawIcons = newSettings.drawIcons ?? settings.drawIcons;
@@ -105,6 +107,8 @@ function getSettingsFromLS() {
     (<HTMLInputElement>setting).value = settings.drawing;
   if (setting = document.getElementById('wire-drawing-select'))
     (<HTMLInputElement>setting).value = settings.wireDrawing;
+  if (setting = document.getElementById('grid-select'))
+    (<HTMLInputElement>setting).value = settings.grid;
   if (setting = document.getElementById('max-fps-range')) {
     (<HTMLInputElement>setting).value = settings.maxFPS.toString();
     const maxFpsValueDisplay = document.getElementById('max-fps-value');
@@ -162,7 +166,14 @@ window.onload = (() => {
     if (WireDrawings.includes(<WireDrawings>wireDrawing)) {
       settings.wireDrawing = <WireDrawings>wireDrawing;
       pushSettingsToLS();
-      WireDrawing.changeWireDrawingAlg();
+      drawingTimer.step();
+    }
+  });
+  setupEvent('grid-select', "change", (e) => {
+    const gridStyle = (<HTMLInputElement>e.target).value;
+    if (GridStyle.includes(<GridStyle>gridStyle)) {
+      settings.grid = <GridStyle>gridStyle;
+      pushSettingsToLS();
       drawingTimer.step();
     }
   });
@@ -215,7 +226,7 @@ window.onload = (() => {
   circuitIO = new CircuitIO(circuit, colorPicker, camera);
   const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement;
   const redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
-  
+
   historyManager = new HistoryManager(circuit, circuitIO, {
     maxMemoryMB: 100,
     onHistoryChange: (canUndo, canRedo, undoStack, redoStack) => {
@@ -260,7 +271,6 @@ window.onload = (() => {
   updateConnectModeButtonText();
   drawingTimer.changeMaxFPS();
   drawingTimer.changeDrawing();
-  WireDrawing.changeWireDrawingAlg();
   toggleThemeOnChange();
   toggleLocale();
 
@@ -395,7 +405,7 @@ window.onload = (() => {
         historyManager.pushSelectionsState(['selection']);
         selectionSets['selection'] = new Set(newEls);
         historyManager.recordSelectionsChange(['selection']);
-        
+
         if (logEqConsole) {
           logEqConsole.innerHTML = i18n.getValue("dynamic", 'success');
           logEqConsole.style.color = 'green';
@@ -503,13 +513,9 @@ function toggleTheme(setDark?: boolean) {
   if (setDark) htmlElement.setAttribute('data-theme', 'dark');
   else htmlElement.removeAttribute('data-theme');
 
-  if (setDark) {
-    colors.grid = [0, 0, 0, 1];
-    colors.background = [0.1, 0.1, 0.1, 1];
-  } else {
-    colors.grid = [0.8, 0.8, 0.8, 1];
-    colors.background = [0.9, 0.9, 0.9, 1];
-  }
+  colors.grid = colorsThemed.grid[setDark ? 'dark' : 'light'];
+  colors.background = colorsThemed.background[setDark ? 'dark' : 'light'];
+  colors.wires = colorsThemed.wires[setDark ? 'dark' : 'light'];
   drawingTimer.step();
 }
 
@@ -536,7 +542,7 @@ function clearCanvas() {
 }
 
 export function clearSelections(keys: SelectionSets[]) {
-  for(const key of keys)
+  for (const key of keys)
     selectionSets[key].clear();
 }
 

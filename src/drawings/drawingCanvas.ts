@@ -1,4 +1,4 @@
-import { chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect } from "../consts";
+import { chunkSize, colors, ConnectMode, gateModeToType, gridSize, GridStyle, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect } from "../consts";
 import { LogicElement, LogicGate } from "../logic";
 import {
     camera,
@@ -12,10 +12,9 @@ import {
     ghostElements
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
-import { hexToRgb, luminance, lightness, rgbToHex, worldToTranslatedScreen, screenToWorld, cameraViewportRect, getScale } from "../utils/utils";
-import { WireDrawing, overlayIconMap } from ".";
+import { hexToRgb, luminance, lightness, rgbToHex, screenToWorld, getScale, worldToScreen, clipSegmentToRect } from "../utils/utils";
+import { WireDrawing, isClampNeeded, overlayIconMap } from ".";
 import { segmentIntersectsRect } from "../utils/geometry";
-import { offset } from "./wiresDrawing";
 
 const pathMap = new Map<string, string>(Object.entries(
     {
@@ -45,6 +44,8 @@ const iconMap = new Map<string, number>();
 const offscreenElements = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
 const elementMap = new Map<string, { img0: ImageBitmap | null, img1: ImageBitmap | null, batch: (LogicElement | ElementPDO)[], offset: 0 }>(); // TYPE|COLOR|VALUE
 
+const tilePatterns: Record<GridStyle, CanvasPattern | null> = { grid: null, dotted: null, none: null }
+const offscreenTile = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
 
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
@@ -54,36 +55,7 @@ export function initContext(_canvas: HTMLCanvasElement) {
     ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     ctx.imageSmoothingEnabled = false;
     updateIcons();
-}
-
-function drawGrid() {
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = rgbToHex(
-        Math.trunc(colors.grid[0] * 255),
-        Math.trunc(colors.grid[1] * 255),
-        Math.trunc(colors.grid[2] * 255)
-    );
-    ctx.lineWidth = 1 / camera.zoom;
-
-    const left = camera.x / camera.zoom;
-    const top = camera.y / camera.zoom;
-    const right = (camera.x + canvas.width) / camera.zoom;
-    const bottom = (camera.y + canvas.height) / camera.zoom;
-
-    const startX = Math.floor(left / gridSize) * gridSize;
-    const startY = Math.floor(top / gridSize) * gridSize;
-
-    ctx.beginPath();
-    for (let x = startX; x <= right; x += gridSize) {
-        ctx.moveTo(x, top);
-        ctx.lineTo(x, bottom);
-    }
-
-    for (let y = startY; y <= bottom; y += gridSize) {
-        ctx.moveTo(left, y);
-        ctx.lineTo(right, y);
-    }
-    ctx.stroke();
+    updateTilePatterns();
 }
 
 export function draw() {
@@ -93,6 +65,7 @@ export function draw() {
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const scale = getScale();
+    const h = camera.zoom * gridSize;
     const newStep = Math.round(gridSize * camera.zoom * scale);
     if (iconStep !== newStep) {
         iconStep = newStep;
@@ -102,6 +75,29 @@ export function draw() {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    {
+        let pattern;
+        updateTilePatterns();
+        switch (settings.grid) {
+            case "grid": ctx.fillStyle = pattern = tilePatterns.grid!; break;
+            case "dotted": ctx.fillStyle = pattern = tilePatterns.dotted!; break;
+            case "none": ctx.fillStyle = `rgba(
+                ${Math.round(colors.background[0] * 255)},
+                ${Math.round(colors.background[1] * 255)},
+                ${Math.round(colors.background[2] * 255)},
+                ${colors.background[3]}    
+            )`; break;
+        }
+        const zoom = h / Math.trunc(h);
+        pattern?.setTransform(new DOMMatrix()
+            .translate(-camera.x-1, -camera.y-1)
+            .scale(zoom, zoom)
+        );
+    }
+
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawWires();
+
     ctx.translate(
         Math.round(-camera.x * scale),
         Math.round(-camera.y * scale)
@@ -110,12 +106,7 @@ export function draw() {
         camera.zoom * scale,
         camera.zoom * scale
     );
-
-    drawGrid();
-
-    drawWires();
-
-    const h = camera.zoom * gridSize;
+    
     const cameraWorldX = camera.x / h - 1;
     const cameraWorldY = camera.y / h - 1;
     const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
@@ -199,24 +190,31 @@ function drawLines(points: ArrayLike<number>, length?: number) {
 }
 function drawWires() {
     ctx.shadowBlur = 0;
-    const screenRect: Rect = cameraViewportRect(camera, canvas.clientWidth, canvas.clientHeight);
+    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
+    const h = gridSize * camera.zoom;
+    const drawWire = (source: Point, target: Point) => {
+        const start = worldToScreen(camera, source.x, source.y);
+        const end = worldToScreen(camera, target.x, target.y);
+        if (segmentIntersectsRect(start, end, screenRect)) {
+            const [s, e] = isClampNeeded(start, end) ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h) : [start, end];
+            WireDrawing.writeWire(s, e, camera.zoom);
+        }
+    }
+
     WireDrawing.reset();
     if (showWiresMode === ShowWiresMode.Always ||
         showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
         // Draw wires
         ctx.strokeStyle = `rgba(
-            ${Math.trunc(colors.wires[0] * 255)},
-            ${Math.trunc(colors.wires[1] * 255)},
-            ${Math.trunc(colors.wires[2] * 255)},
+            ${Math.round(colors.wires[0] * 255)},
+            ${Math.round(colors.wires[1] * 255)},
+            ${Math.round(colors.wires[2] * 255)},
             ${colors.wires[3]}    
         )`;
-        ctx.lineWidth = 1 / camera.zoom;
+        ctx.lineWidth = 1;
 
         for (const wire of circuit.wires.values()) {
-            const start = worldToTranslatedScreen(camera, wire.src.x, wire.src.y);
-            const end = worldToTranslatedScreen(camera, wire.dst.x, wire.dst.y);
-            if (segmentIntersectsRect(start, end, screenRect))
-                WireDrawing.writeWire(start, end);
+            drawWire(wire.src, wire.dst);
         }
         ctx.beginPath();
         drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
@@ -231,19 +229,16 @@ function drawWires() {
     ) {
         WireDrawing.reset();
         ctx.strokeStyle = `rgb(
-            ${Math.trunc(colors.tempWires[0] * 255)},
-            ${Math.trunc(colors.tempWires[1] * 255)},
-            ${Math.trunc(colors.tempWires[2] * 255)}
+            ${Math.round(colors.tempWires[0] * 255)},
+            ${Math.round(colors.tempWires[1] * 255)},
+            ${Math.round(colors.tempWires[2] * 255)}
         )`;
-        ctx.lineWidth = 1 / camera.zoom;
+        ctx.lineWidth = 1;
         if (connectTool.mode === ConnectMode.NtoN) {
             if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
             for (const source of connectTool.sources[0]) {
                 for (const target of connectTool.sources[1]) {
-                    const start = worldToTranslatedScreen(camera, source.x, source.y);
-                    const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(source, target);
                 }
             }
             ctx.beginPath();
@@ -254,10 +249,7 @@ function drawWires() {
             let prevEl: Point | null = null;
             for (const el of connectTool.sources[0]) {
                 if (prevEl !== null) {
-                    const start = worldToTranslatedScreen(camera, prevEl.x, prevEl.y);
-                    const end = worldToTranslatedScreen(camera, el.x, el.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(prevEl, el);
                 }
                 prevEl = el;
             }
@@ -273,10 +265,7 @@ function drawWires() {
                 (source = sources.next().value) !== undefined &&
                 (target = targets.next().value) !== undefined
             ) {
-                const start = worldToTranslatedScreen(camera, source.x, source.y);
-                const end = worldToTranslatedScreen(camera, target.x, target.y);
-                if (segmentIntersectsRect(start, end, screenRect))
-                    WireDrawing.writeWire(start, end);
+                drawWire(source, target);
             }
             ctx.beginPath();
             drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
@@ -295,10 +284,7 @@ function drawWires() {
             ) {
                 let j = k, flag = false, source = negative;
                 for (const target of targets) {
-                    const start = worldToTranslatedScreen(camera, source.x, source.y);
-                    const end = worldToTranslatedScreen(camera, target.x, target.y);
-                    if (segmentIntersectsRect(start, end, screenRect))
-                        WireDrawing.writeWire(start, end);
+                    drawWire(source, target);
                     if (--j === 0) {
                         flag = !flag;
                         source = flag ? positive : negative;
@@ -518,24 +504,6 @@ function drawOverlays() {
     ctx.shadowBlur = 0;
 }
 
-function writeTextAt(x: number, y: number, fontSize: number, color: string, ...data: any[]) {
-    ctx.save();
-    ctx.fillStyle = color;
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = "black";   // цвет тени
-    ctx.shadowBlur = 4;          // размытие
-    ctx.shadowOffsetX = 0;       // смещение по X
-    ctx.shadowOffsetY = 0;  // смещение по Y
-    let str = "";
-    for (const d of data) {
-        str += d + ' ';
-    }
-    ctx.fillText(str, x, y);
-    ctx.restore();
-}
-
 function updateIcons() {
     const ctx = offscreenIcons.ctx;
     if (!ctx) throw "Could not get offscreen canvas ctx";
@@ -585,4 +553,54 @@ function updateIcons() {
     }
     ctx.restore();
     offscreenIcons.data = ctx.canvas.transferToImageBitmap();// await window.createImageBitmap(ctx.canvas);
+}
+
+function updateTilePatterns() {
+    const tile = offscreenTile.canvas;
+    const tCtx = offscreenTile;
+    const h = Math.trunc(gridSize * camera.zoom * getScale());
+    tile.width = h;
+    tile.height = h;
+
+    const colorGrid = `rgba(
+        ${Math.round(colors.grid[0] * 255)},
+        ${Math.round(colors.grid[1] * 255)},
+        ${Math.round(colors.grid[2] * 255)},
+        ${colors.grid[3]}    
+    )`;
+
+    const colorBg = `rgba(
+        ${Math.round(colors.background[0] * 255)},
+        ${Math.round(colors.background[1] * 255)},
+        ${Math.round(colors.background[2] * 255)},
+        ${colors.background[3]}    
+    )`;
+
+    tCtx.fillStyle = colorBg;
+    tCtx.strokeStyle = colorGrid;
+    tCtx.clearRect(0, 0, h, h);
+    tCtx.fillRect(0, 0, h, h);
+    tCtx.lineWidth = 2;
+    tCtx.beginPath();
+    // Вертикальная линия по левому краю
+    tCtx.moveTo(0, 0);
+    tCtx.lineTo(0, h);
+    // Горизонтальная линия по верхнему краю
+    tCtx.moveTo(0, 0);
+    tCtx.lineTo(h, 0);
+    tCtx.stroke();
+
+    tilePatterns.grid = ctx.createPattern(tile, 'repeat');
+
+    tCtx.fillStyle = colorBg;
+    tCtx.fillRect(0, 0, h, h);
+    tCtx.fillStyle = colorGrid;
+    tCtx.beginPath();
+    tCtx.rect(0, 0, 2, 2);
+    tCtx.rect(0, h, 2, 2);
+    tCtx.rect(h, 0, 2, 2);
+    tCtx.rect(h, h, 2, 2);
+    tCtx.fill();
+
+    tilePatterns.dotted = ctx.createPattern(tile, 'repeat');
 }

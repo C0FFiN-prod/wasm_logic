@@ -10,6 +10,21 @@ export const typeToshapeId: Map<string, string> = new Map(Object.entries({
 
 export const shapeIdToType = new Map(typeToshapeId.entries().map(([k, v]) => [v, k]));
 export const knownShapeIds = new Set(typeToshapeId.values());
+export type ColoredThemes = keyof typeof colorsThemed[string];
+export const colorsThemed: Record<string, Record<'light'|'dark', vec4>> = {
+  background: {
+    dark: [0.07, 0.073, 0.077, 1],
+    light: [1, 1, 1, 1],
+  },
+  grid: {
+    dark: [0.23, 0.23, 0.23, 1],
+    light: [0.7, 0.7, 0.7, 1],
+  },
+  wires: {
+    dark: [0.5, 0.5, 0.5, 0.3],
+    light: [0.6, 0.6, 0.6, 0.3],
+  },
+}
 
 export const colors: Record<string, vec4> = {
   background: [0, 0, 0, 1],
@@ -84,10 +99,12 @@ export const SelectionSets = ['selection', 'source' , 'target'] as const;
 export const Themes = ['system', 'light' , 'dark'] as const;
 export const WireDrawings = ['simple', 'dimple' , 'manhattan'] as const;
 export const Drawings = ['webgl', 'canvas'] as const;
+export const GridStyle = ['grid', 'dotted', 'none'] as const;
 export type LocaleNames = keyof typeof locales
 export type Themes = (typeof Themes)[number];
 export type WireDrawings = (typeof WireDrawings)[number];
 export type Drawings = (typeof Drawings)[number];
+export type GridStyle = (typeof GridStyle)[number];
 export type SelectionSets = (typeof SelectionSets)[number];
 
 export type ConnectMode = typeof ConnectMode[keyof typeof ConnectMode];

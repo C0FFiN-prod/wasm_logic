@@ -168,6 +168,49 @@ export function fillCoordMapWithElements(circuit: Circuit, coordMap: Map<string,
 export function clamp(value: number, lower: number, upper: number) {
   return Math.min(Math.max(value, lower), Math.max(upper, lower));
 }
+export function clampPoint(p: Point, lower: number, upper: number): Point {
+  return {
+    x: Math.min(Math.max(p.x, lower), Math.max(upper, lower)),
+    y: Math.min(Math.max(p.y, lower), Math.max(upper, lower)),
+  };
+}
+
+export function clipSegmentToRect(
+  p1: Point, p2: Point,
+  left: number, right: number, top: number, bottom: number
+): [Point, Point] {
+
+  let dx = p2.x - p1.x;
+  let dy = p2.y - p1.y;
+  let t0 = 0; // входная точка параметра
+  let t1 = 1; // выходная точка параметра
+
+  // Вспомогательная функция для обработки одной границы
+  const clipEdge = (p: number, q: number): boolean => {
+    if (p === 0) return q >= 0; // Параллельно границе
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+    return true;
+  };
+
+  // Проверяем 4 границы: left, right, top, bottom
+  clipEdge(-dx, p1.x - left)
+  clipEdge(dx, right - p1.x)
+  clipEdge(-dy, p1.y - top)
+  clipEdge(dy, bottom - p1.y)
+
+  // Если дошли сюда — отрезок частично или полностью внутри
+  return [
+    { x: p1.x + t0 * dx, y: p1.y + t0 * dy },
+    { x: p1.x + t1 * dx, y: p1.y + t1 * dy }
+  ];
+}
 
 export function getChunkKey(point: Point, doDivide: boolean) {
   const chunkX = doDivide ? Math.floor(point.x / chunkSize) : point.x;
