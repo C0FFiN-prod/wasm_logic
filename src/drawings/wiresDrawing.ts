@@ -1,7 +1,14 @@
-import { gridSize, type Point } from "../consts";
-import { settings } from "../main";
-import { clamp } from "../utils/utils";
+import { isClampNeeded } from ".";
+import { colors, ConnectMode, gridSize, ShowWiresMode, ToolMode, type Point, type Rect, type vec4 } from "../consts";
+import { camera, circuit, selectedTool, settings, showWiresMode } from "../main";
+import { connectTool } from "../utils/connectionTool";
+import { segmentIntersectsRect } from "../utils/geometry";
+import { clipSegmentToRect, worldToScreen } from "../utils/utils";
 
+export interface IWireRenderer {
+    setup(color: vec4): void;
+    finalize(): void;
+}
 
 export let buffer = new Float16Array(1_000_000);
 export let offset = 0;
@@ -109,4 +116,82 @@ function resize(requiredFloats: number) {
     newArr.set(buffer);
     buffer = newArr;
     resized = true;
+}
+
+export function draw(renderer: IWireRenderer, canvas: {width: number, height: number}): void {
+    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
+    const h = gridSize * camera.zoom;
+
+    const processWire = (source: Point, target: Point) => {
+        const start = worldToScreen(camera, source.x, source.y);
+        const end = worldToScreen(camera, target.x, target.y);
+        if (segmentIntersectsRect(start, end, screenRect)) {
+            const [s, e] = isClampNeeded(start, end)
+                ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h)
+                : [start, end];
+            writeWire(s, e, camera.zoom);
+        }
+    };
+
+    const shouldDrawPermanent = showWiresMode === ShowWiresMode.Always ||
+        (showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect);
+
+    const shouldDrawTemporary = showWiresMode === ShowWiresMode.Always ||
+        ((showWiresMode === ShowWiresMode.Connect || showWiresMode === ShowWiresMode.Temporary)
+            && selectedTool === ToolMode.Connect);
+
+    if (shouldDrawPermanent) {
+        reset();
+        renderer.setup(colors.wires);
+        for (const wire of circuit.wires.values()) {
+            processWire(wire.src, wire.dst);
+        }
+        renderer.finalize();
+    }
+
+    if (shouldDrawTemporary) {
+        reset();
+        renderer.setup(colors.tempWires);
+        const ct = connectTool;
+
+        if (ct.mode === ConnectMode.NtoN) {
+            if (ct.sources[0].size === 0 || ct.sources[1].size === 0) return;
+            for (const s of ct.sources[0])
+                for (const t of ct.sources[1])
+                    processWire(s, t);
+        }
+        else if (ct.mode === ConnectMode.Sequence) {
+            if (ct.sources[0].size === 0) return;
+            let prev: Point | null = null;
+            for (const el of ct.sources[0]) {
+                if (prev) processWire(prev, el);
+                prev = el;
+            }
+        }
+        else if (ct.mode === ConnectMode.Parallel) {
+            if (ct.sources[0].size === 0 || ct.sources[1].size === 0) return;
+            const src = ct.sources[0].values();
+            const tgt = ct.sources[1].values();
+            let s, t;
+            while ((s = src.next().value) && (t = tgt.next().value))
+                processWire(s, t);
+        }
+        else if (ct.mode === ConnectMode.Decoder) {
+            if (ct.sources[0].size === 0 || ct.sources[1].size === 0 || ct.sources[2].size === 0) return;
+            const pos = ct.sources[0].values();
+            const neg = ct.sources[1].values();
+            const targets = ct.sources[2];
+            let p: Point | undefined, n: Point | undefined;
+            let k = 1;
+            while ((p = pos.next().value) && (n = neg.next().value)) {
+                let j = k, flag = false, source = n;
+                for (const target of targets) {
+                    processWire(source, target);
+                    if (--j === 0) { flag = !flag; source = flag ? p : n; j = k; }
+                }
+                k <<= 1;
+            }
+        }
+        renderer.finalize();
+    }
 }

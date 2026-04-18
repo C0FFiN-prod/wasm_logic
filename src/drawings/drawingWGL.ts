@@ -11,7 +11,7 @@ import {
 } from "../main";
 import m3 from '../utils/m3';
 import { type LogicGate } from "../logic";
-import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type Rect, type vec3 } from "../consts";
+import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type Rect, type vec3, type vec4 } from "../consts";
 import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, worldToScreen, clipSegmentToRect } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
 import { isClampNeeded, overlayIconMap, WireDrawing } from ".";
@@ -338,7 +338,19 @@ export function draw() {
         gl.useProgram(program.program);
         gl.bindVertexArray(vaos.pos2only);
         gl.uniformMatrix3fv(program.uniforms.matrix, false, matrixProjection);
-        drawWires();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
+        gl.lineWidth(2);
+        WireDrawing.draw({
+            setup: (color: vec4) => {
+                gl.uniform4fv(program.uniforms.color, color);
+            },
+            finalize: () => {
+                if (WireDrawing.resized)
+                    gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
+                gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
+                gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
+            }
+        }, canvas);
     }
 
     if (!programs.allInOne) return;
@@ -605,100 +617,6 @@ function addElementToColorMap(el: { color: string }, nextColorIndex: number) {
         isColorMapUpdated = true;
     }
     return { isLuminant, isBright, nextColorIndex };
-}
-
-function drawWires() {
-    gl.uniform4fv(program.uniforms.color, colors.wires);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position || null);
-    gl.lineWidth(2 / camera.zoom);
-    const h = gridSize * camera.zoom;
-    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
-    const drawWire = (source: Point, target: Point) => {
-        const start = worldToScreen(camera, source.x, source.y);
-        const end = worldToScreen(camera, target.x, target.y);
-        if (segmentIntersectsRect(start, end, screenRect)) {
-            const [s, e] = isClampNeeded(start, end) ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h) : [start, end];
-            WireDrawing.writeWire(s, e, camera.zoom);
-        }
-    }
-    if (showWiresMode === ShowWiresMode.Always ||
-        showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
-        WireDrawing.reset();
-
-        for (const [_, wire] of circuit.wires) {
-            drawWire(wire.src, wire.dst);
-        }
-        if (WireDrawing.resized)
-            gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
-        gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
-    }
-
-    if (
-        showWiresMode === ShowWiresMode.Always ||
-        (showWiresMode === ShowWiresMode.Connect ||
-            showWiresMode === ShowWiresMode.Temporary) && selectedTool === ToolMode.Connect
-    ) {
-        gl.uniform4fv(program.uniforms.color, colors.tempWires);
-
-        WireDrawing.reset();
-        if (connectTool.mode === ConnectMode.NtoN) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
-
-            for (const source of connectTool.sources[0]) {
-                for (const target of connectTool.sources[1]) {
-                    drawWire(source, target);
-                }
-            }
-        } else if (connectTool.mode === ConnectMode.Sequence) {
-            if (connectTool.sources[0].size === 0) return;
-            let prevEl: Point | null = null;
-            for (const el of connectTool.sources[0]) {
-                if (prevEl !== null) {
-                    drawWire(prevEl, el);
-                }
-                prevEl = el;
-            }
-        } else if (connectTool.mode === ConnectMode.Parallel) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
-            const sources = connectTool.sources[0].values();
-            const targets = connectTool.sources[1].values();
-            let source, target;
-            while (
-                (source = sources.next().value) !== undefined &&
-                (target = targets.next().value) !== undefined
-            ) {
-                drawWire(source, target);
-            }
-        } else if (connectTool.mode === ConnectMode.Decoder) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0 || connectTool.sources[2].size === 0) return;
-            const positives = (connectTool.sources[0]).values();
-            const negatives = (connectTool.sources[1]).values();
-            const targets = (connectTool.sources[2]);
-            let positive: Point | undefined;
-            let negative: Point | undefined;
-            let k = 1;
-            while (
-                (positive = positives.next().value) !== undefined &&
-                (negative = negatives.next().value) !== undefined
-            ) {
-                let j = k, flag = false, source = negative;
-                for (const target of targets) {
-                    drawWire(source, target);
-                    if (--j === 0) {
-                        flag = !flag;
-                        source = flag ? positive : negative;
-                        j = k;
-                    }
-                }
-                k <<= 1;
-            }
-        } else return;
-        if (WireDrawing.resized)
-            gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
-        gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
-    }
 }
 
 const allInOneVertexShaderSource = `#version 300 es

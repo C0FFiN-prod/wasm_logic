@@ -1,4 +1,4 @@
-import { chunkSize, colors, ConnectMode, gateModeToType, gridSize, GridStyle, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect } from "../consts";
+import { chunkSize, colors, gateModeToType, gridSize, GridStyle, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect, type vec4 } from "../consts";
 import { LogicElement, LogicGate } from "../logic";
 import {
     camera,
@@ -12,9 +12,8 @@ import {
     ghostElements
 } from "../main";
 import { connectTool } from "../utils/connectionTool";
-import { hexToRgb, luminance, lightness, rgbToHex, screenToWorld, getScale, worldToScreen, clipSegmentToRect } from "../utils/utils";
-import { WireDrawing, isClampNeeded, overlayIconMap } from ".";
-import { segmentIntersectsRect } from "../utils/geometry";
+import { hexToRgb, luminance, lightness, rgbToHex, screenToWorld, getScale } from "../utils/utils";
+import { WireDrawing, overlayIconMap } from ".";
 
 const pathMap = new Map<string, string>(Object.entries(
     {
@@ -75,6 +74,7 @@ export function draw() {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.shadowBlur = 0;
     {
         let pattern;
         updateTilePatterns();
@@ -90,13 +90,30 @@ export function draw() {
         }
         const zoom = h / Math.trunc(h);
         pattern?.setTransform(new DOMMatrix()
-            .translate(-camera.x-1, -camera.y-1)
+            .translate(-camera.x - 1, -camera.y - 1)
             .scale(zoom, zoom)
         );
     }
 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawWires();
+    if (showWiresMode !== ShowWiresMode.None) {
+        ctx.lineWidth = 1.5;
+        WireDrawing.draw({
+            setup: (color: vec4) => {
+                ctx.strokeStyle = `rgba(
+                    ${Math.round(color[0] * 255)},
+                    ${Math.round(color[1] * 255)},
+                    ${Math.round(color[2] * 255)},
+                    ${color[3]}
+                )`;
+            },
+            finalize: () => {
+                ctx.beginPath();
+                drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
+                ctx.stroke();
+            }
+        }, canvas);
+    }
 
     ctx.translate(
         Math.round(-camera.x * scale),
@@ -106,7 +123,7 @@ export function draw() {
         camera.zoom * scale,
         camera.zoom * scale
     );
-    
+
     const cameraWorldX = camera.x / h - 1;
     const cameraWorldY = camera.y / h - 1;
     const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
@@ -188,117 +205,7 @@ function drawLines(points: ArrayLike<number>, length?: number) {
         ctx.lineTo(points[i * 4 + 2], points[i * 4 + 3]);
     }
 }
-function drawWires() {
-    ctx.shadowBlur = 0;
-    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
-    const h = gridSize * camera.zoom;
-    const drawWire = (source: Point, target: Point) => {
-        const start = worldToScreen(camera, source.x, source.y);
-        const end = worldToScreen(camera, target.x, target.y);
-        if (segmentIntersectsRect(start, end, screenRect)) {
-            const [s, e] = isClampNeeded(start, end) ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h) : [start, end];
-            WireDrawing.writeWire(s, e, camera.zoom);
-        }
-    }
 
-    WireDrawing.reset();
-    if (showWiresMode === ShowWiresMode.Always ||
-        showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect) {
-        // Draw wires
-        ctx.strokeStyle = `rgba(
-            ${Math.round(colors.wires[0] * 255)},
-            ${Math.round(colors.wires[1] * 255)},
-            ${Math.round(colors.wires[2] * 255)},
-            ${colors.wires[3]}    
-        )`;
-        ctx.lineWidth = 1;
-
-        for (const wire of circuit.wires.values()) {
-            drawWire(wire.src, wire.dst);
-        }
-        ctx.beginPath();
-        drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
-        ctx.stroke();
-    }
-
-    // Draw temporary connections between selected sources and targets
-    if (
-        showWiresMode === ShowWiresMode.Always ||
-        (showWiresMode === ShowWiresMode.Connect ||
-            showWiresMode === ShowWiresMode.Temporary) && selectedTool === ToolMode.Connect
-    ) {
-        WireDrawing.reset();
-        ctx.strokeStyle = `rgb(
-            ${Math.round(colors.tempWires[0] * 255)},
-            ${Math.round(colors.tempWires[1] * 255)},
-            ${Math.round(colors.tempWires[2] * 255)}
-        )`;
-        ctx.lineWidth = 1;
-        if (connectTool.mode === ConnectMode.NtoN) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
-            for (const source of connectTool.sources[0]) {
-                for (const target of connectTool.sources[1]) {
-                    drawWire(source, target);
-                }
-            }
-            ctx.beginPath();
-            drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
-            ctx.stroke();
-        } else if (connectTool.mode === ConnectMode.Sequence) {
-            if (connectTool.sources[0].size === 0) return;
-            let prevEl: Point | null = null;
-            for (const el of connectTool.sources[0]) {
-                if (prevEl !== null) {
-                    drawWire(prevEl, el);
-                }
-                prevEl = el;
-            }
-            ctx.beginPath();
-            drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
-            ctx.stroke();
-        } else if (connectTool.mode === ConnectMode.Parallel) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0) return;
-            const sources = connectTool.sources[0].values();
-            const targets = connectTool.sources[1].values();
-            let source, target;
-            while (
-                (source = sources.next().value) !== undefined &&
-                (target = targets.next().value) !== undefined
-            ) {
-                drawWire(source, target);
-            }
-            ctx.beginPath();
-            drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
-            ctx.stroke();
-        } else if (connectTool.mode === ConnectMode.Decoder) {
-            if (connectTool.sources[0].size === 0 || connectTool.sources[1].size === 0 || connectTool.sources[2].size === 0) return;
-            const positives = (connectTool.sources[0]).values();
-            const negatives = (connectTool.sources[1]).values();
-            const targets = (connectTool.sources[2]);
-            let positive: Point | undefined;
-            let negative: Point | undefined;
-            let k = 1;
-            while (
-                (positive = positives.next().value) !== undefined &&
-                (negative = negatives.next().value) !== undefined
-            ) {
-                let j = k, flag = false, source = negative;
-                for (const target of targets) {
-                    drawWire(source, target);
-                    if (--j === 0) {
-                        flag = !flag;
-                        source = flag ? positive : negative;
-                        j = k;
-                    }
-                }
-                k <<= 1;
-            }
-            ctx.beginPath();
-            drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
-            ctx.stroke();
-        } else return;
-    }
-}
 const colorMap: Map<string, {
     fillV0: string,
     fillV1D0: string,
