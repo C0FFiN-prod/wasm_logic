@@ -100,7 +100,7 @@ function handleMouseUp(e: MouseEvent) {
 }
 
 export function initElementPalette() {
-    const buttons = document.querySelectorAll<HTMLButtonElement>('[id^="add-"]');
+    const buttons = document.querySelectorAll<HTMLButtonElement>('#fm-palette [id^="add-"]');
 
     const boundOnDown = (e: MouseEvent) => {
         const target = e.currentTarget as HTMLButtonElement;

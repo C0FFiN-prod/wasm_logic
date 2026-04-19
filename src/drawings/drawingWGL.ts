@@ -9,13 +9,12 @@ import {
     customOverlays,
     settings,
 } from "../main";
-import m3 from '../utils/m3';
+import m3, { scale } from '../utils/m3';
 import { type LogicGate } from "../logic";
-import { borderPalette, chunkSize, colors, ConnectMode, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type Point, type Rect, type vec3, type vec4 } from "../consts";
-import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, worldToScreen, clipSegmentToRect } from "../utils/utils";
+import { borderPalette, chunkSize, colors, gateModeToType, gridSize, overlayColorIndexes, ShowWiresMode, ToolMode, type vec3, type vec4 } from "../consts";
+import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen, getScale } from "../utils/utils";
 import { connectTool } from "../utils/connectionTool";
-import { isClampNeeded, overlayIconMap, WireDrawing } from ".";
-import { segmentIntersectsRect } from "../utils/geometry";
+import { overlayIconMap, WireDrawing } from ".";
 
 
 
@@ -306,6 +305,8 @@ export function draw() {
     matrix = m3.translate(matrix, Math.round(-camera.x), Math.round(-camera.y));
     matrix = m3.scale(matrix, camera.zoom, camera.zoom);
     const h = gridSize * camera.zoom;
+    const scale = getScale();
+    const hs = h * scale;
 
     gl.viewport(0, 0, canvas.width, canvas.height);
 
@@ -323,9 +324,9 @@ export function draw() {
         gl.uniform4f(program.uniforms.colorGrid, ...colors.grid);
         gl.uniform4f(program.uniforms.colorBg, ...colors.background);
         gl.uniform1f(program.uniforms.style, style);
-        gl.uniform1f(program.uniforms.cellSize, h);
+        gl.uniform1f(program.uniforms.cellSize, hs);
         gl.uniform1f(program.uniforms.line, lineWidth);
-        gl.uniform2f(program.uniforms.offset, camera.x - shift, canvas.height + camera.y - shift);
+        gl.uniform2f(program.uniforms.offset, (camera.x * scale  - shift) % hs, canvas.height + (camera.y * scale  - shift) % hs);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     } else {
         gl.clearColor(...colors.background);

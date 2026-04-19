@@ -1,9 +1,9 @@
-import { isClampNeeded } from ".";
-import { colors, ConnectMode, gridSize, ShowWiresMode, ToolMode, type Point, type Rect, type vec4 } from "../consts";
+import { colors, ConnectMode, gridSize, ShowWiresMode, ToolMode, WireDrawings, type Point, type Rect, type vec4 } from "../consts";
 import { camera, circuit, selectedTool, settings, showWiresMode } from "../main";
 import { connectTool } from "../utils/connectionTool";
-import { segmentIntersectsRect } from "../utils/geometry";
-import { clipSegmentToRect, worldToScreen } from "../utils/utils";
+import { pointInRect, segment90LIntersectsRect, segment90SIntersectsRect, segmentAsideRect, segmentIntersectsRect } from "../utils/geometry";
+import { cameraWorldViewportRect, worldToScreen } from "../utils/utils";
+import { clipSegmentToRect } from "../utils/geometry";
 
 export interface IWireRenderer {
     setup(color: vec4): void;
@@ -14,42 +14,54 @@ export let buffer = new Float16Array(1_000_000);
 export let offset = 0;
 export let resized = false;
 
+const segment: vec4 = [0, 0, 0, 0];
+const rect: vec4 = [0, 0, 0, 0];
+const maxNumber = 30000;
 
-export function reset() { offset = 0; resized = false; }
+let h = gridSize;
+let HALF = gridSize * 0.5;
+let QUARTER = gridSize * 0.25;
+let ONE_Q = gridSize * 1.25;
+let ONE_H = gridSize * 1.5;
+let mode: WireDrawings = 'simple';
 
-export function writeWire(src: Point, dst: Point, zoom: number = 1) {
-    if (offset > buffer.length - 100) resize(buffer.length + 100);
-    const mode = settings.wireDrawing;
-    const h = gridSize * zoom;
-    const HALF = h * 0.5;
-    const QUARTER = h * 0.25;
-    const ONE_Q = h * 1.25;
-    const ONE_H = h * 1.5;
+function isClampNeeded(x0: number, y0: number, x1: number, y1: number) {
+    return Math.abs(x0) > maxNumber
+        || Math.abs(y0) > maxNumber
+        || Math.abs(x1) > maxNumber
+        || Math.abs(y1) > maxNumber
+}
+
+function reset() { offset = 0; resized = false; }
+
+function writeWire(source: Point, target: Point) {
+    const sameY = source.y === target.y;
+
+    const src = worldToScreen(camera, source.x, source.y);
+    const dst = worldToScreen(camera, target.x, target.y);
+
     const sx = src.x + h;
     const sy = src.y + HALF;
     const dx = dst.x;
     const dy = dst.y + HALF;
 
+    if (offset > buffer.length - 100) resize(buffer.length + 100);
 
+    const isBack = target.x - 1 <= source.x;
 
-    if (mode === "simple") {
-        writePair(sx, sy, dx, dy);
+    if (mode === "simple" || sameY && target.x >= source.x) {
+        clipAndWritePair(sx, sy, dx, dy, rect);
         return;
     }
 
-    const isBack = dst.x - h <= src.x;
-    const sameY = dst.y === src.y;
-    if (sameY && (!isBack || dst.x >= src.x)) {
-        writePair(sx, sy, dx, dy);
-        return;
-    } else if (sameY) {
+    if (sameY) {
         const mx = src.x + ONE_Q;
         const nx = dst.x - QUARTER;
         const hy = src.y - HALF;
 
         writePair(sx, sy, mx, sy);
         writePair(mx, sy, mx, hy);
-        writePair(mx, hy, nx, hy);
+        clipAndWritePair(mx, hy, nx, hy, rect);
         writePair(nx, hy, nx, dy);
         writePair(nx, dy, dx, dy);
         return;
@@ -57,7 +69,7 @@ export function writeWire(src: Point, dst: Point, zoom: number = 1) {
 
     if (mode === "dimple") {
         if (isBack) {
-            const s = Math.sign(dst.y - src.y) * HALF;
+            const s = Math.sign(target.y - source.y) * HALF;
             const mx = src.x + ONE_Q;
             const my = src.y + HALF + s;
             const nx = dst.x - QUARTER;
@@ -65,7 +77,7 @@ export function writeWire(src: Point, dst: Point, zoom: number = 1) {
 
             writePair(sx, sy, mx, sy);
             writePair(mx, sy, mx, my);
-            writePair(mx, my, nx, ny);
+            clipAndWritePair(mx, my, nx, ny, rect);
             writePair(nx, ny, nx, dy);
             writePair(nx, dy, dx, dy);
         } else {
@@ -73,7 +85,7 @@ export function writeWire(src: Point, dst: Point, zoom: number = 1) {
             const nx = dst.x - HALF;
 
             writePair(sx, sy, mx, sy);
-            writePair(mx, sy, nx, dy);
+            clipAndWritePair(mx, sy, nx, dy, rect);
             writePair(nx, dy, dx, dy);
         }
         return;
@@ -81,15 +93,16 @@ export function writeWire(src: Point, dst: Point, zoom: number = 1) {
 
     // manhattan
     if (isBack) {
-        const diff = Math.abs(dst.y - src.y);
-        const yStep = Math.sign(dst.y - src.y) * (diff > h ? h : HALF);
+        const diff = Math.abs(target.y - source.y);
+        const yStep = Math.sign(target.y - source.y) * (diff > 1 ? h : HALF);
         const yMid = sy + yStep;
         const mx = sx + QUARTER;
         const nx = dx - QUARTER;
 
         writePair(sx, sy, mx, sy);
         writePair(mx, sy, mx, yMid);
-        writePair(mx, yMid, nx, yMid);
+        clipAndWritePair(mx, yMid, nx, yMid, rect);
+        clipAndWritePair(nx, yMid, nx, dy, rect);
         writePair(nx, yMid, nx, dy);
         writePair(nx, dy, dx, dy);
         return;
@@ -97,12 +110,30 @@ export function writeWire(src: Point, dst: Point, zoom: number = 1) {
 
     // manhattan forward
     const midX = src.x + (dst.x - src.x + h) * 0.5;
-    writePair(sx, sy, midX, sy);
-    writePair(midX, sy, midX, dy);
-    writePair(midX, dy, dx, dy);
+    clipAndWritePair(sx, sy, midX, sy, rect);
+    clipAndWritePair(midX, sy, midX, dy, rect);
+    clipAndWritePair(midX, dy, dx, dy, rect);
 }
 
-export function writePair(x1: number, y1: number, x2: number, y2: number) {
+function clipAndWritePair(x1: number, y1: number, x2: number, y2: number, rect: vec4) {
+    if (isClampNeeded(x1, y1, x2, y2)) {
+        clipSegmentToRect(x1, y1, x2, y2, rect, segment);
+        writeSegment();
+        return;
+    }
+    writePair(x1, y1, x2, y2);
+    return;
+
+}
+function writeSegment() {
+    buffer[offset + 0] = segment[0];
+    buffer[offset + 1] = segment[1];
+    buffer[offset + 2] = segment[2];
+    buffer[offset + 3] = segment[3];
+    offset += 4;
+}
+
+function writePair(x1: number, y1: number, x2: number, y2: number) {
     buffer[offset + 0] = x1;
     buffer[offset + 1] = y1;
     buffer[offset + 2] = x2;
@@ -117,19 +148,37 @@ function resize(requiredFloats: number) {
     buffer = newArr;
     resized = true;
 }
+export function draw(renderer: IWireRenderer, canvas: { width: number, height: number }): void {
+    mode = settings.wireDrawing;
+    if (mode === 'dimple' && camera.zoom < 0.6) mode = 'simple';
+    const worldRect: Rect = cameraWorldViewportRect(camera, canvas.width, canvas.height);
+    h = gridSize * camera.zoom;
+    const h5 = 5 * h;
+    rect[0] = -h5;
+    rect[1] = canvas.width + h5;
+    rect[2] = -h5;
+    rect[3] = canvas.height + h5;
 
-export function draw(renderer: IWireRenderer, canvas: {width: number, height: number}): void {
-    const screenRect: Rect = { x0: 0, x1: canvas.width, y0: 0, y1: canvas.height };
-    const h = gridSize * camera.zoom;
+    HALF = h * 0.5;
+    QUARTER = h * 0.25;
+    ONE_Q = h * 1.25;
+    ONE_H = h * 1.5;
+
+    const check = settings.wireDrawing === 'manhattan'
+        ? (source: Point, target: Point, worldRect: Rect) => {
+            if (source.x >= target.x - 1) return segment90LIntersectsRect(source, target, worldRect);
+            return segment90SIntersectsRect(source, target, worldRect)
+        }
+        : segmentIntersectsRect;
 
     const processWire = (source: Point, target: Point) => {
-        const start = worldToScreen(camera, source.x, source.y);
-        const end = worldToScreen(camera, target.x, target.y);
-        if (segmentIntersectsRect(start, end, screenRect)) {
-            const [s, e] = isClampNeeded(start, end)
-                ? clipSegmentToRect(start, end, -5 * h, canvas.width + 5 * h, canvas.height + 5 * h, -5 * h)
-                : [start, end];
-            writeWire(s, e, camera.zoom);
+        if (segmentAsideRect(source, target, worldRect)) return;
+        if (
+            pointInRect(source, worldRect) ||
+            pointInRect(target, worldRect) ||
+            check(source, target, worldRect)
+        ) {
+            writeWire(source, target);
         }
     };
 

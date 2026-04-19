@@ -38,10 +38,10 @@ const activePathMap = new Map<string, string>(Object.entries({
 const iconCount = pathMap.size;
 const iconStates = 4; // 2bit: [Light|Dark][On|Off]
 let iconStep = gridSize;
-const offscreenIcons: { ctx: OffscreenCanvasRenderingContext2D, data: ImageBitmap | null } = { ctx: new OffscreenCanvas(iconStates * iconStep, iconCount * iconStep).getContext('2d')!, data: null };
+const offscreenIcons: { ctx: OffscreenCanvasRenderingContext2D, data: ImageBitmap | null } = { ctx: new OffscreenCanvas(iconStates * iconStep, iconCount * iconStep).getContext('2d', { willReadFrequently: true })!, data: null };
 const iconMap = new Map<string, number>();
-const offscreenElements = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
-const elementMap = new Map<string, { img0: ImageBitmap | null, img1: ImageBitmap | null, batch: (LogicElement | ElementPDO)[], offset: 0 }>(); // TYPE|COLOR|VALUE
+const offscreenElements = new OffscreenCanvas(iconStep, iconStep).getContext('2d', { willReadFrequently: true })!;
+const elementMap = new Map<string, { img00: ImageBitmap | null, img01: ImageBitmap | null, img10: ImageBitmap | null, img11: ImageBitmap | null, batch: (LogicElement | ElementPDO)[], offset: 0 }>(); // key: TYPE|COLOR img: DRAW_ICONS|VALUE
 
 const tilePatterns: Record<GridStyle, CanvasPattern | null> = { grid: null, dotted: null, none: null }
 const offscreenTile = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
@@ -49,6 +49,7 @@ const offscreenTile = new OffscreenCanvas(iconStep, iconStep).getContext('2d')!;
 let ctx: CanvasRenderingContext2D;
 let canvas: HTMLCanvasElement;
 let frameCnt = 0;
+
 export function initContext(_canvas: HTMLCanvasElement) {
     canvas = _canvas;
     ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
@@ -62,18 +63,23 @@ export function draw() {
         frameCnt = 0;
         colorMap.clear();
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const scale = getScale();
+    const matrixScale = new DOMMatrix().scaleSelf(scale, scale);
+    const matrixCamera = matrixScale
+        .translate(Math.round(-camera.x), Math.round(-camera.y))
+        .scaleSelf(camera.zoom, camera.zoom)
+    ctx.setTransform(matrixScale);
     const h = camera.zoom * gridSize;
     const newStep = Math.round(gridSize * camera.zoom * scale);
     if (iconStep !== newStep) {
         iconStep = newStep;
         offscreenElements.canvas.height = iconStep;
         offscreenElements.canvas.width = iconStep;
+        offscreenElements.clearRect(0, 0, iconStep, iconStep);
         updateIcons();
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     ctx.shadowBlur = 0;
     {
         let pattern;
@@ -88,16 +94,16 @@ export function draw() {
                 ${colors.background[3]}    
             )`; break;
         }
-        const zoom = h / Math.trunc(h);
+        const zoom = (h / Math.trunc(h * scale));
         pattern?.setTransform(new DOMMatrix()
-            .translate(-camera.x - 1, -camera.y - 1)
+            .translate(-camera.x, -camera.y)
             .scale(zoom, zoom)
         );
     }
 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     if (showWiresMode !== ShowWiresMode.None) {
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1 / scale;
         WireDrawing.draw({
             setup: (color: vec4) => {
                 ctx.strokeStyle = `rgba(
@@ -114,15 +120,7 @@ export function draw() {
             }
         }, canvas);
     }
-
-    ctx.translate(
-        Math.round(-camera.x * scale),
-        Math.round(-camera.y * scale)
-    );
-    ctx.scale(
-        camera.zoom * scale,
-        camera.zoom * scale
-    );
+    ctx.setTransform(matrixCamera);
 
     const cameraWorldX = camera.x / h - 1;
     const cameraWorldY = camera.y / h - 1;
@@ -142,52 +140,37 @@ export function draw() {
         }
     }
 
-    if (settings.drawIcons) {
-        for (const el of ghostElements) {
+    for (const el of ghostElements) {
+        saveElement(el);
+    }
+
+    for (const chunk of visibleChunks) {
+        for (const el of [...chunk]) {
             saveElement(el);
         }
-        // Draw elements
-        for (const chunk of visibleChunks) {
-            for (const el of [...chunk]) {
-                saveElement(el);
-            }
-        }
+    }
 
-        for (const [k, v] of elementMap.entries()) {
-            const { img0, img1, batch, offset } = v;
-            if (img0 === null || img1 === null) continue;
-            for (let i = 0; i < offset; ++i) {
-                const p = batch[i];
-                ctx.drawImage(p.value ? img1 : img0, 0, 0, iconStep, iconStep, p.x * gridSize, p.y * gridSize, gridSize, gridSize);
-            }
-            if (offset === 0) console.log(elementMap.delete(k));
-            v.offset = 0;
+    for (const [k, v] of elementMap.entries()) {
+        const { img10, img11, img00, img01, batch, offset } = v;
+        const [img0, img1] = settings.drawIcons ? [img10, img11] : [img00, img01];
+        if (img0 === null || img1 === null) continue;
+        for (let i = 0; i < offset; ++i) {
+            const p = batch[i];
+            ctx.drawImage(p.value ? img1 : img0, 0, 0, iconStep, iconStep, p.x * gridSize, p.y * gridSize, gridSize, gridSize);
         }
-    } else {
-        ctx.strokeStyle = textColors[0];
-        ctx.lineWidth = 1 / camera.zoom;
-        ctx.shadowBlur = 0;
-        for (const el of ghostElements) {
-            drawFlatElement(el);
-        }
-        // Draw elements
-        for (const chunk of visibleChunks) {
-            for (const el of [...chunk]) {
-                drawFlatElement(el);
-            }
-        }
+        if (offset === 0) elementMap.delete(k);
+        v.offset = 0;
     }
 
     drawBorders();
     drawOverlays();
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
+    
     if (isSelecting) {
+        ctx.setTransform(matrixScale);
         ctx.strokeStyle = rgbToHex(
-            Math.trunc(selectionColor[0] * 255),
-            Math.trunc(selectionColor[1] * 255),
-            Math.trunc(selectionColor[2] * 255)
+            Math.round(selectionColor[0] * 255),
+            Math.round(selectionColor[1] * 255),
+            Math.round(selectionColor[2] * 255)
         );
         ctx.lineWidth = 1.1;
         const x = Math.min(selectionStart.x, selectionEnd.x);
@@ -201,8 +184,8 @@ function drawLines(points: ArrayLike<number>, length?: number) {
     const n = Math.trunc(length ?? (points.length / 4));
     if (n === 0) return;
     for (let i = 0; i < n; ++i) {
-        ctx.moveTo(points[i * 4 + 0], points[i * 4 + 1]);
-        ctx.lineTo(points[i * 4 + 2], points[i * 4 + 3]);
+        ctx.moveTo(Math.trunc(points[i * 4 + 0]), Math.trunc(points[i * 4 + 1]));
+        ctx.lineTo(Math.trunc(points[i * 4 + 2]), Math.trunc(points[i * 4 + 3]));
     }
 }
 
@@ -248,34 +231,24 @@ function addColorToColorMap(color: string) {
     return colorValues;
 }
 
-function drawFlatElement(el: LogicElement | ElementPDO) {
-    const wx = el.x * gridSize;
-    const wy = el.y * gridSize;
-    const elColors = addColorToColorMap(el.color);
-
-    ctx.fillStyle = el.value ? elColors.fillV1D0 : elColors.fillV0;
-    ctx.beginPath();
-    ctx.rect(wx, wy, gridSize, gridSize);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-}
-
 function saveElement(el: LogicElement | ElementPDO) {
     const icon = (el instanceof LogicElement) ? (el.type == 'GATE' ? gateModeToType.get((el as LogicGate).gateType)! : el.type).toLowerCase() : el.icon;
     const key = `${icon}|${el.color}`;
     let elementCache = elementMap.get(key);
 
     if (elementCache === undefined) {
-        elementCache = { img0: null, img1: null, batch: [], offset: 0 };
+        elementCache = { img00: null, img01: null, img10: null, img11: null, batch: [], offset: 0 };
         elementMap.set(key, elementCache);
     }
 
-    if (elementCache.img0?.height !== iconStep || elementCache.img1?.height !== iconStep) {
+    if (elementCache.img10?.height !== iconStep || elementCache.img11?.height !== iconStep) {
         const ctx = offscreenElements!;
         const elColors = addColorToColorMap(el.color);
 
-        const prep = (value: boolean) => {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = textColors[0];
+
+        const prepFull = (value: boolean) => {
             ctx.fillStyle = value ? elColors.fillV1D1 : elColors.fillV0;
             ctx.fillRect(0, 0, iconStep, iconStep);
 
@@ -283,15 +256,21 @@ function saveElement(el: LogicElement | ElementPDO) {
             const iconCol = (Number(value) | (Number(elColors.isLuminant) << 1) & 0b11) * iconStep;
             if (iconRow !== undefined)
                 ctx.drawImage(offscreenIcons.data!, iconCol, iconRow * iconStep, iconStep, iconStep, 0, 0, iconStep, iconStep);
-
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = textColors[0];
             ctx.strokeRect(0, 0, iconStep, iconStep);
             return ctx.canvas.transferToImageBitmap();
         }
 
-        elementCache.img0 = prep(false);
-        elementCache.img1 = prep(true);
+        const prepFlat = (value: boolean) => {
+            ctx.fillStyle = value ? elColors.fillV1D0 : elColors.fillV0;
+            ctx.fillRect(0, 0, iconStep, iconStep);
+            ctx.strokeRect(0, 0, iconStep, iconStep);
+            return ctx.canvas.transferToImageBitmap();
+        }
+
+        elementCache.img00 = prepFlat(false);
+        elementCache.img01 = prepFlat(true);
+        elementCache.img10 = prepFull(false);
+        elementCache.img11 = prepFull(true);
     }
     if (elementCache.batch.length <= elementCache.offset) elementCache.batch.length = (elementCache.offset + 1) * 2;
     elementCache.batch[elementCache.offset] = el;
@@ -465,9 +444,10 @@ function updateIcons() {
 function updateTilePatterns() {
     const tile = offscreenTile.canvas;
     const tCtx = offscreenTile;
-    const h = Math.trunc(gridSize * camera.zoom * getScale());
-    tile.width = h;
-    tile.height = h;
+    const scale = getScale();
+    const h = Math.trunc(gridSize * camera.zoom * scale);
+    tile.width = h * 4;
+    tile.height = h * 4;
 
     const colorGrid = `rgba(
         ${Math.round(colors.grid[0] * 255)},
@@ -485,28 +465,32 @@ function updateTilePatterns() {
 
     tCtx.fillStyle = colorBg;
     tCtx.strokeStyle = colorGrid;
-    tCtx.clearRect(0, 0, h, h);
-    tCtx.fillRect(0, 0, h, h);
-    tCtx.lineWidth = 2;
+    tCtx.clearRect(0, 0, h * 4, h * 4);
+    tCtx.fillRect(0, 0, h * 4, h * 4);
+    tCtx.lineWidth = 1;
     tCtx.beginPath();
-    // Вертикальная линия по левому краю
-    tCtx.moveTo(0, 0);
-    tCtx.lineTo(0, h);
-    // Горизонтальная линия по верхнему краю
-    tCtx.moveTo(0, 0);
-    tCtx.lineTo(h, 0);
+    for (let i = 0; i < 5; ++i) {
+        // Вертикальная линия по левому краю
+        tCtx.moveTo(i * h, 0);
+        tCtx.lineTo(i * h, h * 4);
+        // Горизонтальная линия по верхнему краю
+        tCtx.moveTo(0, i * h);
+        tCtx.lineTo(h * 4, i * h);
+    }
     tCtx.stroke();
 
     tilePatterns.grid = ctx.createPattern(tile, 'repeat');
 
     tCtx.fillStyle = colorBg;
-    tCtx.fillRect(0, 0, h, h);
+    tCtx.fillRect(0, 0, h * 4, h * 4);
     tCtx.fillStyle = colorGrid;
+    const shift = 1;
     tCtx.beginPath();
-    tCtx.rect(0, 0, 2, 2);
-    tCtx.rect(0, h, 2, 2);
-    tCtx.rect(h, 0, 2, 2);
-    tCtx.rect(h, h, 2, 2);
+    for (let i = 0; i < 5; ++i) {
+        for (let j = 0; j < 5; ++j) {
+            tCtx.rect(i * h - shift, j * h - shift, 2, 2);
+        }
+    }
     tCtx.fill();
 
     tilePatterns.dotted = ctx.createPattern(tile, 'repeat');

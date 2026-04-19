@@ -9,7 +9,6 @@ import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, getScale, countSubstr, getSelectionCenter } from './utils/utils';
 import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, handleElementClick, initConnectTool, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
-import { WireDrawing } from "./drawings";
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 import { HistoryManager, type HistoryAction } from './history';
 import { initElementPalette } from './utils/palette';
@@ -230,7 +229,7 @@ window.onload = (() => {
   historyManager = new HistoryManager(circuit, circuitIO, {
     maxMemoryMB: 100,
     onHistoryChange: (canUndo, canRedo, undoStack, redoStack) => {
-      console.log(undoStack, redoStack);
+      // console.log(undoStack, redoStack);
       if (undoBtn) undoBtn.disabled = !canUndo;
       if (redoBtn) redoBtn.disabled = !canRedo;
     },
@@ -469,7 +468,7 @@ window.onload = (() => {
   });
   getCircuitFromLS();
   drawingTimer.step();
-  setInterval(() => circuitIO.clearUnusedChunks(), 5000);
+  setInterval(() => circuitIO.clearUnusedChunks(), 60000);
 });
 
 function removeCanvasEventListeners(_canvas: HTMLCanvasElement) {
@@ -817,7 +816,7 @@ function zoomCanvas(isZoomIn: boolean, centerX: number, centerY: number) {
   const worldX = (camera.x + centerX) / h1;
   const worldY = (camera.y + centerY) / h1;
 
-  camera.zoom = clamp(camera.zoom * scale, 0.35, maxZoom);
+  camera.zoom = clamp(Math.round(camera.zoom * scale * 50) / 50, 0.35, maxZoom);
   const h2 = camera.zoom * gridSize;
   camera.x = worldX * h2 - centerX;
   camera.y = worldY * h2 - centerY;

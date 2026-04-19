@@ -82,11 +82,3 @@ export const overlayIconMap = new Map<string, number>(Object.entries({
     r1: 13,
     rn: 14,
 }));
-
-export function isClampNeeded(p1: Point, p2: Point) {
-    const max = 30000;
-    return Math.abs(p1.x) > max
-        || Math.abs(p1.y) > max
-        || Math.abs(p2.x) > max
-        || Math.abs(p2.y) > max  
-}

@@ -1,20 +1,7 @@
-import type { Point, Rect } from "../consts";
+import type { Point, Rect, vec4 } from "../consts";
+import { clamp } from "./utils";
 
-/**
- * Проверяет, пересекает ли отрезок прямоугольник
- * Учитывает все случаи:
- * - Отрезок полностью внутри прямоугольника
- * - Отрезок пересекает границы
- * - Отрезок проходит через прямоугольник, но концы снаружи
- */
 export function segmentIntersectsRect(p1: Point, p2: Point, rect: Rect): boolean {
-    // Случай 1: Один из концов внутри прямоугольника
-    if (pointInRect(p1, rect) || pointInRect(p2, rect)) {
-        return true;
-    }
-    if (segmentAsideRect(p1, p2, rect)) return false;
-
-    // Случай 2: Отрезок пересекает хотя бы одну сторону прямоугольника
     const edges = getRectEdges(rect);
 
     for (const edge of edges) {
@@ -24,6 +11,25 @@ export function segmentIntersectsRect(p1: Point, p2: Point, rect: Rect): boolean
     }
 
     return false;
+}
+
+export function segment90SIntersectsRect(p1: Point, p2: Point, rect: Rect): boolean {
+    const pm = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+    return isNumberInBound(p1.y, rect.y0, rect.y1)
+        || isNumberInBound(pm.x, rect.x0, rect.x1)
+        || isNumberInBound(p2.y, rect.y0, rect.y1)
+        ;
+}
+
+export function segment90LIntersectsRect(p1: Point, p2: Point, rect: Rect): boolean {
+    return isNumberInBound(p1.y, rect.y0, rect.y1)
+        || isNumberInBound(p2.x, rect.x0, rect.x1)
+        ;
+}
+
+export function isNumberInBound(n: number, lower: number, upper: number) {
+    return lower < n && n < upper;
 }
 
 export function segmentAsideRect(p1: Point, p2: Point, rect: Rect) {
@@ -106,4 +112,61 @@ export function pointOnSegment(p: Point, a: Point, b: Point): boolean {
     if (dot > squaredLength) return false;
 
     return true;
+}
+/**
+ * @param rect [left, right, top, bottom]
+ */
+export function clipSegmentToRect(
+    x0: number, y0: number, x1: number, y1: number,
+    rect: vec4, result: vec4
+) {
+
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    if (dx === 0) {
+        result[0] = x0;
+        result[1] = clamp(y0, rect[2], rect[3]);
+        result[2] = x0;
+        result[3] = clamp(y1, rect[2], rect[3]);
+        return;
+    }
+
+    if (dy === 0) {
+        result[0] = clamp(x0, rect[1], rect[0]);
+        result[1] = y0;
+        result[2] = clamp(x1, rect[1], rect[0]);
+        result[3] = y0;
+        return;
+    }
+
+    let t0 = 0; // входная точка параметра
+    let t1 = 1; // выходная точка параметра
+
+
+    // Вспомогательная функция для обработки одной границы
+    const clipEdge = (p: number, q: number): boolean => {
+        if (p === 0) return q >= 0; // Параллельно границе
+        const r = q / p;
+        if (p < 0) {
+            if (r > t1) return false;
+            if (r > t0) t0 = r;
+        } else {
+            if (r < t0) return false;
+            if (r < t1) t1 = r;
+        }
+        return true;
+    };
+
+    // Проверяем 4 границы: left, right, top, bottom
+    clipEdge(-dx, x0 - rect[0]);
+    clipEdge(dx, rect[1] - x0);
+    clipEdge(-dy, y0 - rect[2]);
+    clipEdge(dy, rect[3] - y0);
+
+    // Если дошли сюда — отрезок частично или полностью внутри
+    result[0] = x0 + t0 * dx;
+    result[1] = y0 + t0 * dy;
+    result[2] = x0 + t1 * dx;
+    result[3] = y0 + t1 * dy;
 }
