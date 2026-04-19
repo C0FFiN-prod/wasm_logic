@@ -1,4 +1,4 @@
-import { chunkSize, colors, gateModeToType, gridSize, GridStyle, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type ElementPDO, type Point, type Rect, type vec4 } from "../consts";
+import { chunkSize, colors, gateModeToType, gridSize, GridStyle, overlayColorIndexes, ShowWiresMode, textColors, texts, ToolMode, type Camera, type ElementPDO, type Point, type Rect, type vec4 } from "../consts";
 import { LogicElement, LogicGate } from "../logic";
 import {
     camera,
@@ -113,9 +113,9 @@ export function draw() {
                     ${color[3]}
                 )`;
             },
-            finalize: () => {
+            finalize: (start, end) => {
                 ctx.beginPath();
-                drawLines(WireDrawing.buffer, WireDrawing.offset / 4);
+                drawLines(WireDrawing.buffer, start, (end - start) / 4);
                 ctx.stroke();
             }
         }, canvas);
@@ -180,12 +180,11 @@ export function draw() {
         ctx.strokeRect(x, y, w, h);
     }
 }
-function drawLines(points: ArrayLike<number>, length?: number) {
+function drawLines(points: ArrayLike<number>, start: number = 0, length?: number) {
     const n = Math.trunc(length ?? (points.length / 4));
-    if (n === 0) return;
     for (let i = 0; i < n; ++i) {
-        ctx.moveTo(Math.trunc(points[i * 4 + 0]), Math.trunc(points[i * 4 + 1]));
-        ctx.lineTo(Math.trunc(points[i * 4 + 2]), Math.trunc(points[i * 4 + 3]));
+        ctx.moveTo(Math.trunc(points[start + i * 4 + 0]), Math.trunc(points[start + i * 4 + 1]));
+        ctx.lineTo(Math.trunc(points[start + i * 4 + 2]), Math.trunc(points[start + i * 4 + 3]));
     }
 }
 

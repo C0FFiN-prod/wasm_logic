@@ -345,11 +345,11 @@ export function draw() {
             setup: (color: vec4) => {
                 gl.uniform4fv(program.uniforms.color, color);
             },
-            finalize: () => {
+            finalize: (start, end) => {
                 if (WireDrawing.resized)
                     gl.bufferData(gl.ARRAY_BUFFER, WireDrawing.buffer.byteLength, gl.DYNAMIC_DRAW);
-                gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, 0, WireDrawing.offset);
-                gl.drawArrays(gl.LINES, 0, WireDrawing.offset / 2);
+                gl.bufferSubData(gl.ARRAY_BUFFER, 0, WireDrawing.buffer, start, end - start);
+                gl.drawArrays(gl.LINES, 0, (end - start) / 2);
             }
         }, canvas);
     }

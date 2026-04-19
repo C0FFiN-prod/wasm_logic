@@ -1,5 +1,5 @@
-import { colors, ConnectMode, gridSize, ShowWiresMode, ToolMode, WireDrawings, type Point, type Rect, type vec4 } from "../consts";
-import { camera, circuit, selectedTool, settings, showWiresMode } from "../main";
+import { colors, ConnectMode, gridSize, ShowWiresMode, ToolMode, WireDrawings, type Camera, type Point, type Rect, type vec4 } from "../consts";
+import { camera, circuit, isDragging, selectedTool, settings, showWiresMode } from "../main";
 import { connectTool } from "../utils/connectionTool";
 import { pointInRect, segment90LIntersectsRect, segment90SIntersectsRect, segmentAsideRect, segmentIntersectsRect } from "../utils/geometry";
 import { cameraWorldViewportRect, worldToScreen } from "../utils/utils";
@@ -7,17 +7,25 @@ import { clipSegmentToRect } from "../utils/geometry";
 
 export interface IWireRenderer {
     setup(color: vec4): void;
-    finalize(): void;
+    finalize(start: number, end: number): void;
 }
-
+const oldParams = {
+    camera: { x: 0, y: 0, zoom: 1 } as Camera,
+    mode: 'simple' as WireDrawings,
+    wiresCount: 0,
+    showWiresMode: ShowWiresMode.None as ShowWiresMode,
+    tool: 0 as ToolMode,
+}
 export let buffer = new Float16Array(1_000_000);
-export let offset = 0;
+let offset = 0;
+let permamentEnd = 0;
+
 export let resized = false;
 
 const segment: vec4 = [0, 0, 0, 0];
 const rect: vec4 = [0, 0, 0, 0];
 const maxNumber = 30000;
-
+const MAX_TEMP_WIRES = 2048;
 let h = gridSize;
 let HALF = gridSize * 0.5;
 let QUARTER = gridSize * 0.25;
@@ -96,8 +104,8 @@ function writeWire(source: Point, target: Point) {
         const diff = Math.abs(target.y - source.y);
         const yStep = Math.sign(target.y - source.y) * (diff > 1 ? h : HALF);
         const yMid = sy + yStep;
-        const mx = sx + QUARTER;
-        const nx = dx - QUARTER;
+        const mx = sx + HALF;
+        const nx = dx - HALF;
 
         writePair(sx, sy, mx, sy);
         writePair(mx, sy, mx, yMid);
@@ -109,7 +117,7 @@ function writeWire(source: Point, target: Point) {
     }
 
     // manhattan forward
-    const midX = src.x + (dst.x - src.x + h) * 0.5;
+    const midX = sx + HALF;// + Math.round((dx - sx - HALF) * 0.5 / (10 * h)) * (10 * h);
     clipAndWritePair(sx, sy, midX, sy, rect);
     clipAndWritePair(midX, sy, midX, dy, rect);
     clipAndWritePair(midX, dy, dx, dy, rect);
@@ -148,9 +156,46 @@ function resize(requiredFloats: number) {
     buffer = newArr;
     resized = true;
 }
+
+function isRefillNeeded() {
+    const result = oldParams.camera.x !== camera.x
+        || oldParams.camera.y !== camera.y
+        || oldParams.camera.zoom !== camera.zoom
+        || oldParams.mode !== settings.wireDrawing
+        || oldParams.wiresCount !== circuit.wires.size
+        || oldParams.showWiresMode !== showWiresMode
+        || oldParams.tool !== selectedTool
+        ;
+    if (!result) return false;
+    oldParams.camera.x = camera.x;
+    oldParams.camera.y = camera.y;
+    oldParams.camera.zoom = camera.zoom;
+    oldParams.mode = settings.wireDrawing;
+    oldParams.wiresCount = circuit.wires.size;
+    oldParams.showWiresMode = showWiresMode;
+    oldParams.tool = selectedTool;
+    return true
+}
+
 export function draw(renderer: IWireRenderer, canvas: { width: number, height: number }): void {
+    const shouldDrawPermanent = showWiresMode === ShowWiresMode.Always ||
+        (showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect);
+
+    const shouldDrawTemporary = showWiresMode === ShowWiresMode.Always ||
+        ((showWiresMode === ShowWiresMode.Connect || showWiresMode === ShowWiresMode.Temporary)
+            && selectedTool === ToolMode.Connect);
+
+    const shouldRefill = isDragging || isRefillNeeded();
+    if (!shouldRefill) {
+        if (shouldDrawPermanent) {
+            renderer.setup(colors.wires);
+            renderer.finalize(0, permamentEnd);
+        }
+        if (!shouldDrawTemporary) return;
+    }
+
     mode = settings.wireDrawing;
-    if (mode === 'dimple' && camera.zoom < 0.6) mode = 'simple';
+    // if (mode === 'dimple' && camera.zoom < 0.6) mode = 'simple';
     const worldRect: Rect = cameraWorldViewportRect(camera, canvas.width, canvas.height);
     h = gridSize * camera.zoom;
     const h5 = 5 * h;
@@ -182,32 +227,35 @@ export function draw(renderer: IWireRenderer, canvas: { width: number, height: n
         }
     };
 
-    const shouldDrawPermanent = showWiresMode === ShowWiresMode.Always ||
-        (showWiresMode === ShowWiresMode.Connect && selectedTool === ToolMode.Connect);
 
-    const shouldDrawTemporary = showWiresMode === ShowWiresMode.Always ||
-        ((showWiresMode === ShowWiresMode.Connect || showWiresMode === ShowWiresMode.Temporary)
-            && selectedTool === ToolMode.Connect);
 
-    if (shouldDrawPermanent) {
+    if (shouldRefill && shouldDrawPermanent) {
         reset();
         renderer.setup(colors.wires);
         for (const wire of circuit.wires.values()) {
             processWire(wire.src, wire.dst);
         }
-        renderer.finalize();
+        renderer.finalize(0, offset);
+        permamentEnd = offset;
     }
 
     if (shouldDrawTemporary) {
         reset();
+        offset = permamentEnd;
         renderer.setup(colors.tempWires);
         const ct = connectTool;
-
+        let wiresCount = 0;
         if (ct.mode === ConnectMode.NtoN) {
             if (ct.sources[0].size === 0 || ct.sources[1].size === 0) return;
-            for (const s of ct.sources[0])
-                for (const t of ct.sources[1])
+            for (const s of ct.sources[0]) {
+                for (const t of ct.sources[1]) {
                     processWire(s, t);
+                    ++wiresCount;
+                    if (wiresCount > MAX_TEMP_WIRES) break;
+                }
+                if (wiresCount > MAX_TEMP_WIRES) break;
+            }
+                
         }
         else if (ct.mode === ConnectMode.Sequence) {
             if (ct.sources[0].size === 0) return;
@@ -215,6 +263,8 @@ export function draw(renderer: IWireRenderer, canvas: { width: number, height: n
             for (const el of ct.sources[0]) {
                 if (prev) processWire(prev, el);
                 prev = el;
+                ++wiresCount;
+                if (wiresCount > MAX_TEMP_WIRES) break;
             }
         }
         else if (ct.mode === ConnectMode.Parallel) {
@@ -222,8 +272,11 @@ export function draw(renderer: IWireRenderer, canvas: { width: number, height: n
             const src = ct.sources[0].values();
             const tgt = ct.sources[1].values();
             let s, t;
-            while ((s = src.next().value) && (t = tgt.next().value))
+            while ((s = src.next().value) && (t = tgt.next().value)) {
                 processWire(s, t);
+                ++wiresCount;
+                if (wiresCount > MAX_TEMP_WIRES) break;
+            }
         }
         else if (ct.mode === ConnectMode.Decoder) {
             if (ct.sources[0].size === 0 || ct.sources[1].size === 0 || ct.sources[2].size === 0) return;
@@ -237,10 +290,13 @@ export function draw(renderer: IWireRenderer, canvas: { width: number, height: n
                 for (const target of targets) {
                     processWire(source, target);
                     if (--j === 0) { flag = !flag; source = flag ? p : n; j = k; }
+                    ++wiresCount;
+                    if (wiresCount > MAX_TEMP_WIRES) break;
                 }
                 k <<= 1;
+                if (wiresCount > MAX_TEMP_WIRES) break;
             }
         }
-        renderer.finalize();
+        renderer.finalize(permamentEnd, offset);
     }
 }
