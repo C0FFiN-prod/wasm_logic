@@ -10,6 +10,7 @@ export class LogicElement {
     eval() { throw new Error("Method not implemented."); };
     getController(): Record<string, any> | null { return null; };
     id: number;
+    name: string;
     type: string;
     x: number;
     y: number;
@@ -22,8 +23,9 @@ export class LogicElement {
     value: boolean;
     nextValue: boolean;
     cnt: number;
-    constructor(type: string, x: number, y: number, z = 0, xaxis = 1, zaxis = 1, color = "222222") {
+    constructor(type: string, x: number, y: number, z = 0, xaxis = 1, zaxis = 1, color = "222222", name?: string) {
         this.id = nextId++;
+        this.name = name ?? this.id.toString();
         this.type = type;
         this.x = x;
         this.y = y;
@@ -67,8 +69,8 @@ export class LogicElement {
 export class LogicGate extends LogicElement {
     gateType: number;
 
-    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", mode = 0) {
-        super('GATE', x, y, z, xaxis, zaxis, color);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", mode = 0, name?: string) {
+        super('GATE', x, y, z, xaxis, zaxis, color, name);
         this.gateType = mode;
     }
 
@@ -119,8 +121,8 @@ export class LogicGate extends LogicElement {
 export class Timer extends LogicElement {
     delay: number;
     buffer: BitArray;
-    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", seconds = 0, ticks = 0) {
-        super('TIMER', x, y, z, xaxis, zaxis, color);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", seconds = 0, ticks = 0, name?: string) {
+        super('TIMER', x, y, z, xaxis, zaxis, color, name);
         this.delay = Math.max(seconds * 40 + ticks, 0);
         this.buffer = new BitArray(128);
 
@@ -148,8 +150,8 @@ export class Timer extends LogicElement {
 }
 
 export class Button extends LogicElement {
-    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222") {
-        super('BUTTON', x, y, z, xaxis, zaxis, color);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", name?: string) {
+        super('BUTTON', x, y, z, xaxis, zaxis, color, name);
         this.value = false;
         this.nextValue = false;
     }
@@ -182,8 +184,8 @@ export class Button extends LogicElement {
 }
 
 export class Switch extends LogicElement {
-    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222") {
-        super('SWITCH', x, y, z, xaxis, zaxis, color);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", name?: string) {
+        super('SWITCH', x, y, z, xaxis, zaxis, color, name);
         this.value = false;
         this.nextValue = false;
     }
@@ -217,8 +219,8 @@ export class Switch extends LogicElement {
 export class OutputElement extends LogicElement {
     luminance: number;
 
-    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", luminance = 50) {
-        super('OUTPUT', x, y, z, xaxis, zaxis, color);
+    constructor(x: number, y: number, z = 0, xaxis = 0, zaxis = 0, color = "222222", luminance = 50, name?: string) {
+        super('OUTPUT', x, y, z, xaxis, zaxis, color, name);
         this.luminance = luminance
     }
 
@@ -265,22 +267,22 @@ export class Circuit {
         let el: LogicElement;
         switch (type) {
             case 'GATE':
-                el = new LogicGate(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.mode);
+                el = new LogicGate(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.mode, params.name);
                 if (params.controller.mode === 6) {
                     this.addWire(el, el);
                 }
                 break;
             case 'TIMER':
-                el = new Timer(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, (params.controller.seconds ?? 0), (params.controller.ticks ?? 0));
+                el = new Timer(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, (params.controller.seconds ?? 0), (params.controller.ticks ?? 0), params.name);
                 break;
             case 'BUTTON':
-                el = new Button(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                el = new Button(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.name);
                 break;
             case 'SWITCH':
-                el = new Switch(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color);
+                el = new Switch(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.name);
                 break;
             case 'OUTPUT':
-                el = new OutputElement(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.luminance);
+                el = new OutputElement(params.pos.x, params.pos.y, params.pos.z, params.xaxis, params.zaxis, params.color, params.controller.luminance, params.name);
                 break;
             default:
                 return null;

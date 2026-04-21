@@ -1,8 +1,9 @@
 import * as dWebGl from "./drawingWGL";
 import * as dCanvas from "./drawingCanvas";
 import { isSimulating, settings } from "../main";
-import type { Drawings, Point } from "../consts";
+import { type Drawings } from "../consts";
 export *  as WireDrawing from './wiresDrawing';
+import *  as WireDrawing from './wiresDrawing';
 let draw = dWebGl.draw;
 let initContext = dWebGl.initContext;
 let displayRefreshRate = 0;
@@ -61,6 +62,7 @@ export const drawingTimer = {
         this.active = false;
     },
     step() {
+        WireDrawing.forceRefill();
         if (!this.active) requestAnimationFrame(draw);
     }
 };

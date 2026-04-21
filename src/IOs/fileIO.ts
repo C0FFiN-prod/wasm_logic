@@ -6,48 +6,34 @@ import { selectionSets, selectedTool } from "../main";
 import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 
 export class FileIO {
-    currentFileHandle: FileSystemFileHandle | null = null;
+    private currentFileHandle: FileSystemFileHandle | null = null;
     currentFileName = '';
     // Проверка поддержки FSAPI
-    hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
-    filenameDisplay: HTMLSpanElement;
-    circuitIO: CircuitIO;
-    i18n;
-    historyManager: HistoryManager;
-    constructor(i18n: I18n<I18nLocale, LocaleNames, I18nLocales<LocaleNames, I18nLocale>>, circuitIO: CircuitIO, historyManager: HistoryManager, filenameDisplaySpan: HTMLSpanElement) {
+    private hasFSAPI = "showSaveFilePicker" in window && "showOpenFilePicker" in window;
+    private filenameInput: HTMLInputElement;
+    private circuitIO: CircuitIO;
+    private i18n;
+    private historyManager: HistoryManager;
+    private fileFM: HTMLElement;
+    constructor(i18n: I18n<I18nLocale, LocaleNames, I18nLocales<LocaleNames, I18nLocale>>, circuitIO: CircuitIO, historyManager: HistoryManager) {
         this.i18n = i18n;
-        this.filenameDisplay = filenameDisplaySpan;
         this.circuitIO = circuitIO;
         this.historyManager = historyManager;
-        // Клик по имени — превращаем в input для редактирования
-        this.filenameDisplay.addEventListener("click", () => {
-            const input = document.createElement("input");
-            input.type = "text";
-            input.id = "filename-input";
-            input.value = this.currentFileName || this.unnamed;
+        this.fileFM = document.getElementById('fm-file')!;
+        this.filenameInput = document.getElementById('filename-input')! as HTMLInputElement;
 
-            this.filenameDisplay.replaceWith(input);
-            input.focus();
-            input.select();
-            let finished = false;
-
-            const finishEdit = () => {
-                if (finished) return;
-                finished = true;
-                this.currentFileName = input.value.trim();
-                input.replaceWith(this.filenameDisplay);
-                this.updateFilenameDisplay();
-            };
-
-            input.addEventListener("blur", finishEdit);
-            input.addEventListener("keydown", (e) => {
-                if (e.key === "Enter") {
-                    finishEdit();
-                } else if (e.key === "Escape") {
-                    finished = true;
-                    input.replaceWith(this.filenameDisplay);
-                }
-            });
+        const finishEdit = () => {
+            this.currentFileName = this.filenameInput.value.trim();
+        };
+        this.filenameInput.addEventListener("blur", finishEdit);
+        this.filenameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                finishEdit();
+                this.filenameInput.blur();
+            } else if (e.key === "Escape") {
+                this.filenameInput.value = this.currentFileName;
+                this.filenameInput.blur();
+            }
         });
     }
     get unnamed() {
@@ -60,7 +46,7 @@ export class FileIO {
         this.historyManager.clear();
     }
     updateFilenameDisplay(text?: string) {
-        this.filenameDisplay.textContent = text || (this.currentFileName || this.unnamed);
+        this.filenameInput.value = text || (this.currentFileName || this.unnamed);
     }
     // ======= Сохранение =======
     saveAs = async (): Promise<void> => {

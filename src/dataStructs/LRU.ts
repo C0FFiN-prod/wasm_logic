@@ -1,6 +1,7 @@
 export class LRU<K> {
     private accessOrder = new Set<K>();
-
+    public get size(): number { return this.accessOrder.size; }
+    
     constructor() {
     }
 
@@ -26,6 +27,12 @@ export class LRU<K> {
     // Получить самый старый ключ
     getOldest(): K | undefined {
         return this.accessOrder.values().next().value;
+    }
+
+    popOldest(): K | undefined {
+        const v = this.accessOrder.values().next().value;
+        if (v !== undefined) this.accessOrder.delete(v);
+        return v;
     }
 
     *values(): IterableIterator<K> {

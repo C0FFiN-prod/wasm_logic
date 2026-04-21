@@ -138,21 +138,21 @@ export function getElementsInRect(circuit: Circuit, rect: Rect) {
 export function getElementAt(circuit: Circuit, camera: Camera, point: Point, isScreen: boolean) {
   let x: number, y: number;
   if (isScreen)
-    ({ x, y } = screenToWorld(camera, point.x, point.y));
+    ({ x, y } = floorPoint(screenToWorld(camera, point.x, point.y)));
   else ({ x, y } = point);
   const chunk = circuit.getChunk({ x, y }, true);
   if (!chunk) return null;
-  for (const obj of chunk) {
-    const ox = obj.x;
-    const oy = obj.y;
-    if (
-      ox <= x && x < ox + 1 &&
-      oy <= y && y < oy + 1
-    ) {
-      return obj;
+  for (const el of chunk) {
+    if (el.x === x && el.y === y) {
+      return el;
     }
   }
   return null;
+}
+
+export function elementExists(circuit: Circuit, element: LogicElement) {
+  const chunk = circuit.getChunk(element, true);
+  return chunk?.has(element);
 }
 
 export function fillCoordMapWithElements(circuit: Circuit, coordMap: Map<string, LogicElement | ElementPDO | null>) {
@@ -184,6 +184,14 @@ export function clampPoint(p: Point, lower: number, upper: number): Point {
     y: Math.min(Math.max(p.y, lower), Math.max(upper, lower)),
   };
 }
+export function floorPoint(p: Point): Point {
+  return {
+    x: Math.floor(p.x),
+    y: Math.floor(p.y),
+  };
+}
+
+
 export function getChunkKey(point: Point, doDivide: boolean) {
   const chunkX = doDivide ? Math.floor(point.x / chunkSize) : point.x;
   const chunkY = doDivide ? Math.floor(point.y / chunkSize) : point.y;

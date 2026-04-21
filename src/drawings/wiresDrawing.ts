@@ -20,6 +20,9 @@ export let buffer = new Float16Array(1_000_000);
 let offset = 0;
 let permamentEnd = 0;
 
+let forcedRefill = false;
+
+
 export let resized = false;
 
 const segment: vec4 = [0, 0, 0, 0];
@@ -41,6 +44,7 @@ function isClampNeeded(x0: number, y0: number, x1: number, y1: number) {
 }
 
 function reset() { offset = 0; resized = false; }
+export function forceRefill() { forcedRefill = true; }
 
 function writeWire(source: Point, target: Point) {
     const sameY = source.y === target.y;
@@ -185,7 +189,8 @@ export function draw(renderer: IWireRenderer, canvas: { width: number, height: n
         ((showWiresMode === ShowWiresMode.Connect || showWiresMode === ShowWiresMode.Temporary)
             && selectedTool === ToolMode.Connect);
 
-    const shouldRefill = isDragging || isRefillNeeded();
+    const shouldRefill = forcedRefill || isDragging || isRefillNeeded();
+    forcedRefill = false;
     if (!shouldRefill) {
         if (shouldDrawPermanent) {
             renderer.setup(colors.wires);

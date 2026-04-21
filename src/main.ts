@@ -12,6 +12,7 @@ import { drawingTimer } from './drawings';
 import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 import { HistoryManager, type HistoryAction } from './history';
 import { initElementPalette } from './utils/palette';
+import { ElementTooltip } from './utils/tooltip';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -20,11 +21,10 @@ export let isSimulating = false;
 let simInterval: number;
 let prevMouseWorld: Point = { x: 0, y: 0 };
 let prevMousePos: Point = { x: 0, y: 0 };
-let startMousePos: Point = { x: 0, y: 0 };
 
 let mouseX = 0;
 let mouseY = 0;
-let isHandMoving = false;
+export let isHandMoving = false;
 export let isSelecting = false;
 export let isDragging = false;
 export let selectionStart: Point = { x: 0, y: 0 };
@@ -43,7 +43,7 @@ export let selectedTool: ToolMode = ToolMode.Cursor; // 'move' или 'connect'
 let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по умолчанию
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
-
+let tooltip: ElementTooltip;
 export let historyManager: HistoryManager;
 let fileIO: FileIO;
 export let circuitIO: CircuitIO;
@@ -246,7 +246,10 @@ window.onload = (() => {
   });
   undoBtn.disabled = true;
   redoBtn.disabled = true;
-  fileIO = new FileIO(i18n, circuitIO, historyManager, document.getElementById("filename-display") as HTMLSpanElement);
+  fileIO = new FileIO(i18n, circuitIO, historyManager);
+
+  tooltip = new ElementTooltip(i18n, circuit, camera, historyManager);
+
   canvases = {
     'canvas': document.getElementById('canvas-canvas') as HTMLCanvasElement,
     'webgl': document.getElementById('webgl-canvas') as HTMLCanvasElement
@@ -275,7 +278,7 @@ window.onload = (() => {
 
   // Привязка кнопок
   setupEvent('save-scheme', 'click', fileIO.save);
-  setupEvent('load-scheme', 'click', () => fileIO.load(false));
+  setupEvent('load-scheme', 'click', () => { if(clearCanvas()) fileIO.load(false)});
   setupEvent('add-scheme', 'click', () => fileIO.load(true));
   setupEvent('copy-wires-mode-btn', 'click', cycleCopyWiresMode);
   setupEvent('show-wires-mode-btn', 'click', cycleShowWiresMode);
@@ -526,6 +529,7 @@ function optimizedStep() {
 function clearCanvas() {
   if (confirm(i18n.getValue('dynamic', 'clear-canvas'))) {
     circuit.clear();
+    elementUnderCursor = null;
     camera.x = 0;
     camera.y = 0;
     fileIO.clearFileHandle();
@@ -537,7 +541,9 @@ function clearCanvas() {
     historyManager.clear();
     drawingTimer.stop();
     drawingTimer.step();
+    return true;
   }
+  return false;
 }
 
 export function clearSelections(keys: SelectionSets[]) {
@@ -651,8 +657,6 @@ function onCanvasMouseDown(e: MouseEvent) {
       if (e.button === 0) {
         clickSelectElement(e, el, 'selection');
 
-        startMousePos.x = mouseX;
-        startMousePos.y = mouseY;
         prevMousePos.x = mouseX;
         prevMousePos.y = mouseY;
         prevMouseWorld = screenToWorld(camera, mouseX, mouseY);
@@ -768,8 +772,16 @@ function onCanvasMouseMove(e: MouseEvent) {
   let mouseWorld = screenToWorld(camera, mouseX, mouseY);
 
   if (isHandMoving) {
-    camera.x -= (e.offsetX - prevMousePos.x);
-    camera.y -= (e.offsetY - prevMousePos.y);
+    const dx = e.offsetX - prevMousePos.x;
+    const dy = e.offsetY - prevMousePos.y;
+    camera.x -= dx;
+    camera.y -= dy;
+    if (isSelecting) {
+      selectionStart.x += dx;
+      selectionStart.y += dy;
+      selectionEnd.x += dx;
+      selectionEnd.y += dy;
+    }
   } else if (isDragging && selectionSets['selection'].size > 0) {
     const deltaWorld = {
       x: Math.round(mouseWorld.x) - Math.round(prevMouseWorld.x),
@@ -782,6 +794,7 @@ function onCanvasMouseMove(e: MouseEvent) {
     if (deltaWorld.x === 0 && deltaWorld.y === 0) return;
     for (const el of selectionSets['selection'])
       circuit.moveElementBy(el, deltaWorld);
+    historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
   }
   else if (isSelecting) {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -804,7 +817,7 @@ function onCanvasMouseMove(e: MouseEvent) {
 function onCanvasMouseOut() {
   isHandMoving = false;
   stopSelecting()
-  stopDragging();
+  isDragging = false;
   drawingTimer.stop();
   drawingTimer.step();
 }
@@ -832,24 +845,17 @@ function onCanvasWheel(e: WheelEvent) {
 function onCanvasMouseUp(e: MouseEvent) {
   if (isHandMoving && e.button === 1) {
     isHandMoving = false;
-    drawingTimer.stop();
+    if (!isSelecting && !isDragging)
+      drawingTimer.stop();
   }
   else {
-    stopSelecting()
-    stopDragging();
+    stopSelecting();
+    isDragging = false;
     drawingTimer.stop();
     drawingTimer.step();
   }
 }
-function stopDragging() {
-  if (isDragging) {
-    const startMouseWorls = screenToWorld(camera, startMousePos.x, startMousePos.y);
-    const x = Math.round(prevMouseWorld.x) - Math.round(startMouseWorls.x);
-    const y = Math.round(prevMouseWorld.y) - Math.round(startMouseWorls.y);
-    historyManager.recordMoveElements(x, y);
-  }
-  isDragging = false;
-}
+
 function stopSelecting() {
   if (isSelecting) {
     historyManager.recordSelectionsChange([selectionSetKey]);
@@ -885,17 +891,7 @@ document.addEventListener('keydown', e => {
       if (isDragging || isSelecting) drawingTimer.currentCanvas().dispatchEvent(new MouseEvent('mousemove', { clientX: prevMousePos.x, clientY: prevMousePos.y }));
     } else if (!isDragging && !isSelecting) {
       if (e.code === 'Delete') {
-        if (selectionSets['selection'].size > 0) {
-          const wires: LogicGates.Wire[] = [];
-          for (const element of selectionSets['selection']) {
-            wires.push(...circuit.removeWiresForElement(element));
-          }
-          selectionSets['selection'].forEach(el => circuit.deleteElement(el));
-
-          historyManager.recordSelectionsClear(selectedTool, ['selection']);
-          historyManager.recordRemoveElements([...selectionSets['selection']], wires);
-          clearSelections(['selection']);
-        }
+        deleteElements();
       } else if (e.code === 'Escape') {
         if (ChangePrompt.isHidden()) {
           const keys: SelectionSets[] = connectTool.mode === ConnectMode.NtoN ? ['selection', 'source', 'target'] : ['selection'];
@@ -946,6 +942,11 @@ document.addEventListener('keydown', e => {
           e.preventDefault();
 
           navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectionSets['selection'])).catch((err) => { console.log(err) });
+        } else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyX') {
+          e.preventDefault();
+
+          navigator.clipboard.writeText(circuitIO.serializeSelectedElements(selectionSets['selection'])).catch((err) => { console.log(err) });
+          deleteElements();
         } else if (e.shiftKey && e.code === 'KeyV') {
           e.preventDefault();
           const cursorX = prevMousePos.x;
@@ -1084,6 +1085,20 @@ function updateToolButtons(pressedBtn?: HTMLElement) {
     btn.removeAttribute('active');
   });
   pressedBtn?.setAttribute('active', 'true');
+}
+
+function deleteElements() {
+  if (selectionSets['selection'].size > 0) {
+    const wires: LogicGates.Wire[] = [];
+    for (const element of selectionSets['selection']) {
+      wires.push(...circuit.removeWiresForElement(element));
+    }
+    selectionSets['selection'].forEach(el => circuit.deleteElement(el));
+
+    historyManager.recordSelectionsClear(selectedTool, ['selection']);
+    historyManager.recordRemoveElements([...selectionSets['selection']], wires);
+    clearSelections(['selection']);
+  }
 }
 
 function getCircuitFromLS() {

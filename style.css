@@ -4,14 +4,14 @@
     --text: #070707;
     --text-disabled: #4e4e4e;
     --bg-color: #e5e5e5;
-    --btn-color: #e7e7e7;
+    --btn-color: #f1f3f4;
     --btn-color-hover: #cdcdcd;
     --btn-color-active: #f3f3f3;
     --btn-color-disabled: #d6d6d6;
     --btn-color-border: #9e9d9d;
-    --hr-color: #313131;
-    --fm-bg-color: #eeeeee;
-    --fm-border-color: #313131;
+    --hr-color: #cdcdcd;
+    --fm-bg-color: #f1f3f4;
+    --fm-border-color: #dadada;
     --fm-padding: 15px;
     --li-pad: 20px;
     --code-bg-color: #fff;
@@ -32,9 +32,10 @@
     --btn-color-border: #444;
     --hr-color: #555;
     --fm-bg-color: #1e1e1e;
-    --fm-border-color: #555;
+    --fm-border-color: #313131;
     --code-bg-color: #313131;
     --code-border-color: #555555;
+    --input-border-color: #5c5c5c;
 }
 
 body * {
@@ -59,6 +60,7 @@ header {
     position: static;
     margin: 0;
 }
+
 .palette-drag-ghost,
 button {
     padding: 6px 12px;
@@ -94,7 +96,7 @@ button[disabled] {
     font-weight: 600;
     user-select: none;
     white-space: nowrap;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     cursor: grabbing;
 }
 
@@ -134,7 +136,13 @@ input[type="checkbox"]:checked::before {
     width: 10px;
 }
 
+input[type="range"] {
+    accent-color: var(--accent-color);
+}
 
+select, input {
+    border: 1px solid var(--input-border-color);
+}
 
 .circuit-canvas {
     display: block;
@@ -144,30 +152,24 @@ input[type="checkbox"]:checked::before {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-#filename-display {
-    display: inline-block;
-    cursor: pointer;
-    font-size: 20px;
+#filename-input {
+    background: transparent;
+    border: 1px solid transparent;
     color: var(--text);
-    padding: 0;
-    margin-bottom: 1px;
+    padding: 6px 12px;
     font-family: var(--font-family);
-    white-space: nowrap;
-    overflow: hidden;
+    font-size: 20px;
+    width: 100%;
+    border-radius: 4px;
+    transition: border-color 0.2s;
     text-overflow: ellipsis;
 }
 
-#filename-input {
-    display: inline-block;
-    font-size: 20px;
-    background: transparent;
-    color: var(--text);
-    border: none;
-    border-bottom: 1px dotted var(--text);
+#filename-input:hover,
+#filename-input:focus {
+    border-color: var(--input-border-color);
     outline: none;
-    padding: 0;
-    font-family: var(--font-family);
-    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 hr {
@@ -383,6 +385,7 @@ textarea:hover {
     outline: none;
     border: 1px solid var(--text);
 }
+
 #logeq-text,
 #logeq-console {
     font-family: var(--font-family-ms);
@@ -391,7 +394,7 @@ textarea:hover {
 
 #logeq-text {
     flex: 1;
-    
+
     min-height: 60px;
     max-height: 70vh;
 }
@@ -419,7 +422,7 @@ textarea:hover {
 }
 
 .code-lines {
-    
+
     overflow: hidden;
     text-align: right;
 }
@@ -434,9 +437,10 @@ select {
     font-size: medium;
 }
 
-.collapse-section p{
+.collapse-section p {
     margin: 0 0 10px 0;
 }
+
 .collapse-section ol,
 .collapse-section ul {
     margin-bottom: 10px;
@@ -478,6 +482,73 @@ select {
 #fm-user-manual>.resizeable {
     max-height: 90vh;
     min-width: calc(100% - var(--fm-padding) * 2);
+}
+
+.tooltip {
+    position: fixed;
+    background: var(--fm-bg-color);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: var(--font-family);
+    font-size: 16px;
+    line-height: 1.5;
+    pointer-events: none;
+    /* Игнорируем мышь, пока невидим */
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+    transition: opacity 0.1s ease, transform 0.1s ease, top 0.1s ease, left 0.1s ease;
+    z-index: 9999;
+    box-shadow: 0px 3px 10px 0px #00000073;
+    border: 1px solid var(--input-border-color);
+    min-width: 160px;
+    max-width: 240px;
+}
+
+.tooltip.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.tooltip .tooltip-type {
+    font-weight: 600;
+    color: var(--accent-color);
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.tooltip .tooltip-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+}
+
+.tooltip .tooltip-name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 2px 6px;
+    font-family: inherit;
+    font-size: inherit;
+    width: 100%;
+    border-radius: 4px;
+    transition: border-color 0.2s;
+    text-overflow: ellipsis;
+}
+
+.tooltip .tooltip-name-input:hover,
+.tooltip .tooltip-name-input:focus {
+    border-color: var(--fm-border-color);
+    outline: none;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tooltip .tooltip-extra {
+    color: var(--text);
+    font-size: 16px;
+    margin-top: 4px;
 }
 
 ul {

@@ -71,6 +71,7 @@ export class CircuitIO {
                 const type = el.type === 'INPUT' ? inputElementType : el.type;
                 const obj = this.addElement(type,
                     {
+                        name: el.id,
                         pos: { x: topLeft.x + 2 * i, y: topLeft.y + 2 * j + padding }
                     }
                 );
@@ -102,6 +103,7 @@ export class CircuitIO {
                     childs: [...this.unuseBlueprintObjects, ...Array.from(this.circuit.chunks.values()).flatMap(chunk => Array.from(chunk)).map(el => ({
                         color: el.color,
                         id: el.id,
+                        name: el.name,
                         controller: el.getController(),
                         pos: {
                             x: el.x,
@@ -124,6 +126,7 @@ export class CircuitIO {
             return {
                 color: el.color,
                 id: el.id,
+                name: el.name,
                 controller: el.getController(),
                 pos: {
                     x: el.x,
@@ -160,6 +163,7 @@ export class CircuitIO {
                         srcIds.get(input)?.push(el.id);
                     }
                 }
+                if (!el.controller.controllers) continue;
                 for (const output of el.controller.controllers) {
                     if (!idMap.has(output.id)) {
                         if (!dstIds.has(output.id))
@@ -238,7 +242,7 @@ export class CircuitIO {
             } else {
                 for (const el of data.elements) {
                     let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
-                    const obj = this.addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y }, controller: { mode: gateTypeToMode.get(el.type) } } : { pos: { x: el.x, y: el.y } });
+                    const obj = this.addElement(type, type === 'GATE' ? { pos: { x: el.x, y: el.y, name: el.name }, controller: { mode: gateTypeToMode.get(el.type) } } : { pos: { x: el.x, y: el.y, name: el.name } });
                     if (obj) {
                         idMap.set(el.id, obj);
                     }

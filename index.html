@@ -15,7 +15,6 @@
 <body>
     <img id="texture_icons" src="/icons/texture_icons.png" class="hidden">
     <img id="texture_overlays" src="/icons/texture_overlays.png" class="hidden">
-    <div class="tip" id="tip"></div>
     <button class="setting-btn" id="dots-toggle"><svg xmlns="http://www.w3.org/2000/svg" fill="var(--text)"
             stroke="none" viewBox="-1 -1 18 6" fill-rule="evenodd" clip-rule="evenodd">
             <path
@@ -68,8 +67,6 @@
                 </svg></button>
         </div>
     </div>
-
-
     <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;"
         data-locale-section="floating-menu-logeq-editor">
         <div class="floating-menu-header">
@@ -155,7 +152,7 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col gap-3">
-            <div class="flex gap-1"><span data-locale="file"></span>&nbsp;<span id="filename-display">Unnamed</span>
+            <div class="flex gap-1 align-items-center"><span data-locale="file"></span><input type="text" id="filename-input">
             </div>
             <div class="flex gap-1">
                 <button id="save-scheme" class="flex-1" data-locale="save"></button>
@@ -285,7 +282,14 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             <button id="change-prompt-submit" data-locale="submit"></button>
         </div>
     </div>
-
+    <div id="element-tooltip" class="tooltip" data-locale-section="element-tooltip">
+        <div class="tooltip-type"></div>
+        <div class="tooltip-name">
+            <span data-locale="element-name"></span>
+            <input type="text" class="tooltip-name-input" spellcheck="false" />
+        </div>
+        <div class="tooltip-extra"></div>
+    </div>
     <canvas class="circuit-canvas" id="canvas-canvas"></canvas>
     <canvas class="circuit-canvas" id="webgl-canvas"></canvas>
     <input type="file" id="file-input" style="display:none" />

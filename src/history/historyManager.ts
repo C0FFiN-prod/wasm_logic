@@ -32,6 +32,11 @@ export type InverseData = {
         oldDelays: Map<Timer, number>;
         newDelay: number;
     };
+    'CHANGE_ELEMENT_NAME': {
+        element: LogicElement;
+        oldName: string;
+        newName: string;
+    };
     // Один тип данных для двух экшенов
     'ADD_CONNECTIONS': { wires: Wire[] };
     'REMOVE_CONNECTIONS': { wires: Wire[] };
@@ -190,6 +195,13 @@ export class HistoryManager {
             case 'CONNECT_TARGETS_CLEAR':
                 inverseDataSize = (action as HistoryAction<typeof action.type>).data.targets.length * 8;
                 break;
+            
+            case 'CHANGE_ELEMENT_NAME':
+                const act = (action as HistoryAction<typeof action.type>);
+                inverseDataSize = act.data.oldName.length * 8
+                    + act.data.newName.length * 8
+                    + 8;
+                break;
 
             // ── Защита от необработанных типов ──
             default: {
@@ -227,6 +239,7 @@ export class HistoryManager {
             CHANGE_COLOR: 'Изменение цвета',
             CHANGE_GATE_TYPE: 'Изменение типа вентиля',
             CHANGE_TIMER_DELAY: 'Изменение задержки таймера',
+            CHANGE_ELEMENT_NAME: 'Изменение имени элемента',
             ADD_CONNECTIONS: 'Добавление соединений',
             REMOVE_CONNECTIONS: 'Удаление соединений',
             PASTE_ELEMENTS: 'Вставка элементов',
@@ -315,6 +328,19 @@ export class HistoryManager {
     recordChangeTimerDelay(oldDelays: Map<Timer, number>, newDelay: number): void {
         if (oldDelays.size === 0) return;
         this.pushAction('CHANGE_TIMER_DELAY', { oldDelays, newDelay });
+    }
+
+    recordChangeElementName(element: LogicElement, newName: string) {
+        const lastAction = this.peekUndoAction() as HistoryAction<'CHANGE_ELEMENT_NAME'> | undefined;
+        if (
+            lastAction !== undefined &&
+            lastAction.type === 'CHANGE_ELEMENT_NAME' &&
+            lastAction.data.element === element
+        ) {
+            lastAction.data.newName = newName;
+        } else {
+            this.pushAction('CHANGE_ELEMENT_NAME', { element, newName, oldName: element.name });
+        }
     }
 
     recordAddConnections(wires: Wire[]): void {
@@ -487,6 +513,9 @@ export class HistoryManager {
             case 'CHANGE_TIMER_DELAY':
                 this.executeChangeTimerDelay(action as HistoryAction<typeof action.type>, isUndo);
                 break;
+            case 'CHANGE_ELEMENT_NAME':
+                this.executeChangeElementName(action as HistoryAction<typeof action.type>, isUndo);
+                break;
             case 'ADD_CONNECTIONS':
             case 'REMOVE_CONNECTIONS':
                 this.executeConnections(action as HistoryAction<typeof action.type>, isUndo);
@@ -514,6 +543,10 @@ export class HistoryManager {
                 console.warn(`Unknown action type in executeAction: ${_exhaustive}`);
             }
         }
+    }
+    private executeChangeElementName(action: HistoryAction<"CHANGE_ELEMENT_NAME">, isUndo: boolean) {
+        const { element, oldName, newName } = action.data;
+        element.name = isUndo ? oldName : newName;
     }
 
     private executeAddRemoveElements<T extends 'ADD_ELEMENTS' | 'PASTE_ELEMENTS' | 'DUPLICATE_ELEMENTS' | 'ADD_SCHEME_FROM_FILE' | 'REMOVE_ELEMENTS'>(
@@ -636,7 +669,7 @@ export class HistoryManager {
 
             if (isUndo)
                 elements.forEach((el) => selectionSets[key].add(el));
-            else 
+            else
                 selectionSets[key].clear();
         }
     }

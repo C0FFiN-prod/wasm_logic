@@ -66,6 +66,11 @@
     "switch": "Przełącznik",
     "output": "Wyjście"
   },
+  "element-tooltip": {
+    "element-name": "Nazwa:",
+    "timer-delay": "Opóźnienie (taktów):",
+    "gate-type": "Typ:"
+  },
   "floating-menu-change-prompt": {
     "header": "Edycja",
     "gate-mode-title": "Ustaw tryb bramki logicznej",
