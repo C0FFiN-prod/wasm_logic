@@ -1,6 +1,6 @@
 import { drawingTimer } from '../drawings';
 import { camera, circuitIO, historyManager } from '../main';
-import { screenToWorld } from './utils';
+import { floorPoint, screenToWorld } from '../utils/utils';
 
 const DRAG_THRESHOLD = 5; // пикселей, после которых действие считается перетаскиванием
 
@@ -47,7 +47,7 @@ function handleMouseDown(e: MouseEvent, btnId: string) {
 
 function handleMouseMove(e: MouseEvent) {
     if (!dragState.isDragging || !dragState.ghost) return;
-    
+
     const dx = e.clientX - dragState.startX;
     const dy = e.clientY - dragState.startY;
 
@@ -85,12 +85,7 @@ function handleMouseUp(e: MouseEvent) {
 
     if (e.target === drawingTimer.currentCanvas()) {
         const coords = screenToWorld(camera, e.clientX, e.clientY);
-        const newEl = circuitIO.addElement(currentType.toUpperCase(), {
-            pos: {
-                x: Math.floor(coords.x),
-                y: Math.floor(coords.y)
-            }
-        });
+        const newEl = circuitIO.addElement(currentType.toUpperCase(), { pos: floorPoint(coords) });
 
         if (newEl !== null) {
             historyManager.recordAddElements([newEl]);

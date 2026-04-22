@@ -4,15 +4,12 @@ import { colors, colorsThemed, ConnectMode, CopyWiresMode, Drawings, gateModeToT
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
-import * as ChangePrompt from './utils/changePrompt';
 import { LogEqLangCompiler, BuildError } from './logeqCompiler';
 import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElementsInRect, clamp, formatString, getScale, countSubstr, getSelectionCenter } from './utils/utils';
 import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, handleElementClick, initConnectTool, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
-import { resizeFMs, clampFMCoords, initFMs, saveFMsToLS } from './utils/floatingMenus';
 import { HistoryManager, type HistoryAction } from './history';
-import { initElementPalette } from './utils/palette';
-import { ElementTooltip } from './utils/tooltip';
+import { ChangePrompt, Palette, ElementTooltip, FMUtils } from './floatingMenus';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -65,14 +62,14 @@ const toggleLocale = () => {
   updateShowWiresButtonText()
   updateConnectModeButtonText()
   fileIO.updateFilenameDisplay()
-  resizeFMs()
+  FMUtils.resizeFMs()
 }
 function toggleFM(id: string, resetPos: boolean) {
   const floatingMenu = document.getElementById(id);
   if (floatingMenu) {
     floatingMenu?.classList.toggle('hidden');
     if (resetPos) (floatingMenu?.querySelector('.floating-menu-container') as HTMLElement).style = '';
-    clampFMCoords(floatingMenu);
+    FMUtils.clampFMCoords(floatingMenu);
   }
 }
 
@@ -278,14 +275,14 @@ window.onload = (() => {
 
   // Привязка кнопок
   setupEvent('save-scheme', 'click', fileIO.save);
-  setupEvent('load-scheme', 'click', () => { if(clearCanvas()) fileIO.load(false)});
+  setupEvent('load-scheme', 'click', () => { if (clearCanvas()) fileIO.load(false) });
   setupEvent('add-scheme', 'click', () => fileIO.load(true));
   setupEvent('copy-wires-mode-btn', 'click', cycleCopyWiresMode);
   setupEvent('show-wires-mode-btn', 'click', cycleShowWiresMode);
   setupEvent('connect-mode-btn', 'click', cycleConnectMode);
 
   // Toolbar buttons
-  initElementPalette();
+  Palette.initElementPalette();
   const switchTool = (e: Event, toolMode: ToolMode) => {
     if (selectedTool === toolMode) return;
     switch (toolMode) {
@@ -346,7 +343,7 @@ window.onload = (() => {
     }
   });
 
-  initFMs();
+  FMUtils.initFMs();
   const fmLogEq = document.getElementById("fm-logeq");
   const logEqText = document.getElementById("logeq-text") as HTMLTextAreaElement;
   const logEqLines = document.getElementById("logeq-lines") as HTMLElement;
@@ -499,7 +496,7 @@ window.addEventListener('resize', () => {
 
   const floatingMenus = document.querySelectorAll(".floating-menu") as NodeListOf<HTMLElement>;
   for (const floatingMenu of floatingMenus) {
-    clampFMCoords(floatingMenu);
+    FMUtils.clampFMCoords(floatingMenu);
   }
 
   drawingTimer.step();
@@ -1146,6 +1143,6 @@ function saveCircuitToLS() {
 window.addEventListener("beforeunload", (e) => {
   // e.preventDefault();
   pushSettingsToLS();
-  saveFMsToLS();
+  FMUtils.saveFMsToLS();
   saveCircuitToLS();
 });

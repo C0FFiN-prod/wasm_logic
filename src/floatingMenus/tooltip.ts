@@ -3,9 +3,9 @@ import { LRU } from "../dataStructs";
 import type { HistoryManager } from "../history";
 import { Circuit, LogicElement, LogicGate, Timer } from "../logic";
 import { isDragging, isHandMoving, isSelecting } from "../main";
-import { pointInRect } from "./geometry";
-import type { I18nLocales, I18nLocale, I18n } from "./i18n";
-import { elementExists, floorPoint, getElementAt, screenToWorld } from "./utils";
+import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
+import { floorPoint, screenToWorld, elementExists, getElementAt } from "../utils/utils";
+
 
 // tooltip.ts
 export class ElementTooltip {

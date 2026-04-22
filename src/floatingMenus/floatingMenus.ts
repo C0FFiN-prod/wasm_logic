@@ -1,5 +1,6 @@
 import { gridSize, type Point } from '../consts.ts';
-import { clamp } from './utils.ts';
+import { clamp } from '../utils/utils.ts';
+
 
 const lsKey = 'floating-menus';
 
