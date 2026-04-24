@@ -3,7 +3,7 @@ import path from 'path'
 
 export default defineConfig({
   root: '.',
-  // base: '/wasm_logic/',
+  base: '/wasm_logic/',
   build: {
     manifest: true,
     outDir: 'dist',
