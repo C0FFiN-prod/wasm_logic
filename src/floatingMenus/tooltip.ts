@@ -158,20 +158,18 @@ export class ElementTooltip {
 
     private updateContent(el: LogicElement) {
         let typeName;
-        switch (el.constructor.name) {
-            case Switch.constructor.name:
-                typeName = 'Switch'; break;
-            case Button.constructor.name:
-                typeName = 'Button'; break;
-            case LogicGate.constructor.name:
-                typeName = 'Logic Gate'; break;
-            case Timer.constructor.name:
-                typeName = 'Timer'; break;
-            case OutputElement.constructor.name:
-                typeName = 'Output'; break;           
-            default:
-                typeName = 'Element'; break;
-            
+        if (el instanceof Switch) {
+            typeName = 'Switch';
+        } else if (el instanceof Button) {
+            typeName = 'Button';
+        } else if (el instanceof LogicGate) {
+            typeName = 'Logic Gate';
+        } else if (el instanceof Timer) {
+            typeName = 'Timer';
+        } else if (el instanceof OutputElement) {
+            typeName = 'Output';
+        } else {
+            typeName = 'Element';
         }
         this.typeEl.textContent = typeName;
         this.nameInput.value = el.name || el.id.toString() || '';
