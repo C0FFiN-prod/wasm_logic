@@ -2,7 +2,7 @@ import { gateModeToType, gridSize, type Camera, type LocaleNames } from "../cons
 import { LRU } from "../dataStructs";
 import { drawingTimer } from "../drawings";
 import type { HistoryManager } from "../history";
-import { Circuit, LogicElement, LogicGate, Timer } from "../logic";
+import { Button, Circuit, LogicElement, LogicGate, OutputElement, Switch, Timer } from "../logic";
 import { isDragging, isHandMoving, isSelecting } from "../main";
 import type { I18n, I18nLocale, I18nLocales } from "../utils/i18n";
 import { floorPoint, screenToWorld, elementExists, getElementAt } from "../utils/utils";
@@ -157,7 +157,22 @@ export class ElementTooltip {
     }
 
     private updateContent(el: LogicElement) {
-        const typeName = el.constructor.name || 'Element';
+        let typeName;
+        switch (el.constructor.name) {
+            case Switch.constructor.name:
+                typeName = 'Switch'; break;
+            case Button.constructor.name:
+                typeName = 'Button'; break;
+            case LogicGate.constructor.name:
+                typeName = 'Logic Gate'; break;
+            case Timer.constructor.name:
+                typeName = 'Timer'; break;
+            case OutputElement.constructor.name:
+                typeName = 'Output'; break;           
+            default:
+                typeName = 'Element'; break;
+            
+        }
         this.typeEl.textContent = typeName;
         this.nameInput.value = el.name || el.id.toString() || '';
 
