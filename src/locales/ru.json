@@ -66,11 +66,17 @@
     "switch": "Тумблер",
     "output": "Выход"
   },
-    "element-tooltip": {
-      "element-name": "Имя:",
-      "timer-delay": "Задержка (такты):",
-      "gate-type": "Тип:"
-    },
+  "floating-menu-timing-diagram": {
+    "header": "Временная диаграмма",
+    "display-cycles": "Такты:",
+    "clear-diagram": "Очистить записи",
+    "reset-marks": "Удалить все"
+  },
+  "element-tooltip": {
+    "element-name": "Имя:",
+    "timer-delay": "Задержка (такты):",
+    "gate-type": "Тип:"
+  },
   "floating-menu-change-prompt": {
     "header": "Изменение",
     "gate-mode-title": "Установить режим логического элемента",

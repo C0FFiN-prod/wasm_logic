@@ -66,6 +66,12 @@
     "switch": "Przełącznik",
     "output": "Wyjście"
   },
+  "floating-menu-timing-diagram": {
+    "header": "Diagram czasowy",
+    "display-cycles": "Takty:",
+    "clear-diagram": "Wyczyść zapisy",
+    "reset-marks": "Usuń wszystko"
+  },
   "element-tooltip": {
     "element-name": "Nazwa:",
     "timer-delay": "Opóźnienie (taktów):",

@@ -66,6 +66,12 @@
     "switch": "Switch",
     "output": "Output"
   },
+  "floating-menu-timing-diagram": {
+    "header": "Timing Diagram",
+    "display-cycles": "Ticks:",
+    "clear-diagram": "Clear records",
+    "reset-marks": "Remove all"
+  },
   "element-tooltip": {
     "element-name": "Name:",
     "timer-delay": "Delay (ticks):",

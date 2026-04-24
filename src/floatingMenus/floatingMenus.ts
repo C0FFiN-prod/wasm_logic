@@ -49,18 +49,18 @@ export function initFMs() {
     let mouse = { x: 0, y: 0 };
     for (const floatingMenu of floatingMenus) {
         const { header, check, hideBtn, container } = getFMParts(floatingMenu);
-        const getStyleFM = window.getComputedStyle(floatingMenu);
+        const getStyleFM = floatingMenu.getBoundingClientRect();
         const getStyleFMH = window.getComputedStyle(header);
         const {
-            x = parseInt(getStyleFM.left),
-            y = parseInt(getStyleFM.top),
-            isHidden = floatingMenu.classList.contains("hidden"),
+            x = getStyleFM.left,
+            y = getStyleFM.top,
+            isHidden = floatingMenu.classList.contains("hidden") || (floatingMenu.querySelector('.floating-menu-header button.hide') !== null),
             isContainerHidden = container?.classList.contains('hidden')
         }: FloatingMenu = savedFMs[floatingMenu.id] ?? {};
 
         floatingMenu.style.left = `${x}px`;
         floatingMenu.style.top = `${y}px`;
-        floatingMenu.style.width = getStyleFM.width;
+        floatingMenu.style.width = `${getStyleFM.width}px`;
 
         if (check) {
             check.checked = isContainerHidden;

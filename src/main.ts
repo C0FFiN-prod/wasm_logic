@@ -9,7 +9,7 @@ import { setupEvent, screenToWorld, getElementAt, getSelectionWorldRect, getElem
 import { clearConnectTool, clearModeState, connectSelected, connectTool, disconnectSelected, handleElementClick, initConnectTool, processConnectToolMode, type ConnectToolTarget } from './utils/connectionTool';
 import { drawingTimer } from './drawings';
 import { HistoryManager, type HistoryAction } from './history';
-import { ChangePrompt, Palette, ElementTooltip, FMUtils } from './floatingMenus';
+import { ChangePrompt, Palette, ElementTooltip, FMUtils, TimingDiagram } from './floatingMenus';
 let canvases: Record<Drawings, HTMLCanvasElement | null>;
 export const camera: Camera = { x: 0, y: 0, zoom: 1 };
 export const circuit = new LogicGates.Circuit();
@@ -41,6 +41,7 @@ let copyWiresMode: CopyWiresMode = CopyWiresMode.Inner; // режим по ум�
 export let showWiresMode: ShowWiresMode = ShowWiresMode.Connect; // режим по умолчанию
 
 let tooltip: ElementTooltip;
+let timingDiagram: TimingDiagram;
 export let historyManager: HistoryManager;
 let fileIO: FileIO;
 export let circuitIO: CircuitIO;
@@ -139,6 +140,7 @@ window.onload = (() => {
   setupEvent('file-toggle', "click", () => toggleFM('fm-file', false));
   setupEvent('tools-toggle', "click", () => toggleFM('fm-tools', false));
   setupEvent('palette-toggle', "click", () => toggleFM('fm-palette', false));
+  setupEvent('timing-diagram-toggle', "click", () => toggleFM('fm-timing-diagram', false));
   ChangePrompt.init();
   const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
   const toggleThemeOnChange = () => {
@@ -245,8 +247,8 @@ window.onload = (() => {
   redoBtn.disabled = true;
   fileIO = new FileIO(i18n, circuitIO, historyManager);
 
-  tooltip = new ElementTooltip(i18n, circuit, camera, historyManager);
-
+  timingDiagram = new TimingDiagram(circuit);
+  tooltip = new ElementTooltip(i18n, circuit, camera, historyManager, timingDiagram);
   canvases = {
     'canvas': document.getElementById('canvas-canvas') as HTMLCanvasElement,
     'webgl': document.getElementById('webgl-canvas') as HTMLCanvasElement
@@ -521,6 +523,7 @@ function toggleTheme(setDark?: boolean) {
 // Оптимизация симуляции
 function optimizedStep() {
   circuit.step();
+  timingDiagram.recordStep();
 }
 
 function clearCanvas() {

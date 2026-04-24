@@ -50,6 +50,14 @@
                         stroke-linecap="round" />
                 </svg></button>
 
+            <button class="setting-btn" id="timing-diagram-toggle"><svg xmlns="http://www.w3.org/2000/svg"
+                    fill="transparent" stroke="var(--text)" viewBox="0 0 22 22" fill-rule="evenodd"
+                    clip-rule="evenodd">
+                    <path
+                        d="M1 1V8M21 21H17M1 8H4C4.55228 8 5 8.44772 5 9V13C5 13.5523 5.44772 14 6 14H8C8.55228 14 9 13.5523 9 13V9C9 8.44772 9.44772 8 10 8H12C12.5523 8 13 8.44772 13 9V13C13 13.5523 13.4477 14 14 14H16C16.5523 14 17 13.5523 17 13V9C17 8.44772 17.4477 8 18 8H21M1 8V20C1 20.5523 1.44772 21 2 21H5M5 21V18M5 21H9M9 21V19M9 21H13M13 21V18M13 21H17M17 21V19"
+                        stroke-linecap="round" />
+                </svg></button>
+
             <button class="setting-btn" id="user-manual-toggle"><svg xmlns="http://www.w3.org/2000/svg"
                     fill="transparent" stroke="var(--text)" viewBox="-1 -1 19 19" fill-rule="evenodd"
                     clip-rule="evenodd">
@@ -67,7 +75,7 @@
                 </svg></button>
         </div>
     </div>
-    <div class="floating-menu hidden" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;"
+    <div class="floating-menu" id="fm-logeq" style="left: 200px; top: 100px; z-index: 10;"
         data-locale-section="floating-menu-logeq-editor">
         <div class="floating-menu-header">
             <span data-locale="header"></span>
@@ -78,7 +86,7 @@
                 <div class="code-lines" id="logeq-lines"></div>
                 <textarea placeholder="A = S0; 
 B = B0;
-L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-text" cols="60" rows="10" ></textarea>
+L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-text" cols="60" rows="10"></textarea>
             </div>
             <div class="flex row between gap-3">
                 <button id="logeq-clear" data-locale="clear"></button>
@@ -152,7 +160,8 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             <input type="checkbox">
         </div>
         <div class="floating-menu-container flex col gap-3">
-            <div class="flex gap-1 align-items-center"><span data-locale="file"></span><input type="text" id="filename-input">
+            <div class="flex gap-1 align-items-center"><span data-locale="file"></span><input type="text"
+                    id="filename-input">
             </div>
             <div class="flex gap-1">
                 <button id="save-scheme" class="flex-1" data-locale="save"></button>
@@ -178,12 +187,12 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
         </div>
     </div>
 
-    <div class="floating-menu hidden" id="fm-user-manual" data-locale-section="floating-menu-user-manual">
+    <div class="floating-menu" id="fm-user-manual" data-locale-section="floating-menu-user-manual">
         <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
         <div class="floating-menu-container col resizeable" data-locale="md-user-manual"></div>
     </div>
 
-    <div class="floating-menu hidden" id="fm-settings" data-locale-section="floating-menu-settings">
+    <div class="floating-menu" id="fm-settings" data-locale-section="floating-menu-settings">
         <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
         <div class="floating-menu-container col">
             <div class="settings-block">
@@ -225,7 +234,7 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
                     <option value="none" data-locale="grid-none"></option>
                 </select>
             </div>
-          
+
             <div class="settings-block">
                 <label for="max-fps-range" data-locale="max-fps"></label>
                 <span>
@@ -241,8 +250,29 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             </div>
         </div>
     </div>
-
-    <div class="floating-menu hidden" id="fm-change-prompt" data-locale-section="floating-menu-change-prompt">
+    <div class="floating-menu" id="fm-timing-diagram" data-locale-section="floating-menu-timing-diagram">
+        <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
+        <div class="floating-menu-container flex col gap-0 resizeable">
+            <div class="timing-controls">
+                <button id="reset-marks" data-locale="reset-marks"></button>
+                <button id="clear-timing" data-locale="clear-diagram"></button>
+                <label class="timing-label">
+                    <span data-locale="display-cycles">Такты:</span>
+                    <input type="number" id="max-cycles" min="10" max="10000" value="100" style="width:60px;">
+                </label>
+            </div>
+            <hr>
+            <div class="flex row gap-0 h100 flex-1" style="min-height: 0;">
+                <div class="flex col" style="min-width: 80px; max-width: 50%; overflow: hidden;">
+                    <span>Tracked</span>
+                    <div class="timing-list col" id="timing-list"></div>
+                </div>
+                <div class="resizer"></div>
+                <canvas id="timing-canvas" class="timing-canvas flex-1"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="floating-menu" id="fm-change-prompt" data-locale-section="floating-menu-change-prompt">
         <div class="floating-menu-header"><span data-locale="header"></span><button class="hide"></button></div>
         <div class="floating-menu-container flex col gap-3">
             <div id="change-gate-mode" class="hidden align-items-center col flex gap-3">
@@ -282,12 +312,17 @@ L0 = A ^ B;" spellcheck="false" name="logeq-text" class="code-text" id="logeq-te
             <button id="change-prompt-submit" data-locale="submit"></button>
         </div>
     </div>
+
     <div id="element-tooltip" class="tooltip" data-locale-section="element-tooltip">
-        <div class="tooltip-type"></div>
+        <label class="tooltip-timing-toggle">
+            <input type="checkbox" name="tooltip-mark-timing">
+            <span class="tooltip-type"></span>
+        </label>
         <div class="tooltip-name">
             <span data-locale="element-name"></span>
             <input type="text" class="tooltip-name-input" spellcheck="false" />
         </div>
+
         <div class="tooltip-extra"></div>
     </div>
     <canvas class="circuit-canvas" id="canvas-canvas"></canvas>

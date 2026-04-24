@@ -110,6 +110,7 @@ input[type="checkbox"] {
     background: none;
     border-radius: 5px;
     border: 1px solid var(--input-border-color);
+    position: relative;
 }
 
 input[type="checkbox"]:checked {
@@ -140,7 +141,8 @@ input[type="range"] {
     accent-color: var(--accent-color);
 }
 
-select, input {
+select,
+input {
     border: 1px solid var(--input-border-color);
 }
 
@@ -551,6 +553,109 @@ select {
     margin-top: 4px;
 }
 
+.tooltip-timing-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 6px 0;
+    cursor: pointer;
+}
+
+#fm-timing-diagram {
+    width: auto !important;
+}
+
+#fm-timing-diagram>.resizeable {
+    max-height: 90vh;
+    min-width: calc(100% - var(--fm-padding) * 2);
+}
+
+#fm-timing-diagram .floating-menu-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 200px;
+    min-width: 400px;
+    overflow: hidden;
+    scrollbar-gutter: stable;
+}
+
+.timing-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.timing-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.timing-list {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    align-items: baseline;
+    scrollbar-gutter: stable;
+}
+
+.timing-toggle {
+    max-width: -webkit-fill-available;
+    max-width: -moz-available;
+    max-width: stretch;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.timing-toggle:hover {
+    background: #f0f0f0;
+}
+
+.timing-toggle input {
+    flex-shrink: 0;
+    /* width: 14px;
+    height: 14px; */
+}
+
+.timing-toggle span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.timing-canvas {
+    flex: 1;
+    min-width: 0;
+    height: 100% !important;
+    min-height: 140px;
+    background: #fff;
+    cursor: crosshair;
+    display: block;
+    image-rendering: pixelated;
+}
+
+/* Подсказка при наведении на скроллбар */
+.timing-canvas::after {
+    content: 'Прокрутка колесиком ↓';
+    position: absolute;
+    bottom: 2px;
+    right: 10px;
+    font-size: 10px;
+    color: #888;
+    pointer-events: none;
+}
+
 ul {
     padding-left: var(--li-pad);
 }
@@ -565,6 +670,29 @@ code {
     text-wrap-mode: nowrap;
     text-wrap: nowrap;
     color: var(--code-text-color);
+}
+
+.h100 {
+    height: 100%;
+}
+
+.resizer {
+    width: 10px;
+    cursor: col-resize;
+    display: flex;
+    justify-content: center;
+    background: var(--fm-bg-color);
+}
+
+.resizer::after {
+    content: ' ';
+    width: 1px;
+    background: var(--hr-color);
+    transition: width 30ms ease-in;
+}
+
+.resizer:hover::after {
+    width: 3px;
 }
 
 .resizeable {
