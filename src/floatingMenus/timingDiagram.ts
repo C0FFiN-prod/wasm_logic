@@ -289,13 +289,22 @@ export class TimingDiagram {
         let isDragging = false;
         let startX = 0;
         let startWidth = 0;
-        let containerWidth = container.clientWidth;
-        let containerHeight = container.clientHeight;
         const containerComputedStyle = window.getComputedStyle(container);
         const padding = parseInt(containerComputedStyle.paddingLeft) + parseInt(containerComputedStyle.paddingRight);
+        let containerWidth: number, containerHeight: number;
         const MIN_WIDTH = 80;
         const MAX_PERCENT = 0.5; // 50% от контейнера
+        
 
+        const fixContainerSize = () => {
+            containerWidth = container.getBoundingClientRect().width - padding;
+            containerHeight = container.getBoundingClientRect().height - padding;
+            container.style.width = `${containerWidth}px`;
+            container.style.height = `${containerHeight}px`;
+        }
+        
+        fixContainerSize();
+        
         const onResize = (e: MouseEvent) => {
             if (!isDragging) return;
             
@@ -321,10 +330,7 @@ export class TimingDiagram {
             isDragging = true;
             startX = e.clientX;
             startWidth = leftPanel.offsetWidth;
-            containerWidth = container.getBoundingClientRect().width - padding;
-            containerHeight = container.getBoundingClientRect().height - padding;
-            container.style.width = `${containerWidth}px`;
-            container.style.height = `${containerHeight}px`;
+            fixContainerSize();
             resizer.classList.add('dragging');
 
             document.addEventListener('mousemove', onResize);
