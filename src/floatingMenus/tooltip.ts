@@ -158,29 +158,27 @@ export class ElementTooltip {
 
     private updateContent(el: LogicElement) {
         let typeName;
+        let extraText = '';
+
         if (el instanceof Switch) {
-            typeName = 'Switch';
+            typeName = this.i18n.getValue('elements', 'switch');
         } else if (el instanceof Button) {
-            typeName = 'Button';
+            typeName = this.i18n.getValue('elements', 'button');
         } else if (el instanceof LogicGate) {
-            typeName = 'Logic Gate';
+            typeName = this.i18n.getValue('elements', 'gate');
+            extraText = `${this.i18n.getValue('element-tooltip', 'gate-type')} ${gateModeToType.get(el.gateType) ?? 'N/A'}`;
         } else if (el instanceof Timer) {
-            typeName = 'Timer';
+            typeName = this.i18n.getValue('elements', 'timer');
+            extraText = `${this.i18n.getValue('element-tooltip', 'timer-delay')} ${el.delay ?? 0}`;
         } else if (el instanceof OutputElement) {
-            typeName = 'Output';
+            typeName = this.i18n.getValue('elements', 'output');
         } else {
-            typeName = 'Element';
+            typeName = this.i18n.getValue('elements', 'element');
         }
+        
         this.typeEl.textContent = typeName;
         this.nameInput.value = el.name || el.id.toString() || '';
-
-        if (el instanceof LogicGate) {
-            this.extraEl.textContent = `${this.i18n.getValue('element-tooltip', 'gate-type')} ${gateModeToType.get(el.gateType) ?? 'N/A'}`;
-        } else if (el instanceof Timer) {
-            this.extraEl.textContent = `${this.i18n.getValue('element-tooltip', 'timer-delay')} ${el.delay ?? 0}`;
-        } else {
-            this.extraEl.textContent = '';
-        }
+        this.extraEl.textContent = extraText;
     }
 
     private updatePosition(x: number, y: number) {

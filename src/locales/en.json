@@ -62,6 +62,8 @@
     "xnor": "XNOR",
     "timer": "Timer",
     "t_flop": "T-Flop",
+    "element": "Element",
+    "gate": "Logic Gate",
     "button": "Button",
     "switch": "Switch",
     "output": "Output"
