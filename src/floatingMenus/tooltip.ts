@@ -100,8 +100,8 @@ export class ElementTooltip {
     }
 
     private onMouseMove(e: MouseEvent) {
-        if (this.state.isHovered || e.target !== drawingTimer.currentCanvas()) return;
-        if (isDragging || isSelecting || isHandMoving) {
+        if (this.state.isHovered) return;
+        if (isDragging || isSelecting || isHandMoving || e.target !== drawingTimer.currentCanvas()) {
             this.hide();
             return
         }
@@ -139,7 +139,7 @@ export class ElementTooltip {
 
     private show(element: LogicElement, x: number, y: number) {
         if (this.state.isVisible && this.state.currentTooltipElement === element) return;
-        this.markCheckbox.checked = this.timingDiagram.markedElements.has(element);
+        this.markCheckbox.checked = this.timingDiagram.markedElements.some(p => p.el === element);
         this.state.currentTooltipElement = element;
         this.state.cachedElement = element;
         this.updateContent(element);
@@ -175,7 +175,7 @@ export class ElementTooltip {
         } else {
             typeName = this.i18n.getValue('elements', 'element');
         }
-        
+
         this.typeEl.textContent = typeName;
         this.nameInput.value = el.name || el.id.toString() || '';
         this.extraEl.textContent = extraText;

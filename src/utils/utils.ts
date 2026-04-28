@@ -191,6 +191,20 @@ export function floorPoint(p: Point): Point {
   };
 }
 
+export function getColorForCluster(label: number) {
+
+  const H = (label * 137.508) % 360;
+  const S = 0.6 + (label % 3) * 0.1;
+  const V = 0.85 + (label % 2) * 0.1;
+  const C = ((h, s, v, l = v - v * s / 2, m = Math.min(l, 1 - l)) => `hsl(${h}, ${m ? (v - l) / m * 100 : 0}%, ${l * 100}%)`)(H, S, V);
+  return C;
+}
+
+export function swap<T>(array: T[], i: number, j: number) {
+  const t = array[i];
+  array[i] = array[j];
+  array[j] = t;
+}
 
 export function getChunkKey(point: Point, doDivide: boolean) {
   const chunkX = doDivide ? Math.floor(point.x / chunkSize) : point.x;

@@ -1,10 +1,11 @@
+import { colors, colorsThemed, type Point } from "../consts";
 import { BitArray } from "../dataStructs";
 import type { Circuit, LogicElement } from "../logic";
-import { clamp } from "../utils/utils";
+import { clamp, getColorForCluster, swap } from "../utils/utils";
 
 export class TimingDiagram {
     circuit;
-    markedElements: Map<LogicElement, BitArray>;
+    markedElements: { el: LogicElement, history: BitArray, index: number }[];
     visibleElements: Set<LogicElement>;
     maxCycles: number;
     rowHeight: number;
@@ -17,9 +18,12 @@ export class TimingDiagram {
     _rafId: null | number;
     _dirty: boolean;
     fm: HTMLElement;
+    isRecording = true;
+    private dragData: { el: LogicElement; index: number; item: HTMLElement, prevY: number } | null = null;
+
     constructor(circuit: Circuit) {
         this.circuit = circuit;
-        this.markedElements = new Map(); // LogicElement -> BitArray
+        this.markedElements = []; // LogicElement -> BitArray
         this.visibleElements = new Set();
         this.maxCycles = 100;
         this.visibleRowCount = 5;
@@ -39,38 +43,44 @@ export class TimingDiagram {
         this._draw();
     }
 
-    // === Управление метками ===
     markElement(el: LogicElement) {
         if (!el || !el.name) return;
-        if (this.markedElements.has(el)) return;
-
-        // Создаём BitArray для элемента (адаптируйте под ваш конструктор)
+        if (this.markedElements.some(p => p.el === el)) return;
         const history = new BitArray(this.maxCycles);
         history.length = this.maxCycles;
-        this.markedElements.set(el, history);
+        this.markedElements.push({ el, history, index: this.markedElements.length });
         this.visibleElements.add(el);
         this._updateList();
         this._scheduleDraw();
     }
 
     unmarkElement(el: LogicElement) {
-        this.markedElements.delete(el);
+        this.removeMarked(el);
         this.visibleElements.delete(el);
         this._updateList();
-        this._scheduleDraw(); // перерисовка после удаления
+        this._scheduleDraw();
     }
 
     resetMarks() {
-        this.markedElements.clear();
+        this.markedElements = [];
         this.visibleElements.clear();
         this._updateList();
         this._scheduleDraw();
     }
 
-    // === Запись данных (вызывать в Circuit.step()) ===
+    clearRecords() {
+        this.isRecording = false;
+        for (const { history } of this.markedElements.values()) {
+            history.clear();
+            history.length = this.maxCycles;
+        }
+        this._scheduleDraw();
+        this.isRecording = true;
+    }
+
     recordStep() {
-        for (const [el, history] of this.markedElements) {
-            // history.resize(this.maxCycles);
+        if (!this.isRecording) return;
+        for (const { el, history } of this.markedElements) {
             if (history.length >= this.maxCycles) history.shift(el.value);
             else history.push(el.value);
         }
@@ -85,49 +95,68 @@ export class TimingDiagram {
             });
         }
     }
-
-    // === Отрисовка ===
     _draw() {
         const dpr = window.devicePixelRatio || 1;
         const width = this.canvas.clientWidth || 600;
         const height = this.canvas.clientHeight;
-        
+
         this.canvas.width = width * dpr;
         this.canvas.height = height * dpr;
 
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.ctx.clearRect(0, 0, width, height);
 
-        const visibleArr = [...this.visibleElements];
+        const visibleArr = this.markedElements.filter(p => this.visibleElements.has(p.el));
         const totalRows = visibleArr.length;
         const pxPerCycle = width / this.maxCycles;
-
-
         this.ctx.textAlign = 'start';
-
-        // 2. Отрисовка видимых строк
         const startRow = this.scrollIndex;
         const endRow = Math.min(startRow + this.visibleRowCount, totalRows);
 
+        const root = document.documentElement;
+        const styles = getComputedStyle(root);
+        const textColor = styles.getPropertyValue('--text').trim();
+        const separatorColor = `rgb(
+            ${Math.round(colors.wires[0] * 255)},
+            ${Math.round(colors.wires[1] * 255)},
+            ${Math.round(colors.wires[2] * 255)}
+        )`;
+
+        this.ctx.fillStyle = `rgb(
+            ${Math.round(colors.background[0] * 255)},
+            ${Math.round(colors.background[1] * 255)},
+            ${Math.round(colors.background[2] * 255)}
+        )`;
+        this.ctx.fillRect(0, 0, width, height);
+        this.ctx.strokeStyle = `rgb(
+            ${Math.round(colors.grid[0] * 255)},
+            ${Math.round(colors.grid[1] * 255)},
+            ${Math.round(colors.grid[2] * 255)}
+        )`;
+        this.ctx.lineWidth = 2;
+        this.ctx.fillStyle = '#6b7280';
+        this.ctx.font = '10px system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.setLineDash([5, 5]);
+
+        const step = Math.max(1, Math.floor(this.maxCycles / 10));
+        for (let t = 0; t <= this.maxCycles; t += step) {
+            const x = t * pxPerCycle;
+            this.ctx.beginPath(); this.ctx.moveTo(x, 0); this.ctx.lineTo(x, height); this.ctx.stroke();
+            this.ctx.fillText(t.toString(), x + 3, 12);
+        }
+
+        this.ctx.setLineDash([]);
         for (let i = startRow; i < endRow; i++) {
-            const el = visibleArr[i];
-            const history = this.markedElements.get(el);
+            const { el, history, index } = visibleArr[i];
             if (!history) continue;
 
             const y = (i - startRow) * this.rowHeight + this.paddingTop;
             const len = Math.min(history.length || 0, this.maxCycles);
-
-            // Фон
-            this.ctx.fillStyle = (i % 2 === 0) ? '#f9fafb' : '#ffffff';
-            this.ctx.fillRect(0, y, width, this.rowHeight);
-
-            // Имя
-            this.ctx.fillStyle = '#374151';
+            this.ctx.fillStyle = textColor;
             this.ctx.font = 'bold 10px system-ui, sans-serif';
             this.ctx.fillText(el.name, 1, y + 12);
-
-            // Сигнал
-            this.ctx.strokeStyle = '#2563eb';
+            this.ctx.strokeStyle = getColorForCluster(index);
             this.ctx.lineWidth = 2;
             this.ctx.beginPath();
             this.ctx.lineJoin = 'miter';
@@ -150,30 +179,13 @@ export class TimingDiagram {
                 prevVal = val;
             }
             this.ctx.stroke();
-
-            // Разделитель
-            this.ctx.strokeStyle = '#e5e7eb';
+            this.ctx.strokeStyle = separatorColor;
             this.ctx.lineWidth = 1;
             this.ctx.beginPath();
-            this.ctx.moveTo(0, y + this.rowHeight);
-            this.ctx.lineTo(width, y + this.rowHeight);
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(width, y);
             this.ctx.stroke();
         }
-        // 1. Сетка и метки времени
-        this.ctx.strokeStyle = '#e5e7eb';
-        this.ctx.lineWidth = 1;
-        this.ctx.fillStyle = '#6b7280';
-        this.ctx.font = '10px system-ui, sans-serif';
-        this.ctx.textAlign = 'left';
-        this.ctx.setLineDash([5, 5]);
-
-        const step = Math.max(1, Math.floor(this.maxCycles / 10));
-        for (let t = 0; t <= this.maxCycles; t += step) {
-            const x = t * pxPerCycle;
-            this.ctx.beginPath(); this.ctx.moveTo(x, 0); this.ctx.lineTo(x, height); this.ctx.stroke();
-            this.ctx.fillText(t.toString(), x + 1, 12);
-        }
-        // 3. Скроллбар (если строк больше, чем окно)
         if (totalRows > this.visibleRowCount) {
             this._drawScrollbar(width, height, totalRows);
         }
@@ -192,13 +204,11 @@ export class TimingDiagram {
         this.ctx.fillRect(width - 8, thumbY, 6, thumbH);
     }
 
-    // === Управление прокруткой ===
     _clampScroll() {
         const height = this.canvas.clientHeight;
-        this.visibleRowCount = Math.ceil((height - this.paddingTop) / this.rowHeight); 
+        this.visibleRowCount = Math.round((height - this.paddingTop) / this.rowHeight);
         const max = Math.max(0, this.visibleElements.size - this.visibleRowCount);
         this.scrollIndex = Math.min(this.scrollIndex, max);
-        this._scheduleDraw();
     }
 
     _handleScroll(delta: number) {
@@ -209,31 +219,42 @@ export class TimingDiagram {
         this._scheduleDraw();
     }
 
-    // === Инициализация и события ===
     _initResizeObserver() {
-        new ResizeObserver(() => { this._clampScroll(); this._scheduleDraw()}).observe(this.canvas);
+        new ResizeObserver(() => { this._clampScroll(); this._scheduleDraw() }).observe(this.canvas);
     }
 
-    // === UI и события ===
     _updateList() {
         this.rowsListEl.innerHTML = '';
-        for (const el of this.markedElements.keys()) {
-            const wrap = document.createElement('label');
-            wrap.className = 'timing-toggle';
-
+        for (const [i, { el }] of this.markedElements.entries()) {
+            const item = document.createElement('div');
+            item.className = 'timing-toggle';
+            item.dataset.index = i.toString();
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.checked = this.visibleElements.has(el);
-            cb.addEventListener('change', () => {
+            cb.addEventListener('change', (e) => {
+                e.stopPropagation();
                 if (cb.checked) this.visibleElements.add(el);
                 else this.visibleElements.delete(el);
                 this._clampScroll();
+                this._scheduleDraw();
             });
-            const span = document.createElement('span');
-            span.textContent = el.name; // text-overflow: ellipsis обрежет лишнее
 
-            wrap.append(cb, span);
-            this.rowsListEl.append(wrap);
+            const handle = document.createElement('b');
+            handle.className = 'drag-handle';
+            handle.textContent = '⋮⋮';
+            handle.title = 'Перетащить';
+            const name = document.createElement('span');
+            name.className = 'element-name';
+            name.textContent = el.name;
+            name.title = el.name;
+
+            item.append(handle, cb, name);
+            handle.addEventListener('mousedown', () => this._onDragStart(el, item));
+            window.addEventListener('mouseup', () => this._onDragEnd(item));
+            window.addEventListener('mousemove', (e) => this._onDragOver(e));
+
+            this.rowsListEl.append(item);
         }
     }
 
@@ -243,14 +264,12 @@ export class TimingDiagram {
             e.preventDefault();
             this._handleScroll(Math.sign(e.deltaY));
         }, { passive: false });
-
-        // Клик по скроллбару для быстрого перехода
         this.canvas.addEventListener('mousedown', (e) => {
             if (this.visibleElements.size <= this.visibleRowCount) return;
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const w = rect.width;
-            if (x >= w - 15) { // зона скроллбара
+            if (x >= w - 15) {
                 const y = e.clientY - rect.top - this.paddingTop;
                 const trackH = (this.visibleRowCount * this.rowHeight);
                 const maxScroll = this.visibleElements.size - this.visibleRowCount;
@@ -258,28 +277,15 @@ export class TimingDiagram {
                 this._handleScroll(newIdx - this.scrollIndex);
             }
         });
-
-        // Число тактов
         const maxCyclesInput = document.getElementById('max-cycles') as HTMLInputElement;
         maxCyclesInput.addEventListener('input', (e) => {
             this.maxCycles = clamp(parseInt((e.target as HTMLInputElement)!.value) || 100, 10, 10000);
             (e.target as HTMLInputElement)!.value = this.maxCycles.toString();
-            for (const history of this.markedElements.values()) {
-                history.clear();
-                history.length = this.maxCycles;
-            }
-            this._draw();
+            this.clearRecords();
         });
-
-        // Очистка истории
         document.getElementById('clear-timing')?.addEventListener('click', () => {
-            for (const history of this.markedElements.values()) {
-                history.clear();
-            }
-            this._draw();
+            this.clearRecords();
         });
-
-        // Сброс меток
         document.getElementById('reset-marks')?.addEventListener('click', () => this.resetMarks());
 
         const resizer = this.fm.querySelector('.resizer')! as HTMLElement;
@@ -289,32 +295,29 @@ export class TimingDiagram {
         let isDragging = false;
         let startX = 0;
         let startWidth = 0;
-        const containerComputedStyle = window.getComputedStyle(container);
-        const padding = parseInt(containerComputedStyle.paddingLeft) + parseInt(containerComputedStyle.paddingRight);
         let containerWidth: number, containerHeight: number;
-        const MIN_WIDTH = 80;
-        const MAX_PERCENT = 0.5; // 50% от контейнера
-        
+        const MIN_WIDTH = 50;
+        const MAX_PERCENT = 0.5;
 
         const fixContainerSize = () => {
-            containerWidth = container.getBoundingClientRect().width - padding;
-            containerHeight = container.getBoundingClientRect().height - padding;
+            containerWidth = container.getBoundingClientRect().width;
+            containerHeight = container.getBoundingClientRect().height;
             container.style.width = `${containerWidth}px`;
             container.style.height = `${containerHeight}px`;
         }
-        
+
         fixContainerSize();
-        
+
         const onResize = (e: MouseEvent) => {
             if (!isDragging) return;
-            
+
             const maxWidth = containerWidth * MAX_PERCENT;
 
-            let newWidth = startWidth + (e.clientX - startX);
-            newWidth = Math.max(MIN_WIDTH, Math.min(newWidth, maxWidth));
-
+            const newWidth = Math.min(startWidth + (e.clientX - startX), maxWidth);
+            const hide = newWidth < MIN_WIDTH;
+            resizer.classList.toggle('active', hide);
+            leftPanel.classList.toggle('hidden', hide);
             leftPanel.style.width = `${newWidth}px`;
-            // Canvas автоматически растянется через flex: 1
         };
 
         const onStop = () => {
@@ -329,7 +332,7 @@ export class TimingDiagram {
             e.preventDefault();
             isDragging = true;
             startX = e.clientX;
-            startWidth = leftPanel.offsetWidth;
+            startWidth = leftPanel.clientWidth;
             fixContainerSize();
             resizer.classList.add('dragging');
 
@@ -338,5 +341,51 @@ export class TimingDiagram {
         };
 
         resizer.addEventListener('mousedown', onStart);
+    }
+
+    private removeMarked(el: LogicElement) {
+        const idx = this.markedElements.findIndex(p => p.el == el);
+        if (idx === -1) return;
+        this.markedElements.splice(idx, 1);
+    }
+
+    private _onDragStart(el: LogicElement, item: HTMLElement) {
+        const rect = item.getBoundingClientRect();
+        const dY = rect.height / 2
+        const midY = rect.top + dY;
+        const index = this.markedElements.findIndex(p => p.el === el);
+        this.dragData = { el, index, item, prevY: midY };
+        item.classList.add('dragging');
+    }
+
+    private _onDragEnd(item: HTMLElement) {
+        item.classList.remove('dragging');
+        this.dragData = null;
+    }
+
+    private _onDragOver(e: MouseEvent) {
+        e.preventDefault();
+        if (!this.dragData) return;
+
+        const rect = this.dragData.item.getBoundingClientRect();
+        const dY = rect.height / 2
+        if (Math.abs(this.dragData.prevY - e.clientY) < dY) return;
+        const midY = rect.top + dY;
+        const dir = Math.sign(-midY + e.clientY);
+        this.dragData.prevY = midY + rect.height * dir;
+        const swapIndex = clamp(this.dragData.index + dir, 0, this.markedElements.length - 1);
+
+        if (swapIndex === this.dragData.index) return;
+        swap(this.markedElements, swapIndex, this.dragData.index);
+
+        const listEl = this.dragData.item.parentElement!;
+        if (swapIndex < this.dragData.index) {
+            listEl?.insertBefore(this.dragData.item, this.dragData.item.previousSibling);
+        } else if (this.dragData.item.nextSibling) {
+            listEl?.insertBefore(this.dragData.item.nextSibling, this.dragData.item);
+        }
+        this.dragData.index = swapIndex;
+
+        this._scheduleDraw();
     }
 }

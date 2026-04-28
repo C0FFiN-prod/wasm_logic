@@ -517,6 +517,7 @@ function toggleTheme(setDark?: boolean) {
   colors.grid = colorsThemed.grid[setDark ? 'dark' : 'light'];
   colors.background = colorsThemed.background[setDark ? 'dark' : 'light'];
   colors.wires = colorsThemed.wires[setDark ? 'dark' : 'light'];
+  timingDiagram._draw();
   drawingTimer.step();
 }
 
@@ -529,6 +530,7 @@ function optimizedStep() {
 function clearCanvas() {
   if (confirm(i18n.getValue('dynamic', 'clear-canvas'))) {
     circuit.clear();
+    timingDiagram.resetMarks();
     elementUnderCursor = null;
     camera.x = 0;
     camera.y = 0;
