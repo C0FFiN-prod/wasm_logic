@@ -106,7 +106,7 @@ export class Lexer {
             column: this.column - text.length
         }
         if (type === 'UNKNOWN') {
-            token.type = errType || 'unknown-token';
+            token.type = errType || 'invalid-token';
             this.unknownTokens.push(token);  
         }
         else this.tokens.push(token);
