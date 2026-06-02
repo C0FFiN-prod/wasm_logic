@@ -72,15 +72,20 @@ Visualize signal changes over time with the integrated timing diagram:
 *   **Interactive Display**: View waveforms, cycle gridlines, and element labels.
 
 ## Screenshots and GIFs
-<img src="/assets/images/basic.gif" width=300 alt="Basic circuit creation and simulation">
+Basic circuit creation and simulation
+<img src="/assets/images/basic.gif" width=600 alt="Basic circuit creation and simulation">
 
-<img src="/assets/images/logeq.png" width=300 alt="LogEq editor with a sample code and the resulting circuit">
+LogEq editor with a sample code and the resulting circuit
+<img src="/assets/images/logeq.png" width=600 alt="LogEq editor with a sample code and the resulting circuit">
 
-<img src="/assets/images/decoder.gif" width=200 alt="Advanced connection modes: Decoder">
+Advanced connection modes: Decoder
+<img src="/assets/images/decoder.gif" width=600 alt="Advanced connection modes: Decoder">
 
-<img src="/assets/images/timing-diagram.gif" width=200 alt="Timing Diagram for counter in action">
+Timing Diagram for counter in action
+<img src="/assets/images/timing-diagram.gif" width=600 alt="Timing Diagram for counter in action">
 
-<img src="/assets/images/light.png" width=100 alt="Light theme"><img src="/assets/images/dark.png" width=100 alt="Dark theme">
+Themes \
+<img src="/assets/images/light.png" width=300 alt="Light theme"><img src="/assets/images/dark.png" width=300 alt="Dark theme">
 
 ## Getting Started
 
@@ -88,8 +93,8 @@ To run `LoSi` locally, follow these steps:
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/C0FFiN-prod/LoSi.git
-    cd LoSi
+    git clone https://github.com/C0FFiN-prod/wasm_logic.git
+    cd wasm_logic
     ```
 2.  **Install dependencies**:
     ```bash
