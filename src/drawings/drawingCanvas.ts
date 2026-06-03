@@ -58,6 +58,25 @@ export function initContext(_canvas: HTMLCanvasElement) {
     updateTilePatterns();
 }
 
+let prevCameraX = NaN;
+let prevCameraY = NaN;
+let prevCameraZoom = NaN;
+
+function isCameraChanged() {
+    const r = forcedRedraw != 0
+        || camera.x !== prevCameraX
+        || camera.y !== prevCameraY
+        || camera.zoom !== prevCameraZoom;
+    prevCameraX = camera.x;
+    prevCameraY = camera.y;
+    prevCameraZoom = camera.zoom;
+    if (forcedRedraw != 0) --forcedRedraw;
+    return r;
+}
+
+let forcedRedraw = 0;
+export function forceRedraw(frames: number = 1) { forcedRedraw = frames; }
+
 export function draw() {
     if (++frameCnt === 10000) {
         frameCnt = 0;
@@ -69,84 +88,96 @@ export function draw() {
         .translate(Math.round(-camera.x), Math.round(-camera.y))
         .scaleSelf(camera.zoom, camera.zoom)
     ctx.setTransform(matrixScale);
-    const h = camera.zoom * gridSize;
-    const newStep = Math.round(gridSize * camera.zoom * scale);
-    if (iconStep !== newStep) {
-        iconStep = newStep;
-        offscreenElements.canvas.height = iconStep;
-        offscreenElements.canvas.width = iconStep;
-        offscreenElements.clearRect(0, 0, iconStep, iconStep);
-        updateIcons();
-    }
+    const isFullRedraw = isCameraChanged();
+    if (isFullRedraw) {
 
-    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    ctx.shadowBlur = 0;
-    {
-        let pattern;
-        updateTilePatterns();
-        switch (settings.grid) {
-            case "grid": ctx.fillStyle = pattern = tilePatterns.grid!; break;
-            case "dotted": ctx.fillStyle = pattern = tilePatterns.dotted!; break;
-            case "none": ctx.fillStyle = `rgba(
-                ${Math.round(colors.background[0] * 255)},
-                ${Math.round(colors.background[1] * 255)},
-                ${Math.round(colors.background[2] * 255)},
-                ${colors.background[3]}    
-            )`; break;
+        const h = camera.zoom * gridSize;
+        const newStep = Math.round(gridSize * camera.zoom * scale);
+        if (iconStep !== newStep) {
+            iconStep = newStep;
+            offscreenElements.canvas.height = iconStep;
+            offscreenElements.canvas.width = iconStep;
+            offscreenElements.clearRect(0, 0, iconStep, iconStep);
+            updateIcons();
         }
-        const zoom = (h / Math.trunc(h * scale));
-        pattern?.setTransform(new DOMMatrix()
-            .translate(-camera.x, -camera.y)
-            .scale(zoom, zoom)
-        );
-    }
-
-    ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    if (showWiresMode !== ShowWiresMode.None) {
-        ctx.lineWidth = 1 / scale;
-        WireDrawing.draw({
-            setup: (color: vec4) => {
-                ctx.strokeStyle = `rgba(
-                    ${Math.round(color[0] * 255)},
-                    ${Math.round(color[1] * 255)},
-                    ${Math.round(color[2] * 255)},
-                    ${color[3]}
-                )`;
-            },
-            finalize: (start, end) => {
-                ctx.beginPath();
-                drawLines(WireDrawing.buffer, start, (end - start) / 4);
-                ctx.stroke();
+    
+        ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+        ctx.shadowBlur = 0;
+        {
+            let pattern;
+            updateTilePatterns();
+            switch (settings.grid) {
+                case "grid": ctx.fillStyle = pattern = tilePatterns.grid!; break;
+                case "dotted": ctx.fillStyle = pattern = tilePatterns.dotted!; break;
+                case "none": ctx.fillStyle = `rgba(
+                    ${Math.round(colors.background[0] * 255)},
+                    ${Math.round(colors.background[1] * 255)},
+                    ${Math.round(colors.background[2] * 255)},
+                    ${colors.background[3]}    
+                )`; break;
             }
-        }, canvas);
-    }
-    ctx.setTransform(matrixCamera);
-
-    const cameraWorldX = camera.x / h - 1;
-    const cameraWorldY = camera.y / h - 1;
-    const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
-
-    const x0 = Math.floor(cameraWorldX / chunkSize);
-    const y0 = Math.floor(cameraWorldY / chunkSize);
-    const x1 = Math.floor(wx / chunkSize);
-    const y1 = Math.floor(wy / chunkSize);
-    const visibleChunks = [];
-
-    for (let x = x0; x <= x1; ++x) {
-        for (let y = y0; y <= y1; ++y) {
-            const chunk = circuit.chunks.get(`${x}|${y}`);
-            if (chunk && chunk.size > 0)
-                visibleChunks.push(chunk);
+            const zoom = (h / Math.trunc(h * scale));
+            pattern?.setTransform(new DOMMatrix()
+                .translate(-camera.x, -camera.y)
+                .scale(zoom, zoom)
+            );
         }
-    }
-
-    for (const el of ghostElements) {
-        saveElement(el);
-    }
-
-    for (const chunk of visibleChunks) {
-        for (const el of [...chunk]) {
+    
+        ctx.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+        if (showWiresMode !== ShowWiresMode.None) {
+            ctx.lineWidth = 1 / scale;
+            WireDrawing.draw({
+                setup: (color: vec4) => {
+                    ctx.strokeStyle = `rgba(
+                        ${Math.round(color[0] * 255)},
+                        ${Math.round(color[1] * 255)},
+                        ${Math.round(color[2] * 255)},
+                        ${color[3]}
+                    )`;
+                },
+                finalize: (start, end) => {
+                    ctx.beginPath();
+                    drawLines(WireDrawing.buffer, start, (end - start) / 4);
+                    ctx.stroke();
+                }
+            }, canvas);
+        }
+        ctx.setTransform(matrixCamera);
+    
+        const cameraWorldX = camera.x / h - 1;
+        const cameraWorldY = camera.y / h - 1;
+        const { x: wx, y: wy } = screenToWorld(camera, canvas.width, canvas.height);
+    
+        const x0 = Math.floor(cameraWorldX / chunkSize);
+        const y0 = Math.floor(cameraWorldY / chunkSize);
+        const x1 = Math.floor(wx / chunkSize);
+        const y1 = Math.floor(wy / chunkSize);
+        const visibleChunks = [];
+    
+        for (let x = x0; x <= x1; ++x) {
+            for (let y = y0; y <= y1; ++y) {
+                const chunk = circuit.chunks.get(`${x}|${y}`);
+                if (chunk && chunk.size > 0)
+                    visibleChunks.push(chunk);
+            }
+        }
+    
+        for (const el of ghostElements) {
             saveElement(el);
+        }
+    
+        for (const chunk of visibleChunks) {
+            for (const el of chunk) {
+                saveElement(el);
+            }
+        }
+    } else {
+        ctx.setTransform(matrixCamera);
+
+        const limit = Math.min(circuit.pendingCnt, circuit.pendingElements.length);
+        for (let i = 0; i < limit; i++) {
+            const el = circuit.pendingElements[i];
+            if (!el.deleted) saveElement(el);
         }
     }
 
@@ -161,9 +192,13 @@ export function draw() {
         if (offset === 0) elementMap.delete(k);
         v.offset = 0;
     }
-
-    drawBorders();
-    drawOverlays();
+    if (isFullRedraw) {
+        drawBorders();
+        drawOverlays();
+    } else {
+        drawPendingBorders();
+        drawPendingOverlays();
+    }
     
     if (isSelecting) {
         ctx.setTransform(matrixScale);
@@ -274,6 +309,125 @@ function saveElement(el: LogicElement | ElementPDO) {
     if (elementCache.batch.length <= elementCache.offset) elementCache.batch.length = (elementCache.offset + 1) * 2;
     elementCache.batch[elementCache.offset] = el;
     ++elementCache.offset;
+}
+
+function drawPendingBorders() {
+    if (circuit.pendingElements.length === 0) return;
+
+    ctx.lineWidth = 1 / camera.zoom;
+
+    const drawBorderRect = (p: Point) => {
+        const wx = p.x * gridSize;
+        const wy = p.y * gridSize;
+        ctx.rect(wx, wy, gridSize, gridSize);
+    };
+
+    const sw = connectTool.sources[0].intersection(connectTool.sources[1]);
+
+    ctx.beginPath();
+    ctx.strokeStyle = textColors[selectedTool === ToolMode.Cursor ? 1 : 5];
+    for (const el of circuit.pendingElements) {
+        if (selectionSets['selection'].has(el)) {
+            drawBorderRect(el);
+        }
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = textColors[2];
+    for (const el of circuit.pendingElements) {
+        if (connectTool.sources[0].has(el) && !sw.has(el)) {
+            drawBorderRect(el);
+        }
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = textColors[3];
+    for (const el of circuit.pendingElements) {
+        if (connectTool.sources[1].has(el) && !sw.has(el)) {
+            drawBorderRect(el);
+        }
+    }
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = textColors[4];
+    for (const el of circuit.pendingElements) {
+        if (sw.has(el)) {
+            drawBorderRect(el);
+        }
+    }
+    ctx.stroke();
+}
+
+function drawPendingOverlays() {
+    if (circuit.pendingElements.length === 0 && elementUnderCursor === null) return;
+
+    ctx.font = `bold ${gridSize * 0.5}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = "black";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Вспомогательная функция для отрисовки текста оверлея
+    const drawOverlayText = (p: Point, iconKey: string, colorIdx: number) => {
+        const iconIdx = overlayIconMap.get(iconKey);
+        if (!iconIdx) return;
+        ctx.fillStyle = textColors[colorIdx || 0];
+        const wx = p.x * gridSize;
+        const wy = p.y * gridSize;
+        ctx.fillText(texts[iconIdx - 1], wx + gridSize * 0.5, wy + gridSize * 0.55);
+    };
+
+    const pendingSet = new Set(circuit.pendingElements);
+
+    for (const el of circuit.pendingElements) {
+
+        const custom = customOverlays.get(el);
+        if (custom) {
+            drawOverlayText(el, custom.icon, custom.color);
+        }
+
+        if (el === elementUnderCursor) {
+            const isSelfLoop = el.inputs.has(el);
+            const mainIconKey = isSelfLoop ? 'sw' : 'x';
+            const mainColorIdx = overlayColorIndexes[overlayIconMap.get(mainIconKey)!] || 0;
+            drawOverlayText(el, mainIconKey, mainColorIdx);
+
+            const inIconKey = 'in';
+            const inColorIdx = overlayColorIndexes[overlayIconMap.get(inIconKey)!] || 0;
+            const outIconKey = 'out';
+            const outColorIdx = overlayColorIndexes[overlayIconMap.get(outIconKey)!] || 0;
+            const vvIconKey = 'vv';
+            const vvColorIdx = overlayColorIndexes[overlayIconMap.get(vvIconKey)!] || 0;
+
+            const vv: Point[] = [];
+
+            for (const inputEl of el.inputs) {
+                if (inputEl === el) continue;
+                if (el.outputs.has(inputEl)) {
+                    vv.push(inputEl);
+                } else if (pendingSet.has(inputEl)){
+                    drawOverlayText(inputEl, inIconKey, inColorIdx);
+                }
+            }
+
+            for (const outputEl of el.outputs) {
+                if (outputEl === el) continue;
+                if (el.inputs.has(outputEl)) continue;
+                drawOverlayText(outputEl, outIconKey, outColorIdx);
+            }
+
+            for (const vvEl of vv) {
+                drawOverlayText(vvEl, vvIconKey, vvColorIdx);
+            }
+        }
+    }
+
+    ctx.shadowBlur = 0;
 }
 
 function drawBorders() {

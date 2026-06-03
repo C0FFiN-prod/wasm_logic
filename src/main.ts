@@ -797,6 +797,7 @@ function onCanvasMouseMove(e: MouseEvent) {
     for (const el of selectionSets['selection'])
       circuit.moveElementBy(el, deltaWorld);
     historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
+    drawingTimer.forceRedraw();
   }
   else if (isSelecting) {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -810,6 +811,7 @@ function onCanvasMouseMove(e: MouseEvent) {
       selectionSets[selectionSetKey].clear();
       selected.forEach(el => selectionSets[selectionSetKey].add(el));
     }
+    drawingTimer.forceRedraw();
   }
   prevMousePos.x = e.offsetX;
   prevMousePos.y = e.offsetY;

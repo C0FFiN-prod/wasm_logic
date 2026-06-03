@@ -1,14 +1,14 @@
 import { chunkSize, type Point } from "./consts";
-import { BitArray, LRU, Pair, Queue } from "./dataStructs";
+import { BitArray, LRU, Pair } from "./dataStructs";
 import { getChunkKey } from "./utils/utils";
 
-// logic.js
 let nextId = 1;
 
 export class LogicElement {
     setValue(_: boolean) { throw new Error("Method not implemented."); }
     eval() { throw new Error("Method not implemented."); };
     getController(): Record<string, any> | null { return null; };
+    deleted = false;
     id: number;
     name: string;
     type: string;
@@ -252,16 +252,23 @@ export class Wire {
 export class Circuit {
     chunks: Map<string, Set<LogicElement>>;
     lruChunkCache: LRU<string>;
-    pendingElements: Queue<LogicElement>;
+    
+    public get size(): number {
+        return this._size;
+    }
+    private _size: number = 0;
+    pendingCnt: number = 0;
+    pendingElements: LogicElement[];
     wires: Map<string, Wire>;
     constructor() {
         this.chunks = new Map();
         this.lruChunkCache = new LRU();
-        this.pendingElements = new Queue();
+        this.pendingElements = [];
         this.wires = new Map();
     }
     addExitstingElement(el: LogicElement) {
         this._getChunk(el).add(el);
+        el.deleted = false;
     }
     addElement(type: string, params: Record<string, any>) {
         let el: LogicElement;
@@ -289,6 +296,7 @@ export class Circuit {
         }
 
         this._getChunk(el).add(el);
+        ++this._size;
         return el;
     }
 
@@ -308,10 +316,7 @@ export class Circuit {
     }
 
     addWire(src: LogicElement, dst: LogicElement) {
-        // Проверяем, нет ли уже такого провода
         const wireKey = `${src.id}|${dst.id}`;
-        // const reverseWireKey = `${dst.id}|${src.id}`;
-
 
         if (this.wires.has(wireKey))
             return undefined;
@@ -334,11 +339,9 @@ export class Circuit {
         return undefined;
     }
 
-    // Удалить все провода, связанные с элементом
     removeWiresForElement(element: LogicElement) {
         const wiresToRemove = new Array<Pair<Wire, string>>();
 
-        // Сначала находим все провода для удаления
         const elID = element.id;
         let wire, key: string;
         for (const el of element.outputs) {
@@ -352,7 +355,6 @@ export class Circuit {
             }
         }
 
-        // Затем удаляем их
         for (const wire of wiresToRemove) {
             wire.first.dst.removeInput(wire.first.src);
             this.wires.delete(wire.second);
@@ -362,17 +364,21 @@ export class Circuit {
 
     step() {
         // Фаза 1: вычисление новых состояний
+        this.pendingCnt = 0;
         for (const chunk of this.chunks.values()) {
             for (const el of chunk) {
                 el.eval();
-                if (el.nextValue !== el.value) this.pendingElements.push(el);
+                if (el.nextValue !== el.value) {
+                    if (this.pendingElements.length <= this.pendingCnt) this.pendingElements.push(el);
+                    else this.pendingElements[this.pendingCnt] = el;
+                    ++this.pendingCnt;
+                }
             }
         }
 
         // Фаза 2: применение новых состояний
-        let el: LogicElement | undefined;
-        while ((el = this.pendingElements.pop()) !== undefined) {
-            el.applyNextValue();
+        for (let i = 0; i < this.pendingCnt; ++i) {
+            this.pendingElements[i].applyNextValue();
         }
     }
 
@@ -385,7 +391,8 @@ export class Circuit {
         }
     }
     clear() {
-        this.pendingElements.resize(16);
+        this.pendingCnt = 0;
+        this.pendingElements = [];
         this.wires.clear();
         this.chunks.clear();
         this.lruChunkCache.clear();
@@ -413,7 +420,14 @@ export class Circuit {
     }
 
     deleteElement(el: LogicElement) {
-        this.getChunk(el, true)?.delete(el);
+        if (this.getChunk(el, true)?.delete(el)) {
+            --this._size;
+            el.deleted = true;
+        }
+        if (this._size < this.pendingElements.length) {
+            this.pendingElements.length = this._size;
+            this.pendingCnt = Math.min(this._size, this.pendingCnt);
+        }
     }
 }
 
@@ -424,8 +438,6 @@ export function isOutputElement(el: LogicElement): boolean {
 export function isInputElement(el: LogicElement): boolean {
     return el && (el instanceof Button || el instanceof Switch);
 }
-// Экспортируем классы для main.js
-
 
 export const LogicGates = {
     Pair,

@@ -16,7 +16,7 @@ import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen,
 import { connectTool } from "../utils/connectionTool";
 import { overlayIconMap, WireDrawing } from ".";
 
-
+export function forceRedraw(_:number = 1) { }
 
 type Program = {
     program: WebGLProgram | null,
@@ -326,7 +326,7 @@ export function draw() {
         gl.uniform1f(program.uniforms.style, style);
         gl.uniform1f(program.uniforms.cellSize, hs);
         gl.uniform1f(program.uniforms.line, lineWidth);
-        gl.uniform2f(program.uniforms.offset, (camera.x * scale  - shift) % hs, canvas.height + (camera.y * scale  - shift) % hs);
+        gl.uniform2f(program.uniforms.offset, (camera.x * scale - shift) % hs, canvas.height + (camera.y * scale - shift) % hs);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
     } else {
         gl.clearColor(...colors.background);
