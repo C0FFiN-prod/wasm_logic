@@ -128,7 +128,7 @@ export class ElementTooltip {
             if (this.state.showTimer !== null) clearTimeout(this.state.showTimer);
             this.state.showTimer = window.setTimeout(() => {
                 this.show(element, e.clientX, e.clientY);
-            }, 50);
+            }, 200);
         } else {
             clearTimeout(this.state.hideTimer!);
             this.state.hideTimer = window.setTimeout(() => {

@@ -21,11 +21,11 @@ export class CircuitIO {
         this.colorPicker = colorPicker;
     }
 
-    private updateChunk(chunk: LogicGates.Chunk) {
+    updateChunk(chunk: LogicGates.Chunk) {
         chunk.version = (chunk.version + 1) >>> 0;
     }
 
-    private updateChunks(chunks: Iterable<LogicGates.Chunk>) {
+    updateChunks(chunks: Iterable<LogicGates.Chunk>) {
         for (const chunk of chunks) {
             this.updateChunk(chunk);
         }

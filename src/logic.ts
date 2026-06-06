@@ -400,9 +400,8 @@ export class Circuit {
     }
     moveElementTo(el: LogicElement, point: Point,
         affectedChunks: { src: Chunk | undefined, dst: Chunk | undefined } | null = null) {
-        let { x, y } = el;
-        x = Math.floor(x / chunkSize);
-        y = Math.floor(y / chunkSize);
+        const x = Math.floor(el.x / chunkSize);
+        const y = Math.floor(el.y / chunkSize);
         el.x = point.x;
         el.y = point.y;
         if (x !== Math.floor(el.x / chunkSize) ||
@@ -422,9 +421,8 @@ export class Circuit {
     }
     moveElementBy(el: LogicElement, delta: Point,
         affectedChunks: { src: Chunk | undefined, dst: Chunk | undefined } | null = null) {
-        let { x, y } = el;
-        x = Math.floor(x / chunkSize);
-        y = Math.floor(y / chunkSize);
+        const x = Math.floor(el.x / chunkSize);
+        const y = Math.floor(el.y / chunkSize);
         el.x += delta.x;
         el.y += delta.y;
         if (x !== Math.floor(el.x / chunkSize) ||

@@ -1,6 +1,6 @@
 // main.js
 import { CircuitIO } from './IOs/circuitIO';
-import { colors, colorsThemed, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, GridStyle, locales, maxZoom, SelectionSets, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
+import { chunkSize, colors, colorsThemed, ConnectMode, CopyWiresMode, Drawings, gateModeToType, gateTypeToMode, gridSize, GridStyle, locales, maxZoom, SelectionSets, ShowWiresMode, Themes, ToolMode, WireDrawings, type Camera, type ElementPDO, type LocaleNames, type Point, type vec4 } from './consts';
 import { FileIO } from './IOs/fileIO';
 import { I18n } from './utils/i18n';
 import * as LogicGates from './logic';
@@ -273,7 +273,7 @@ window.onload = (() => {
   drawingTimer.changeMaxFPS();
   drawingTimer.changeDrawing();
   toggleThemeOnChange();
-  toggleLocale();
+  
 
   // Привязка кнопок
   setupEvent('save-scheme', 'click', fileIO.save);
@@ -468,6 +468,7 @@ window.onload = (() => {
       fileIO.save();
     }
   });
+  toggleLocale();
   getCircuitFromLS();
   drawingTimer.step();
   setInterval(() => circuitIO.clearUnusedChunks(), 60000);
@@ -699,6 +700,7 @@ function onCanvasMouseDown(e: MouseEvent) {
               if (gateTypeToMode.has(mode)) {
                 const oldTypes: Map<LogicGates.LogicGate, number> = new Map();
                 const newType = gateTypeToMode.get(mode)!;
+                const affectedChunks = new Set<LogicGates.Chunk>();
 
                 function changeGateMode(el: LogicGates.LogicGate, type: string) {
                   if (el.gateType === newType) return;
@@ -706,12 +708,16 @@ function onCanvasMouseDown(e: MouseEvent) {
                   if (type === 'T_FLOP') circuit.addWire(el, el);
                   else circuit.removeWire(el, el);
                   el.gateType = newType;
+                  const chunk = circuit.getChunk(el, true);
+                  if (chunk) affectedChunks.add(chunk);
                 }
 
                 changeGateMode(el, mode);
                 for (const elI of selectionSets['selection']) {
                   if (elI instanceof LogicGates.LogicGate) changeGateMode(elI, mode);
                 }
+
+                circuitIO.updateChunks(affectedChunks);
 
                 historyManager.recordChangeGateType(oldTypes, newType);
                 drawingTimer.step();
