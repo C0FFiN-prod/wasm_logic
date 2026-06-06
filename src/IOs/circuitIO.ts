@@ -3,7 +3,9 @@ import * as LogicGates from "../logic";
 import { getPointDelta, getPointFromChunkKey, getScale, screenToWorld } from "../utils/utils";
 export type Element = { id: string, type: string, inputs: string[], layer: number };
 type Rect = { x0: number, y0: number, x1: number, y1: number };
-// Сериализация схемы в JSON
+type AffectedPair = { src: LogicGates.Chunk | undefined; dst: LogicGates.Chunk | undefined; } | null;
+type MoveFunc = { (el: LogicGates.LogicElement, delta: Point, affectedChunks?: AffectedPair): void; (el: LogicGates.LogicElement, p: Point, ap?: AffectedPair): void; };
+
 export class CircuitIO {
 
     circuit: LogicGates.Circuit;
@@ -18,6 +20,30 @@ export class CircuitIO {
         this.camera = camera;
         this.colorPicker = colorPicker;
     }
+
+    private updateChunk(chunk: LogicGates.Chunk) {
+        chunk.version = (chunk.version + 1) >>> 0;
+    }
+
+    private updateChunks(chunks: Iterable<LogicGates.Chunk>) {
+        for (const chunk of chunks) {
+            this.updateChunk(chunk);
+        }
+    }
+
+    private moveElements(elements: Iterable<LogicGates.LogicElement>, p: Point, func: MoveFunc) {
+        const affectedPair = { src: undefined, dst: undefined };
+        const affectedChunks = new Set<LogicGates.Chunk>();
+        for (const el of elements) {
+            func(el, p, affectedPair);
+            if (affectedPair.src) affectedChunks.add(affectedPair.src);
+            if (affectedPair.dst) affectedChunks.add(affectedPair.dst);
+            affectedPair.src = undefined;
+            affectedPair.dst = undefined;
+        }
+        this.updateChunks(affectedChunks);
+    }
+
     clearCircuit() {
         this.circuit.clear();
     }
@@ -44,7 +70,7 @@ export class CircuitIO {
             const delta = getPointDelta(point, center);
             const isFarAway = (Math.abs(delta.x) > maxDist.x || Math.abs(delta.y) > maxDist.y);
             if (!isFarAway) break;
-            if (chunk.size === 0)
+            if (chunk.data.size === 0)
                 keysToDelete.push(key);
         }
         for (const key of keysToDelete) {
@@ -93,14 +119,14 @@ export class CircuitIO {
                 }
             }
         }
-        
+
         return idMap.values();
     }
     serializeCircuit(): string {
         const data = {
             bodies: [
                 {
-                    childs: [...this.unuseBlueprintObjects, ...Array.from(this.circuit.chunks.values()).flatMap(chunk => Array.from(chunk)).map(el => ({
+                    childs: [...this.unuseBlueprintObjects, ...Array.from(this.circuit.chunks.values()).flatMap(chunk => Array.from(chunk.data)).map(el => ({
                         color: el.color,
                         id: el.id,
                         name: el.name,
@@ -172,7 +198,7 @@ export class CircuitIO {
                     }
                 }
             }
-            this.circuit.chunks.forEach(chunk => chunk.forEach(el => {
+            this.circuit.chunks.forEach(chunk => chunk.data.forEach(el => {
                 if (!idMap.has(el.id)) {
                     if (srcIds.has(el.id)) srcIdMap.set(el.id, el);
                     if (dstIds.has(el.id)) dstIdMap.set(el.id, el);
@@ -227,18 +253,18 @@ export class CircuitIO {
             const version = data.version;
             const center = screenToWorld(this.camera, window.innerWidth * getScale() / 2, window.innerHeight * getScale() / 2);
             const blueprintRect = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
-    
+
             if (version === 3 || version === 4) {
                 for (const body of data.bodies) {
                     this._fillIdMap(body.childs, idMap, blueprintRect);
                 }
                 const blueprintDelta = this._getBlueprintDeltaToPoint(blueprintRect, center);
-    
+
                 for (const body of data.bodies) {
                     this._wireUpFromIterable(body.childs, idMap, blueprintDelta, true);
                 }
-    
-    
+
+
             } else {
                 for (const el of data.elements) {
                     let type = gateTypeToMode.has(el.type) ? 'GATE' : el.type;
@@ -247,7 +273,7 @@ export class CircuitIO {
                         idMap.set(el.id, obj);
                     }
                 }
-    
+
                 if (!version) {
                     for (const w of data.wires) {
                         const src = idMap.get(w.from);
@@ -292,13 +318,25 @@ export class CircuitIO {
         const cY = Math.ceil(y);
         const compensateX = clockwise ? 0 : (cX - Math.floor(x));
         const compensateY = clockwise ? (cY - Math.floor(y)) : 0;
+
+        const affectedPair = { src: undefined, dst: undefined };
+        const affectedChunks = new Set<LogicGates.Chunk>();
+
+        const onChunkAffected = () => {
+            if (affectedPair.src) affectedChunks.add(affectedPair.src);
+            if (affectedPair.dst) affectedChunks.add(affectedPair.dst);
+            affectedPair.src = undefined;
+            affectedPair.dst = undefined;
+        }
+
         selectedElements.forEach(el => {
             const elX = el.x;
             const elY = el.y;
             this.circuit.moveElementTo(el, {
                 x: cX - (elY - cY) * sinF - compensateX,
                 y: cY + (elX - cX) * sinF - compensateY
-            });
+            }, affectedPair);
+            onChunkAffected();
         });
 
     }
@@ -316,10 +354,18 @@ export class CircuitIO {
         }
         const cX = Math.round(x);
         const cY = Math.round(y);
+
+        const affectedPair = { src: undefined, dst: undefined };
+        const affectedChunks = new Set<LogicGates.Chunk>();
+
         if (vertical)
-            selectedElements.forEach(el => this.circuit.moveElementBy(el, { x: 0, y: (cY - el.y) * 2 }));
+            this.moveElements(selectedElements, { x: cX, y: cY }, (el, _, ac) => {
+                this.circuit.moveElementBy(el, { x: 0, y: (cY - el.y) * 2 }, ac);
+            });
         else
-            selectedElements.forEach(el => this.circuit.moveElementBy(el, { x: (cX - el.x) * 2, y: 0 }));
+            this.moveElements(selectedElements, { x: cX, y: cY }, (el, _, ac) => {
+                this.circuit.moveElementBy(el, { x: (cX - el.x) * 2, y: 0 }, ac);
+            });
     }
 
     private _getBlueprintRect(iterable: any): Rect {
@@ -368,10 +414,12 @@ export class CircuitIO {
 
     private _wireUpFromIterable(iterable: any, idMap: Map<number, LogicGates.LogicElement>, blueprintDelta: Point, doWires: boolean) {
         let type: string | undefined;
+        const affectedPair = { src: undefined, dst: undefined };
+        const affectedChunks = new Set<LogicGates.Chunk>();
         for (const child of iterable) {
             if ((type = shapeIdToType.get(child.shapeId))) {
                 const src = idMap.get(child.id)!;
-                this.circuit.moveElementBy(src, blueprintDelta);
+                this.circuit.moveElementBy(src, blueprintDelta, affectedPair);
                 if (child.controller.controllers) {
                     for (const controlled of child.controller.controllers) {
                         const dst = idMap.get(controlled.id);
@@ -380,11 +428,34 @@ export class CircuitIO {
                         }
                     }
                 }
+                if (affectedPair.src) affectedChunks.add(affectedPair.src);
+                if (affectedPair.dst) affectedChunks.add(affectedPair.dst);
+                affectedPair.src = undefined;
+                affectedPair.dst = undefined;
             }
         }
+        this.updateChunks(affectedChunks);
     }
 
-    addElement(type: string, params: Record<string, any>) {
+
+
+    moveElementsBy(elements: Iterable<LogicGates.LogicElement>, delta: Point) {
+        this.moveElements(elements, delta, (el, p, ac) => { this.circuit.moveElementBy(el, p, ac); });
+    }
+    moveElementsTo(elements: Iterable<LogicGates.LogicElement>, point: Point) {
+        this.moveElements(elements, point, (el, p, ac) => { this.circuit.moveElementTo(el, p, ac); });
+    }
+
+    deleteElements(elements: Iterable<LogicGates.LogicElement>) {
+        const affectedChunks = new Set<LogicGates.Chunk>;
+        let chunk: LogicGates.Chunk | undefined;
+        for (const el of elements) {
+            if (chunk = this.circuit.deleteElement(el)) affectedChunks.add(chunk);
+        }
+        this.updateChunks(affectedChunks);
+    }
+
+    addElement(type: string, params: Record<string, any>, affectedChunk: AffectedPair = null) {
         const center = screenToWorld(this.camera, window.innerWidth / 2, window.innerHeight / 2);
         params.pos = params.pos ?? {};
         params.controller = params.controller ?? {};
@@ -401,19 +472,29 @@ export class CircuitIO {
             params.controller.mode = mode;
             type = 'GATE';
         }
-
-        return this.circuit.addElement(type, params);
+        const chunk: { dst: LogicGates.Chunk | undefined } = { dst: undefined };
+        const el = this.circuit.addElement(type, params, chunk);
+        if (affectedChunk) {
+            affectedChunk.dst = chunk.dst;
+        } else {
+            this.updateChunk(chunk.dst!);
+        }
+        return el;
     }
 
     paintSelected(selectedElements: Iterable<LogicGates.LogicElement>, newColor: string | null) {
         const oldColors = new Map<LogicGates.LogicElement, string>();
+        const affectedChunks = new Set<LogicGates.Chunk>();
         if (newColor === null)
             newColor = this._getColor();
         for (const el of selectedElements) {
             oldColors.set(el, el.color);
             el.color = newColor;
+            const chunk = this.circuit.getChunk(el, true);
+            if (chunk) affectedChunks.add(chunk);
         }
-        return {oldColors, newColor}
+        this.updateChunks(affectedChunks);
+        return { oldColors, newColor }
     }
 
     pasteSelectedElementsAtCursor(

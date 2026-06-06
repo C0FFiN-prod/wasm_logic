@@ -16,8 +16,6 @@ import { hexToRgb, luminance, lightness, screenToWorld, worldToTranslatedScreen,
 import { connectTool } from "../utils/connectionTool";
 import { overlayIconMap, WireDrawing } from ".";
 
-export function forceRedraw(_:number = 1) { }
-
 type Program = {
     program: WebGLProgram | null,
     attributes: Record<string, GLint>,
@@ -493,8 +491,8 @@ function packElements(): {
     for (let x = x0; x <= x1; ++x) {
         for (let y = y0; y <= y1; ++y) {
             const chunk = circuit.getChunk({ x, y }, false);
-            if (chunk && chunk.size > 0) {
-                visibleCount += chunk.size;
+            if (chunk && chunk.data.size > 0) {
+                visibleCount += chunk.data.size;
                 visibleChunks.push(chunk);
             }
         }
@@ -510,7 +508,7 @@ function packElements(): {
 
 
     for (const chunk of visibleChunks) {
-        for (const el of chunk) {
+        for (const el of chunk.data) {
             const { x, y } = worldToTranslatedScreen(camera, el.x, el.y);
             positions[i * 2] = x;
             positions[i * 2 + 1] = y;

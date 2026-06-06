@@ -521,7 +521,6 @@ function toggleTheme(setDark?: boolean) {
   drawingTimer.step();
 }
 
-// Оптимизация симуляции
 function optimizedStep() {
   circuit.step();
   timingDiagram.recordStep();
@@ -794,10 +793,8 @@ function onCanvasMouseMove(e: MouseEvent) {
     prevMouseWorld.y = mouseWorld.y;
 
     if (deltaWorld.x === 0 && deltaWorld.y === 0) return;
-    for (const el of selectionSets['selection'])
-      circuit.moveElementBy(el, deltaWorld);
+    circuitIO.moveElementsBy(selectionSets['selection'], deltaWorld);
     historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
-    drawingTimer.forceRedraw();
   }
   else if (isSelecting) {
     selectionEnd = { x: e.offsetX, y: e.offsetY };
@@ -811,7 +808,6 @@ function onCanvasMouseMove(e: MouseEvent) {
       selectionSets[selectionSetKey].clear();
       selected.forEach(el => selectionSets[selectionSetKey].add(el));
     }
-    drawingTimer.forceRedraw();
   }
   prevMousePos.x = e.offsetX;
   prevMousePos.y = e.offsetY;
@@ -938,8 +934,7 @@ document.addEventListener('keydown', e => {
         else if (e.key === 'ArrowUp') deltaWorld.y = -mul;
         else if (e.key === 'ArrowDown') deltaWorld.y = mul;
 
-        for (const el of selectionSets['selection'])
-          circuit.moveElementBy(el, deltaWorld);
+        circuitIO.moveElementsBy(selectionSets['selection'], deltaWorld);
         historyManager.recordMoveElements(deltaWorld.x, deltaWorld.y);
       } else if (selectedTool === ToolMode.Cursor) {
         if ((e.ctrlKey || e.metaKey) && e.code === 'KeyC') {
@@ -1097,8 +1092,7 @@ function deleteElements() {
     for (const element of selectionSets['selection']) {
       wires.push(...circuit.removeWiresForElement(element));
     }
-    selectionSets['selection'].forEach(el => circuit.deleteElement(el));
-
+    circuitIO.deleteElements(selectionSets['selection']);
     historyManager.recordSelectionsClear(selectedTool, ['selection']);
     historyManager.recordRemoveElements([...selectionSets['selection']], wires);
     clearSelections(['selection']);
@@ -1129,18 +1123,10 @@ function clearCircuitInLS() {
   localStorage.removeItem(keyName);
 }
 function saveCircuitToLS() {
+  if (circuit.size === 0) return;
   const keyCircuit = 'backup-circuit';
   const keyName = 'backup-name';
-  let isEmpty = true;
-  if (circuit.chunks.size !== 0) {
-    for (const chunk of circuit.chunks.values()) {
-      if (chunk.size !== 0) {
-        isEmpty = false;
-        break;
-      }
-    }
-  }
-  if (isEmpty) return;
+
   const text = circuitIO.serializeCircuit();
   localStorage.setItem(keyCircuit, text);
   if (fileIO.currentFileName)

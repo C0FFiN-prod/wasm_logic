@@ -107,15 +107,15 @@ export function getElementsInRect(circuit: Circuit, rect: Rect) {
   for (let x = x0; x <= x1; ++x) {
     for (let y = y0; y <= y1; ++y) {
       const chunk = circuit.getChunk({ x, y }, false);
-      if (chunk && chunk.size > 0) {
+      if (chunk && chunk.data.size > 0) {
         if (x === x0 || x === x1 || y === y0 || y === y1)
           chunks.push(chunk);
-        else selected.push(...chunk);
+        else selected.push(...chunk.data);
       }
     }
   }
   for (const chunk of chunks) {
-    for (const obj of chunk) {
+    for (const obj of chunk.data) {
       const objX = obj.x;
       const objY = obj.y;
       if (
@@ -142,7 +142,7 @@ export function getElementAt(circuit: Circuit, camera: Camera, point: Point, isS
   else ({ x, y } = point);
   const chunk = circuit.getChunk({ x, y }, true);
   if (!chunk) return null;
-  for (const el of chunk) {
+  for (const el of chunk.data) {
     if (el.x === x && el.y === y) {
       return el;
     }
@@ -152,7 +152,7 @@ export function getElementAt(circuit: Circuit, camera: Camera, point: Point, isS
 
 export function elementExists(circuit: Circuit, element: LogicElement) {
   const chunk = circuit.getChunk(element, true);
-  return chunk?.has(element);
+  return chunk?.data.has(element);
 }
 
 export function fillCoordMapWithElements(circuit: Circuit, coordMap: Map<string, LogicElement | ElementPDO | null>) {
@@ -162,7 +162,7 @@ export function fillCoordMapWithElements(circuit: Circuit, coordMap: Map<string,
     const point = getPointFromChunkKey(coord);
     const key = getChunkKey(point, true);
     if (!usedChunks.has(key))
-      usedChunks.set(key, circuit.chunks.get(key) || null);
+      usedChunks.set(key, circuit.chunks.get(key)?.data || null);
   }
   for (const chunk of usedChunks.values()) {
     if (chunk === null) continue;

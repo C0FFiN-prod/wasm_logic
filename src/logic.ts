@@ -248,11 +248,11 @@ export class Wire {
         this.dst = dst;
     }
 }
-
+export type Chunk = { version: number, data: Set<LogicElement> };
 export class Circuit {
-    chunks: Map<string, Set<LogicElement>>;
+    chunks: Map<string, Chunk>;
     lruChunkCache: LRU<string>;
-    
+
     public get size(): number {
         return this._size;
     }
@@ -267,10 +267,11 @@ export class Circuit {
         this.wires = new Map();
     }
     addExitstingElement(el: LogicElement) {
-        this._getChunk(el).add(el);
+        this.getOrCreateChunk(el).data.add(el);
         el.deleted = false;
+        ++this._size;
     }
-    addElement(type: string, params: Record<string, any>) {
+    addElement(type: string, params: Record<string, any>, affectedChunk: {dst: Chunk | undefined} | null = null) {
         let el: LogicElement;
         switch (type) {
             case 'GATE':
@@ -294,16 +295,17 @@ export class Circuit {
             default:
                 return null;
         }
-
-        this._getChunk(el).add(el);
+        const chunk = this.getOrCreateChunk(el);
+        if (affectedChunk) affectedChunk.dst = chunk;
+        chunk.data.add(el);
         ++this._size;
         return el;
     }
 
-    private _getChunk(element: Point) {
+    private getOrCreateChunk(element: Point) {
         const key = getChunkKey(element, true);
         if (!this.chunks.has(key))
-            this.chunks.set(key, new Set());
+            this.chunks.set(key, { version: 1, data: new Set()});
         this.lruChunkCache.access(key);
         return this.chunks.get(key)!;
     }
@@ -363,10 +365,9 @@ export class Circuit {
     }
 
     step() {
-        // Фаза 1: вычисление новых состояний
         this.pendingCnt = 0;
         for (const chunk of this.chunks.values()) {
-            for (const el of chunk) {
+            for (const el of chunk.data) {
                 el.eval();
                 if (el.nextValue !== el.value) {
                     if (this.pendingElements.length <= this.pendingCnt) this.pendingElements.push(el);
@@ -376,7 +377,6 @@ export class Circuit {
             }
         }
 
-        // Фаза 2: применение новых состояний
         for (let i = 0; i < this.pendingCnt; ++i) {
             this.pendingElements[i].applyNextValue();
         }
@@ -384,7 +384,7 @@ export class Circuit {
 
     reset() {
         for (const chunk of this.chunks.values()) {
-            for (const el of chunk) {
+            for (const el of chunk.data) {
                 el.value = false;
                 el.nextValue = false;
             }
@@ -398,35 +398,61 @@ export class Circuit {
         this.lruChunkCache.clear();
         nextId = 0;
     }
-    moveElementTo(el: LogicElement, point: Point) {
-        const { x, y } = el;
+    moveElementTo(el: LogicElement, point: Point,
+        affectedChunks: { src: Chunk | undefined, dst: Chunk | undefined } | null = null) {
+        let { x, y } = el;
+        x = Math.floor(x / chunkSize);
+        y = Math.floor(y / chunkSize);
         el.x = point.x;
         el.y = point.y;
-        if (Math.floor(x / chunkSize) !== Math.floor(el.x / chunkSize) ||
-            Math.floor(y / chunkSize) !== Math.floor(el.y / chunkSize)) {
-            this.getChunk({ x, y }, true)?.delete(el);
-            this._getChunk(el).add(el);
+        if (x !== Math.floor(el.x / chunkSize) ||
+            y !== Math.floor(el.y / chunkSize)) {
+            const srcChunk = this.getChunk({ x, y }, false);
+            srcChunk?.data.delete(el);
+            const dstChunk = this.getOrCreateChunk(el);
+            dstChunk.data.add(el);
+            if (affectedChunks) {
+                affectedChunks.src = srcChunk;
+                affectedChunks.dst = dstChunk;
+            }
+        } else if (affectedChunks) {
+            affectedChunks.src = undefined;
+            affectedChunks.dst = this.getOrCreateChunk(el);;
         }
     }
-    moveElementBy(el: LogicElement, delta: Point) {
-        const { x, y } = el;
+    moveElementBy(el: LogicElement, delta: Point,
+        affectedChunks: { src: Chunk | undefined, dst: Chunk | undefined } | null = null) {
+        let { x, y } = el;
+        x = Math.floor(x / chunkSize);
+        y = Math.floor(y / chunkSize);
         el.x += delta.x;
         el.y += delta.y;
-        if (Math.floor(x / chunkSize) !== Math.floor(el.x / chunkSize) ||
-            Math.floor(y / chunkSize) !== Math.floor(el.y / chunkSize)) {
-            this.getChunk({ x, y }, true)?.delete(el);
-            this._getChunk(el).add(el);
+        if (x !== Math.floor(el.x / chunkSize) ||
+            y !== Math.floor(el.y / chunkSize)) {
+            const srcChunk = this.getChunk({ x, y }, false);
+            srcChunk?.data.delete(el);
+            const dstChunk = this.getOrCreateChunk(el);
+            dstChunk.data.add(el);
+            if (affectedChunks) {
+                affectedChunks.src = srcChunk;
+                affectedChunks.dst = dstChunk;
+            }
+        }else if (affectedChunks) {
+            affectedChunks.src = undefined;
+            affectedChunks.dst = this.getOrCreateChunk(el);;
         }
     }
 
     deleteElement(el: LogicElement) {
-        if (this.getChunk(el, true)?.delete(el)) {
+        const chunk = this.getChunk(el, true);
+        if (chunk?.data.delete(el)) {
             --this._size;
             el.deleted = true;
-        }
-        if (this._size < this.pendingElements.length) {
-            this.pendingElements.length = this._size;
-            this.pendingCnt = Math.min(this._size, this.pendingCnt);
+            if (this._size < this.pendingElements.length) {
+                this.pendingElements.length = this._size;
+                this.pendingCnt = Math.min(this._size, this.pendingCnt);
+            }
+            return chunk;
         }
     }
 }

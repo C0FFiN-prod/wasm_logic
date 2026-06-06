@@ -5,7 +5,6 @@ import { type Drawings } from "../consts";
 export *  as WireDrawing from './wiresDrawing';
 import *  as WireDrawing from './wiresDrawing';
 let draw = dWebGl.draw;
-let _forceRedraw = dWebGl.forceRedraw;
 let initContext = dWebGl.initContext;
 let displayRefreshRate = 0;
 let canvas: HTMLCanvasElement;
@@ -34,13 +33,11 @@ export const drawingTimer = {
             case 'canvas':
                 draw = dCanvas.draw;
                 initContext = dCanvas.initContext;
-                _forceRedraw = dCanvas.forceRedraw;
                 break;
             case 'webgl':
             default:
                 draw = dWebGl.draw;
                 initContext = dWebGl.initContext;
-                _forceRedraw = dWebGl.forceRedraw;
                 break;
         }
         clearInterval(this.interval);
@@ -53,7 +50,6 @@ export const drawingTimer = {
             ctxOwner.used = true;
         }
     },
-    forceRedraw(frames: number = 1) { _forceRedraw(frames) },
     setup(force?: boolean) {
         if (!force && this.active) return;
         this.active = true;
@@ -67,7 +63,6 @@ export const drawingTimer = {
     },
     step() {
         WireDrawing.forceRefill();
-        _forceRedraw();
         if (!this.active) requestAnimationFrame(draw);
     }
 };
